@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 200 200">
+  <rect width="200" height="200" fill="#f5f7f6" />
+  <g transform="translate(100 100)">
+    <!-- 화분 -->
+    <rect x="-30" y="30" width="60" height="50" rx="5" ry="5" fill="#d19966" />
+    <rect x="-25" y="25" width="50" height="5" rx="2" ry="2" fill="#a87743" />
+    
+    <!-- 식물 줄기/잎 -->
+    <path d="M0,25 C0,25 -20,-15 -30,-35 C-30,-35 -10,-30 0,-15 C0,-15 10,-30 30,-35 C30,-35 20,-15 0,25" fill="#5aa24a" />
+    <path d="M0,25 C0,25 -15,-10 -25,-30 C-25,-30 -5,-25 -2,-10 C-2,-10 5,-25 25,-30 C25,-30 15,-10 0,25" fill="#68b558" />
+    <path d="M0,25 C0,25 -10,-5 -15,-25 C-15,-25 -5,-20 0,-5 C0,-5 5,-20 15,-25 C15,-25 10,-5 0,25" fill="#78c368" />
+    
+    <!-- 중앙선 -->
+    <line x1="0" y1="-5" x2="0" y2="25" stroke="#2d7c3b" stroke-width="2" />
+  </g>
+  
+  <!-- 텍스트 -->
+  <text x="100" y="170" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#333">식물 이미지 준비중</text>
+</svg>

@@ -1,0 +1,50 @@
+[홈페이지] GPS 감지 시작 - navigator.geolocation: true
+injected.js:37 [홈페이지] getCurrentPosition 호출...
+injected.js:37 [홈페이지] GPS 성공: 37.469602449275456 127.02618230034518
+injected.js:37 [vite] server connection lost. Polling for restart...
+client:602  GET https://12bbb280-866f-4faf-9808-4c955f6e1740-00-3jpea8yl0d19w.spock.replit.dev/src/pages/home.tsx?t=1764526593195 net::ERR_ABORTED 502 (Bad Gateway)
+importUpdatedModule @ client:602
+fetchUpdate @ client:211
+queueUpdate @ client:186
+(익명) @ client:642
+handleMessage @ client:640
+(익명) @ client:550이 오류 이해하기
+injected.js:37 [hmr] Failed to reload /src/pages/home.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above)
+(익명) @ injected.js:37
+warnFailedUpdate @ client:176
+fetchUpdate @ client:213
+await in fetchUpdate
+queueUpdate @ client:186
+(익명) @ client:642
+handleMessage @ client:640
+(익명) @ client:550이 오류 이해하기
+injected.js:214  GET https://12bbb280-866f-4faf-9808-4c955f6e1740-00-3jpea8yl0d19w.spock.replit.dev/api/user 401 (Unauthorized)
+apply @ injected.js:214
+(익명) @ queryClient.ts:32
+fetchFn @ @tanstack_react-query.js?v=40e792ed:840
+run @ @tanstack_react-query.js?v=40e792ed:494
+start @ @tanstack_react-query.js?v=40e792ed:536
+fetch @ @tanstack_react-query.js?v=40e792ed:926
+executeFetch_fn @ @tanstack_react-query.js?v=40e792ed:2211
+onSubscribe @ @tanstack_react-query.js?v=40e792ed:1898
+subscribe @ @tanstack_react-query.js?v=40e792ed:24
+(익명) @ @tanstack_react-query.js?v=40e792ed:3022
+subscribeToStore @ chunk-WERSD76P.js?v=40e792ed:11984
+commitHookEffectListMount @ chunk-WERSD76P.js?v=40e792ed:16915
+commitPassiveMountOnFiber @ chunk-WERSD76P.js?v=40e792ed:18156
+commitPassiveMountEffects_complete @ chunk-WERSD76P.js?v=40e792ed:18129
+commitPassiveMountEffects_begin @ chunk-WERSD76P.js?v=40e792ed:18119
+commitPassiveMountEffects @ chunk-WERSD76P.js?v=40e792ed:18109
+flushPassiveEffectsImpl @ chunk-WERSD76P.js?v=40e792ed:19490
+flushPassiveEffects @ chunk-WERSD76P.js?v=40e792ed:19447
+performSyncWorkOnRoot @ chunk-WERSD76P.js?v=40e792ed:18868
+flushSyncCallbacks @ chunk-WERSD76P.js?v=40e792ed:9119
+commitRootImpl @ chunk-WERSD76P.js?v=40e792ed:19432
+commitRoot @ chunk-WERSD76P.js?v=40e792ed:19277
+finishConcurrentRender @ chunk-WERSD76P.js?v=40e792ed:18805
+performConcurrentWorkOnRoot @ chunk-WERSD76P.js?v=40e792ed:18718
+workLoop @ chunk-WERSD76P.js?v=40e792ed:197
+flushWork @ chunk-WERSD76P.js?v=40e792ed:176
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=40e792ed:384이 오류 이해하기
+injected.js:37 Loading Google Maps script
+injected.js:37 Google Maps script loaded successfully

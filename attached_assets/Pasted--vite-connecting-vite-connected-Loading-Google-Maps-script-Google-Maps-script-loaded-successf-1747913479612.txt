@@ -1,0 +1,25 @@
+[vite] connecting...
+[vite] connected.
+Loading Google Maps script
+Google Maps script loaded successfully
+Warning: validateDOMNesting(...): <a> cannot appear as a descendant of &lt;a&gt;.
+    at a
+    at a
+    at https://12bbb280-866f-4faf-9808-4c955f6e1740-00-3jpea8yl0d19w.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=901f0c48:279:18
+    at div
+    at div
+    at header
+    at div
+    at AdminDashboard (https://12bbb280-866f-4faf-9808-4c955f6e1740-00-3jpea8yl0d19w.spock.replit.dev/src/pages/admin/dashboard.tsx?t=1747913333407:31:20)
+    at Route (https://12bbb280-866f-4faf-9808-4c955f6e1740-00-3jpea8yl0d19w.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=901f0c48:265:16)
+    at ProtectedRoute (https://12bbb280-866f-4faf-9808-4c955f6e1740-00-3jpea8yl0d19w.spock.replit.dev/src/lib/protected-route.tsx:22:3)
+    at Switch (https://12bbb280-866f-4faf-9808-4c955f6e1740-00-3jpea8yl0d19w.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=901f0c48:321:17)
+    at Router
+    at MapProvider (https://12bbb280-866f-4faf-9808-4c955f6e1740-00-3jpea8yl0d19w.spock.replit.dev/src/components/map/map-provider.tsx:66:31)
+    at AuthProvider (https://12bbb280-866f-4faf-9808-4c955f6e1740-00-3jpea8yl0d19w.spock.replit.dev/src/hooks/use-auth.tsx:26:32)
+    at Provider (https://12bbb280-866f-4faf-9808-4c955f6e1740-00-3jpea8yl0d19w.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-PLT6GTVM.js?v=901f0c48:38:15)
+    at TooltipProvider (https://12bbb280-866f-4faf-9808-4c955f6e1740-00-3jpea8yl0d19w.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=901f0c48:64:5)
+    at QueryClientProvider (https://12bbb280-866f-4faf-9808-4c955f6e1740-00-3jpea8yl0d19w.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=901f0c48:2805:3)
+    at App
+    at PresenceChild (https://12bbb280-866f-4faf-9808-4c955f6e1740-00-3jpea8yl0d19w.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/framer-motion.js?v=901f0c48:121:24)
+    at AnimatePresence (https://12bbb280-866f-4faf-9808-4c955f6e1740-00-3jpea8yl0d19w.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/framer-motion.js?v=901f0c48:210:26)
