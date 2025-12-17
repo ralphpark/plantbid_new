@@ -55,7 +55,7 @@ function loadGoogleMapsScript(apiKey: string): Promise<void> {
     script.id = 'google-map-script';
     script.type = 'text/javascript';
     // 최신 권장사항에 따라 loading=async 추가
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=Function.prototype&loading=async`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,marker&callback=Function.prototype&loading=async`;
     script.async = true;
     script.defer = true;
     

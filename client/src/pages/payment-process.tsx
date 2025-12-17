@@ -180,10 +180,39 @@ export default function PaymentProcessPage() {
         return;
       }
       
-      // 결제 성공 처리
-      const notifySuccess = async () => {
+      // 결제 성공 처리 - 서버에 주문 및 결제 정보 저장
+      const savePaymentAndOrder = async () => {
         try {
-          // 판매자에게 입찰 성공 메시지 전송
+          // 1. 결제 검증 및 주문/결제 정보 저장
+          console.log('결제 검증 및 저장 시작:', { paymentId, orderId });
+
+          const verifyResponse = await fetch('/api/payments/verify', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              paymentId: paymentId,
+              orderId: orderId,
+              // 추가 정보 전달 (주문 생성에 필요)
+              productName: productName,
+              amount: parseInt(price || '0'),
+              vendorId: vendorId ? parseInt(vendorId) : null,
+              conversationId: conversationId ? parseInt(conversationId) : null,
+              createOrderIfNotExists: true // 주문이 없으면 생성하도록 플래그
+            })
+          });
+
+          if (!verifyResponse.ok) {
+            const errorData = await verifyResponse.json();
+            console.error('결제 검증 실패:', errorData);
+            // 검증 실패해도 SDK 결제는 성공했으므로 계속 진행
+          } else {
+            const verifyData = await verifyResponse.json();
+            console.log('결제 검증 성공:', verifyData);
+          }
+
+          // 2. 판매자에게 입찰 성공 메시지 전송
           await fetch('/api/vendors/notify', {
             method: 'POST',
             headers: {
@@ -197,8 +226,8 @@ export default function PaymentProcessPage() {
               message: `입찰이 성공적으로 수락되었습니다. 주문번호: ${orderId}`
             })
           });
-          
-          // 다른 판매자들에게 입찰 실패 알림 전송
+
+          // 3. 다른 판매자들에게 입찰 실패 알림 전송
           await fetch('/api/vendors/notify-others', {
             method: 'POST',
             headers: {
@@ -211,13 +240,13 @@ export default function PaymentProcessPage() {
             })
           });
         } catch (error) {
-          console.error("알림 전송 중 오류:", error);
+          console.error("결제 저장/알림 전송 중 오류:", error);
         }
       };
-      
-      // 성공 시에만 알림 전송
-      await notifySuccess();
-      
+
+      // 결제 성공 시 저장 및 알림 전송
+      await savePaymentAndOrder();
+
       setPaymentResult({
         success: true,
         orderId: orderId,

@@ -210,10 +210,9 @@ export class DatabaseStorage implements IStorage {
   // 모든 결제 정보 조회
   async getAllPayments(): Promise<any[]> {
     try {
-      console.log('모든 결제 정보 조회 시작');
+      console.log('모든 결제 정보 조회 시작 (Updated Logic)');
       
-      // payments와 bids, users, plants, vendors 테이블을 조인하여 실제 거래 금액과 관련 정보를 함께 조회
-      const paymentsWithDetails = await db
+      const paymentsData = await db
         .select({
           id: payments.id,
           amount: payments.amount,
@@ -222,35 +221,79 @@ export class DatabaseStorage implements IStorage {
           createdAt: payments.createdAt,
           userId: payments.userId,
           bidId: payments.bidId,
-          // bids 테이블에서 실제 거래 금액과 관련 정보
+          // bids info
           actualAmount: bids.price,
           plantId: bids.plantId,
           vendorId: bids.vendorId,
-          // users 테이블에서 고객 정보
+          bidSelectedProductId: bids.selectedProductId,
+          // users info
           customerName: users.username,
           customerEmail: users.email,
-          // plants 테이블에서 상품 정보
-          productName: plants.name,
-          // vendors 테이블에서 판매자 정보
-          vendorName: vendors.storeName
+          // plants info
+          categoryName: plants.name,
+          // vendors info
+          vendorName: vendors.storeName,
+          // orders info
+          orderProductId: orders.productId,
+          // Add approvedAt for payment completion date and time
+          approvedAt: payments.approvedAt
         })
         .from(payments)
         .leftJoin(bids, eq(payments.bidId, bids.id))
         .leftJoin(users, eq(payments.userId, users.id))
         .leftJoin(plants, eq(bids.plantId, plants.id))
         .leftJoin(vendors, eq(bids.vendorId, vendors.id))
+        .leftJoin(orders, eq(payments.orderId, orders.orderId))
         .orderBy(desc(payments.createdAt));
+
+      // 상품명을 채우기 위해 products 테이블 조회
+      const productIds = new Set<number>();
+      paymentsData.forEach(p => {
+        if (p.orderProductId) productIds.add(Number(p.orderProductId));
+        if (p.bidSelectedProductId) productIds.add(Number(p.bidSelectedProductId));
+      });
+
+      const productsMap = new Map<number, string>();
+      if (productIds.size > 0) {
+        const productsList = await db.select({ id: products.id, name: products.name })
+          .from(products)
+          .where(inArray(products.id, Array.from(productIds)));
+        
+        productsList.forEach(p => productsMap.set(p.id, p.name));
+      }
       
-      // payments 테이블의 amount를 우선 사용하고, 0원인 경우에만 actualAmount 사용
-      const enrichedPayments = paymentsWithDetails.map(payment => ({
-        ...payment,
-        displayAmount: (payment.amount && payment.amount !== '0.00') ? payment.amount : payment.actualAmount,
-        isZeroAmount: payment.amount === '0.00' || payment.amount === '0',
-        orderDate: payment.createdAt
-      }));
+      // 데이터 조합
+      const enrichedPayments = paymentsData.map(payment => {
+        let productName = payment.categoryName || "알 수 없는 상품"; // 기본값
+        
+        const orderPid = Number(payment.orderProductId);
+        const bidPid = Number(payment.bidSelectedProductId);
+        
+        // 1. 주문 정보 우선 (가장 정확)
+        if (payment.orderProductId && productsMap.has(orderPid)) {
+          productName = productsMap.get(orderPid) || productName;
+        } 
+        // 2. 입찰 정보 차선
+        else if (payment.bidSelectedProductId && productsMap.has(bidPid)) {
+          productName = productsMap.get(bidPid) || productName;
+        }
+
+        return {
+          ...payment,
+          approvedAt: payment.approvedAt,
+          productName: productName,
+          displayAmount: (payment.amount && payment.amount !== '0.00') ? payment.amount : payment.actualAmount,
+          isZeroAmount: payment.amount === '0.00' || payment.amount === '0',
+          orderDate: payment.createdAt
+        };
+      });
       
       console.log(`모든 결제 정보 조회 완료: ${enrichedPayments.length}개`);
-      console.log(`0원 결제 건수: ${enrichedPayments.filter(p => p.isZeroAmount).length}개`);
+      // 디버깅: 최신 3개 결제 건의 해석된 상품명 로그 출력
+      if (enrichedPayments.length > 0) {
+        console.log("최신 결제 상품명 예시:");
+        enrichedPayments.slice(0, 3).forEach(p => console.log(`- ID ${p.id}: ${p.productName}`));
+      }
       
       return enrichedPayments;
     } catch (error) {
@@ -316,7 +359,7 @@ export class DatabaseStorage implements IStorage {
       const allVendorIds = await db
         .select({ id: vendors.id, storeName: vendors.storeName })
         .from(vendors)
-        .where(eq(vendors.userId, userId));
+        .where(userId === null ? isNull(vendors.userId) : eq(vendors.userId, userId as number));
       
       const vendorIds = allVendorIds.map(v => v.id);
       console.log(`[DEBUG] 사용자 ID ${userId}에 연결된 모든 판매자 ID: ${vendorIds.join(', ')}`);
@@ -499,9 +542,9 @@ export class DatabaseStorage implements IStorage {
       
       // paymentKey 형식 검증 및 변환
       if (paymentData.paymentKey && typeof paymentData.paymentKey === 'string') {
-        // 이미 pay_ 형식이고 26자인 경우 그대로 사용
-        if (paymentData.paymentKey.startsWith('pay_') && paymentData.paymentKey.length === 26) {
-          console.log(`결제 키가 이미 올바른 포트원 V2 API 형식임: ${paymentData.paymentKey}`);
+        // pay_ 접두사가 있으면 그대로 사용
+        if (paymentData.paymentKey.startsWith('pay_')) {
+          console.log(`결제 키가 포트원 형식으로 제공됨: ${paymentData.paymentKey}`);
         } 
         // UUID 또는 다른 형식인 경우 변환
         else {
@@ -1295,7 +1338,7 @@ export class DatabaseStorage implements IStorage {
           message.content === '입찰내용을 검토중입니다') {
         
         // 같은 판매자의 기존 "검토중" 메시지가 있는지 확인
-        const existingReviewMessage = messages.find(msg => 
+        const existingReviewMessage = messages.find((msg: any) => 
           msg.role === 'vendor' && 
           msg.vendorId === message.vendorId && 
           msg.bidStatus === 'sent' && 
@@ -1689,7 +1732,7 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async updateSiteSettings(settings: { homePage?: string }): Promise<void> {
+  async updateSiteSettings(settings: { homePage?: any }): Promise<void> {
     try {
       // 기존 설정이 있는지 확인
       const existing = await db.select().from(siteSettings).limit(1);
@@ -1697,15 +1740,36 @@ export class DatabaseStorage implements IStorage {
       if (existing.length > 0) {
         // 기존 설정 업데이트
         await db.update(siteSettings)
-          .set({ homePage: settings.homePage })
+          .set({ 
+            homePage: typeof settings.homePage === 'string' 
+              ? JSON.parse(settings.homePage) 
+              : settings.homePage 
+          })
           .where(eq(siteSettings.id, existing[0].id));
       } else {
         // 새로운 설정 생성
-        await db.insert(siteSettings).values({
+        const defaultHome = {
+          title: "PlantBid",
+          subtitle: "AI 기반 식물 추천 및 온라인 경매 플랫폼",
+          typingPhrases: ["식물 추천", "온라인 경매", "전문 상담"],
+          buttonText1: "둘러보기",
+          buttonText2: "시작하기",
+          feature1Title: "AI 추천",
+          feature1Description: "당신에게 맞는 식물을 추천해요",
+          feature2Title: "경매",
+          feature2Description: "최적 가격으로 구매하세요",
+          feature3Title: "상담",
+          feature3Description: "전문가와 상담하세요",
+          ctaTitle: "지금 PlantBid를 시작하세요",
+          ctaDescription: "AI와 함께 식물을 쉽고 즐겁게",
+          ctaButtonText: "시작하기"
+        };
+        const home = typeof settings.homePage === 'string' ? JSON.parse(settings.homePage) : (settings.homePage || defaultHome);
+        await db.insert(siteSettings).values([{
           siteTitle: "PlantBid",
           siteDescription: "AI 기반 식물 추천 및 온라인 경매 플랫폼",
-          homePage: settings.homePage
-        });
+          homePage: home
+        }]).returning();
       }
     } catch (error) {
       console.error("사이트 설정 업데이트 오류:", error);

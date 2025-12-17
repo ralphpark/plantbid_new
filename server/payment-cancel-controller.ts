@@ -125,11 +125,23 @@ export async function handleCancelPayment(req: Request, res: Response) {
         });
       }
       
-      // 두 방법 모두 실패한 경우
-      console.error('[결제 취소] 모든 시도 실패');
-      return res.status(500).json({
-        success: false,
-        error: `결제 취소 실패: 유효한 결제 ID를 찾을 수 없습니다.`,
+      // 두 방법 모두 실패한 경우 - DB만 업데이트 (fallback)
+      console.warn('[결제 취소] 포트원 API에서 결제를 찾을 수 없음. DB만 업데이트합니다.');
+      console.log('[결제 취소 Fallback] 결제 및 주문 상태를 취소로 변경');
+
+      // DB에서 결제 및 주문 상태만 업데이트
+      const updatedPayment = await storage.updatePaymentStatus(payment.id, 'CANCELLED', '포트원 API에서 결제를 찾을 수 없어 수동 취소');
+
+      if (order) {
+        await storage.updateOrderStatus(order.id, 'cancelled');
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: '결제가 취소 상태로 업데이트되었습니다. (PG 취소는 수동 처리 필요)',
+        apiCallSuccess: false, // PG 취소는 실패했지만 DB는 업데이트됨
+        payment: updatedPayment,
+        warning: '포트원 API에서 결제를 찾을 수 없어 DB만 업데이트되었습니다. PG사에 직접 취소 요청이 필요할 수 있습니다.',
         details: {
           keyError: cancelResultByKey.error,
           orderError: cancelResultByOrder.error

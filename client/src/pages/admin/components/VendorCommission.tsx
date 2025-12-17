@@ -349,6 +349,7 @@ export default function VendorCommission() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>주문ID</TableHead>
+                    <TableHead>결제일시</TableHead>
                     <TableHead>판매자</TableHead>
                     <TableHead>결제금액</TableHead>
                     <TableHead>수수료 ({globalCommissionRate}%)</TableHead>
@@ -367,6 +368,7 @@ export default function VendorCommission() {
                     return (
                       <TableRow key={order.id}>
                         <TableCell className="font-medium">{order.orderId || order.id}</TableCell>
+                        <TableCell>{order.approvedAt ? new Date(order.approvedAt).toLocaleString() : '-'}</TableCell>
                         <TableCell>{vendor?.storeName || vendor?.name || '알 수 없음'}</TableCell>
                         <TableCell className="font-medium">{totalAmount.toLocaleString()}원</TableCell>
                         <TableCell className="text-green-600 font-medium">{platformFee.toLocaleString()}원</TableCell>

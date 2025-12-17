@@ -1,4 +1,14 @@
+import 'dotenv/config';
 import express, { type Request, Response, NextFunction } from "express";
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { syncVendorsTable } from "./sync-vendors";
@@ -24,6 +34,8 @@ const allowPublicAccess = (req: Request, res: Response, next: NextFunction) => {
     '/api/payments/test-connection',
     '/api/payments/inicis-search',
     '/api/payments/public/cancel', // 추가된 결제 취소 용 공개 API
+    '/api/payments/cancel',
+    '/api/payments/v2/cancel',
     '/api/orders/emergency-cancel/:orderId', // 연결 모든 API를 사용할 수 없을 때 사용하는 긴급 취소 API
     '/api_direct/payment/create-test', // MID 테스트를 위한 라우트
     '/api_direct/payments/cancel', // MID 취소 테스트를 위한 라우트
@@ -157,12 +169,12 @@ app.use('/__direct', directRouter);
   // ALWAYS serve the app on port 5000
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
-  const port = 5000;
+  const port = process.env.PORT ? Number(process.env.PORT) : 5000;
   server.listen({
     port,
     host: "0.0.0.0",
-    reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
   });
 })();
+// Force restart 2025년 12월 17일 수요일 02시 18분 10초 KST

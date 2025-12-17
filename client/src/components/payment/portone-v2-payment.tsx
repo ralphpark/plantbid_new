@@ -185,7 +185,6 @@ export function PortOneV2Payment({
         throw new Error('결제 URL을 받지 못했습니다.');
       }
 
-      // 팝업 창으로 결제 페이지 열기
       const paymentWindow = window.open(
         paymentData.url,
         'PortOnePayment',
@@ -196,14 +195,39 @@ export function PortOneV2Payment({
         throw new Error('결제창을 열 수 없습니다. 팝업 차단을 확인해주세요.');
       }
 
-      // 팝업 창 상태 체크 인터벌 설정
-      const checkInterval = setInterval(() => {
-        if (paymentWindow.closed) {
-          clearInterval(checkInterval);
-          setIsLoading(false);
-          console.log('사용자가 결제창을 닫았습니다.');
-        }
-      }, 500);
+      let pollTimer: number | undefined;
+      const poll = async () => {
+        try {
+          const r = await fetch(`/api/payments/order/${orderId}`, { credentials: 'include' });
+          if (r.ok) {
+            const data = await r.json();
+            if (data && data.status && String(data.status).toLowerCase() === 'success') {
+              try {
+                await fetch('/api/payments/reconcile', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  credentials: 'include',
+                  body: JSON.stringify({
+                    orderId,
+                    paymentId: data.paymentKey || ''
+                  })
+                });
+              } catch {}
+              if (onPaymentSuccess) {
+                onPaymentSuccess(data.paymentKey || '', orderId, String(amount));
+              }
+              if (paymentWindow && !paymentWindow.closed) {
+                paymentWindow.close();
+              }
+              if (pollTimer) {
+                clearInterval(pollTimer);
+              }
+              setIsLoading(false);
+            }
+          }
+        } catch {}
+      };
+      pollTimer = window.setInterval(poll, 1500);
 
     } catch (error) {
       console.error('결제 처리 오류:', error);

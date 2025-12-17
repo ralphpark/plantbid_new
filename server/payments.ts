@@ -7,19 +7,20 @@ import { cancelPaymentWithRetry } from './enhanced-payments';
 /**
  * 인증 상태로부터 사용자 정보를 안전하게 가져오는 함수
  */
-function getUserFromRequest(req: Request) {
-  // 일반 인증 확인
-  if (req.isAuthenticated() && req.user) {
-    return req.user;
+  function getUserFromRequest(req: Request) {
+    // 일반 인증 확인
+    if (req.isAuthenticated() && req.user) {
+      return req.user;
+    }
+    
+    // Express 세션에서 특정 프로퍼티 확인
+    const sessionAny = req.session as any;
+    if (sessionAny && sessionAny.passport && sessionAny.passport.user) {
+      return { id: sessionAny.passport.user };
+    }
+    
+    return null;
   }
-  
-  // Express 세션에서 특정 프로퍼티 확인
-  if (req.session && req.session.passport && req.session.passport.user) {
-    return { id: req.session.passport.user };
-  }
-  
-  return null;
-}
 
 /**
  * 경로별 헤더 설정
@@ -190,20 +191,15 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
       // 입찰 가격 로깅 (디버깅용)
       console.log(`결제 준비 - 입찰 ID: ${bidId}, 금액: ${amount}, 원래 형식: ${typeof bid.price}, 원래 값: ${bid.price}`);
       
-      // V2 API 형식에 맞는 결제 ID 생성
-      const portoneV2Client = await import('./portone-v2-client');
-      const portonePaymentId = portoneV2Client.generatePortonePaymentId();
-      console.log('생성된 포트원 V2 형식 결제 ID:', portonePaymentId);
-
-      // 결제 정보 생성 (V2 API 상태 코드 적용)
+      // 결제 정보 생성 (초기 상태 저장)
       const payment = await storage.createPayment({
         userId: req.user.id,
         bidId: bid.id,
         amount: amount.toString(),
-        status: 'READY', // 대문자 상태 코드 사용 (V2 API 기준)
+        status: 'READY',
         orderId,
         orderName,
-        paymentKey: portonePaymentId, // V2 형식의 결제 ID 저장
+        paymentKey: '',
         customerName: customerName || req.user.username || '고객',
         customerEmail: customerEmail || req.user.email || '',
         customerMobilePhone: customerMobilePhone || '',
@@ -572,45 +568,9 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
 
       // 향상된 콤포넌트를 사용하여 KG이니시스 취소
       console.log('[공개 취소 API] 개선된 결제 취소 기능 사용');
-      
+
       // 개선된 취소 함수 호출
       return await cancelPaymentWithRetry(payment, orderId, reason || '고객 요청에 의한 취소', storage, res);
-      } catch (portoneError: any) {
-        console.error('포트원 API 취소 오류:', portoneError?.message || portoneError);
-        
-        // 오류 객체 상세 출력
-        if (portoneError.response) {
-          console.error('포트원 API 오류 응답 상태:', portoneError.response.status);
-          console.error('포트원 API 오류 응답 데이터:', JSON.stringify(portoneError.response.data, null, 2));
-        }
-        
-        // DB에만 취소로 처리
-        console.log('포트원 API 오류에도 불구하고 DB에는 취소 처리함');
-        
-        // 결제 정보 업데이트
-        const updatedPayment = await storage.updatePayment(payment.id, {
-          status: 'CANCELLED',
-          updatedAt: new Date(),
-          cancelReason: reason || '고객 요청에 의한 취소 (API 오류)',
-          cancelledAt: new Date()
-        });
-        
-        // 주문 상태 업데이트
-        const updatedOrder = await storage.updateOrderStatusByOrderId(orderId, 'cancelled');
-        
-        // 업데이트된 결제 정보 다시 가져오기
-        const refreshedPayment = await storage.getPaymentByOrderId(orderId);
-        
-        // 오류 응답 - 포트원 API 오류 응답 설정
-        return res.json({
-          success: true,
-          message: '결제가 취소되었지만 결제망에서 열람이 필요할 수 있습니다.',
-          error: portoneError?.message || '포트원 API 오류',
-          payment: refreshedPayment || updatedPayment,
-          order: updatedOrder,
-          timestamp: new Date().toISOString()
-        });
-      }
     } catch (error: any) {
       console.error('결제 취소 중 오류:', error?.message || error);
       
@@ -1007,23 +967,19 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
           payMethod: 'CARD' // 이니시스에서 지원하는 결제 방법
         });
 
-        // 결제 ID 저장
-        if (paymentData && paymentData.payment && paymentData.payment.id) {
+        // 체크아웃 URL 저장
+        if (paymentData && (paymentData as any).checkoutUrl) {
           await storage.updatePaymentByOrderId(orderId, {
-            paymentKey: paymentData.payment.id,
-            paymentUrl: paymentData.payment.checkout_url
+            paymentUrl: (paymentData as any).checkoutUrl
           });
-
-          // 결제 URL 반환 (포트원 V2 API 응답 구조 적용)
-          res.json({
-            success: true,
-            orderId,
-            paymentId: paymentData.payment?.id || '',
-            checkoutUrl: paymentData.payment?.checkout_url || ''
-          });
-        } else {
-          throw new Error('결제 정보 생성에 실패했습니다.');
         }
+        // 결제 URL 반환
+        res.json({
+          success: true,
+          orderId,
+          paymentId: (paymentData as any)?.paymentId || '',
+          checkoutUrl: (paymentData as any)?.checkoutUrl || ''
+        });
       } catch (apiError: any) {
         console.error('포트원 API 호출 오류:', apiError);
         res.status(500).json({
@@ -1042,101 +998,90 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
 
   // 결제 성공 리디렉션 처리
   app.get('/api/payments/success', async (req, res) => {
-    const { orderId, paymentId } = req.query;
+    const { orderId } = req.query;
     
     try {
       if (!orderId) {
         return res.status(400).send('주문 ID가 없습니다.');
       }
       
-      // DB에 결제 성공 상태 업데이트
-      await storage.updatePaymentByOrderId(orderId as string, {
-        status: 'success',
-        paymentKey: paymentId as string || ''
-      });
+      // 포트원 결제 검색으로 실제 payment_id 확인
+      const portoneV2Client = await import('./portone-v2-client');
+      const portoneClient = portoneV2Client.default;
+      let realPaymentId = '';
+      let paymentStatus = '';
+      try {
+        const searchResult = await portoneClient.searchPayments({ orderId: orderId as string });
+        if (searchResult && searchResult.payments && searchResult.payments.length > 0) {
+          const exact = searchResult.payments.find((p: any) => p.order_id === orderId);
+          if (exact?.payment_id) {
+            realPaymentId = exact.payment_id;
+            const detail = await portoneClient.getPayment(realPaymentId);
+            if (detail?.payment?.order_id === orderId) {
+              paymentStatus = detail?.payment?.status || '';
+            } else {
+              realPaymentId = '';
+            }
+          }
+        }
+      } catch (e: any) {
+        console.error('결제 검색 오류:', e.message || e);
+      }
       
-      // 성공 페이지로 리디렉션
-      res.send(`
-        <html>
-          <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1">
-            <title>결제 성공</title>
-            <style>
-              body {
-                font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                height: 100vh;
-                margin: 0;
-                background-color: #f5f5f5;
-                color: #333;
-              }
-              .card {
-                background: white;
-                padding: 2rem;
-                border-radius: 8px;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-                text-align: center;
-                max-width: 80%;
-              }
-              h1 {
-                color: #4CAF50;
-                margin-bottom: 1rem;
-              }
-              p {
-                margin: 0.5rem 0;
-                line-height: 1.5;
-              }
-              .order-id {
-                font-size: 0.9rem;
-                color: #666;
-                margin-top: 1rem;
-              }
-              .button {
-                margin-top: 1.5rem;
-                padding: 0.75rem 1.5rem;
-                background-color: #4CAF50;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                cursor: pointer;
-                text-decoration: none;
-                font-weight: bold;
-              }
-              .button:hover {
-                background-color: #45a049;
-              }
-            </style>
-            <script>
-              // 3초 후 마스터 페이지로 이동
-              setTimeout(function() {
-                window.opener ? window.opener.postMessage('payment_success', '*') : window.location.href = '/';
-                setTimeout(function() {
-                  // 팝업이면 창 닫기
-                  if (window.opener) {
-                    window.close();
-                  }
-                }, 1000);
-              }, 3000);
-            </script>
-          </head>
-          <body>
-            <div class="card">
-              <h1>결제가 성공적으로 완료되었습니다!</h1>
-              <p>주문이 정상적으로 처리되었습니다.</p>
-              <p>개인 회원 페이지에서 주문 내역을 확인하실 수 있습니다.</p>
-              <p class="order-id">주문번호: ${orderId}</p>
-              <a href="/" class="button">홈으로 이동</a>
-            </div>
-          </body>
-        </html>
-      `);
+      if (!realPaymentId) {
+        return res.status(404).json({ success: false, error: '결제 정보를 찾을 수 없습니다.', orderId });
+      }
+      const statusOk = ['PAID', 'DONE'].includes(paymentStatus);
+      await storage.updatePaymentByOrderId(orderId as string, {
+        status: statusOk ? 'success' : 'pending',
+        paymentKey: realPaymentId
+      });
+      return res.json({
+        success: statusOk,
+        orderId,
+        paymentId: realPaymentId,
+        paymentStatus: paymentStatus
+      });
+    } catch (error) {
+      console.error('결제 성공 처리 중 오류:', error);
+      res.status(500).json({ success: false, error: '결제 성공 처리 중 오류가 발생했습니다.' });
+    }
+  });
+  
+  // 결제 ID 동기화(재조회) 엔드포인트 - 포트원 결제번호로 보정
+  app.post('/api/payments/reconcile', async (req, res) => {
+    const { orderId, paymentId: overridePaymentId } = req.body;
+    if (!orderId) {
+      return res.status(400).json({ success: false, error: 'orderId가 필요합니다' });
+    }
+    try {
+      const payment = await storage.getPaymentByOrderId(orderId);
+      if (!payment) {
+        return res.status(404).json({ success: false, error: '결제 정보를 찾을 수 없습니다' });
+      }
+      let finalPaymentId = overridePaymentId || '';
+      if (!finalPaymentId) {
+        const portoneV2Client = await import('./portone-v2-client');
+        const portoneClient = portoneV2Client.default;
+        try {
+          const searchResult = await portoneClient.searchPayments({ orderId: orderId as string });
+          if (searchResult && searchResult.payments && searchResult.payments.length > 0) {
+            finalPaymentId = searchResult.payments[0].payment_id || '';
+          }
+        } catch (e: any) {
+          console.error('결제 검색 오류:', e.message || e);
+        }
+      }
+      if (!finalPaymentId) {
+        return res.status(404).json({ success: false, error: '포트원에서 결제 정보를 찾을 수 없습니다' });
+      }
+      await storage.updatePaymentByOrderId(orderId as string, {
+        paymentKey: finalPaymentId
+      });
+      return res.json({ success: true, orderId, paymentId: finalPaymentId });
     } catch (error: any) {
-      console.error('결제 성공 처리 오류:', error);
-      res.status(500).send('결제 성공 처리 중 오류가 발생했습니다.');
+      console.error('결제 동기화 중 오류:', error.message || error);
+      return res.status(500).json({ success: false, error: error.message || '결제 동기화 중 오류' });
     }
   });
 
@@ -1264,7 +1209,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
         amount: amount.toString(),
         customerName: req.user?.username,
         customerEmail: req.user?.email,
-        customerPhone: req.user?.phone || ''
+        customerPhone: (req.user as any)?.phone || ''
       };
       
       // 주문 정보 직접 생성 (fetch 대신 엔드포인트 호출 시)
@@ -1278,7 +1223,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
         const buyerInfo = {
           name: req.user.username || '',
           email: req.user.email || '',
-          phone: '' // 사용자 전화번호가 없으면 비운 문자열로
+          phone: (req.user as any)?.phone || ''
         };
         
         // vendors 테이블에서 유효한 판매자 ID 찾기 (3번은 ralphparkvendor)
@@ -1322,7 +1267,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
         customer: {
           name: req.user?.username || '',
           email: req.user?.email || '',
-          phoneNumber: req.user?.phone || ''
+          phoneNumber: (req.user as any)?.phone || ''
         },
         orderItems: [{
           orderQuantity: 1,
@@ -1337,25 +1282,20 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
         payMethod: 'CARD' // 이니시스에서 지원하는 결제 방법
       });
 
-      // 결제 ID 저장
-      if (paymentData && paymentData.payment && paymentData.payment.id) {
+      // 결제 URL 저장
+      if (paymentData && (paymentData as any).checkoutUrl) {
         await storage.updatePaymentByOrderId(orderId, {
-          paymentKey: paymentData.payment.id,
-          paymentUrl: paymentData.payment.checkout_url
+          paymentUrl: (paymentData as any).checkoutUrl
         });
-
-        // 결제 URL 반환
-        res.json({
-          success: true,
-          orderId,
-          amount: amount.toString(),
-          orderName: productName,
-          url: paymentData.payment.checkout_url
-        });
-      } else {
-        console.error('결제 정보 생성 오류:', paymentData);
-        throw new Error('결제 정보 생성에 실패했습니다.');
       }
+      // 결제 URL 반환
+      res.json({
+        success: true,
+        orderId,
+        amount: amount.toString(),
+        orderName: productName,
+        url: (paymentData as any).checkoutUrl || ''
+      });
     } catch (error: any) {
       console.error('결제 준비 API 오류:', error);
       res.status(500).json({

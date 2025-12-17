@@ -91,9 +91,30 @@ export default function PaymentTestPage() {
       if (response.data.success && response.data.checkoutUrl) {
         setPaymentUrl(response.data.checkoutUrl);
         setResult(response.data);
-
-        // 새 창에서 결제 페이지 열기
-        window.open(response.data.checkoutUrl, 'portOnePayment', 'width=800,height=700');
+        const win = window.open(response.data.checkoutUrl, 'portOnePayment', 'width=800,height=700');
+        let pollTimer: number | undefined;
+        const poll = async () => {
+          try {
+        const r = await axios.get(`/api/payments/order/${orderId}`);
+        if (r.data && r.data.status && String(r.data.status).toLowerCase() === 'success') {
+          setResult(r.data);
+          try {
+            await axios.post('/api/payments/reconcile', {
+              orderId,
+              paymentId: r.data.paymentKey || ''
+            });
+          } catch {}
+          if (win && !win.closed) {
+            win.close();
+          }
+          if (pollTimer) {
+            clearInterval(pollTimer);
+              }
+              alert('결제가 성공적으로 완료되었습니다!');
+            }
+          } catch {}
+        };
+        pollTimer = window.setInterval(poll, 1500);
       } else {
         setError('결제 처리에 실패했습니다.');
       }

@@ -117,7 +117,7 @@ router.post('/payments/sync', async (req: Request, res: Response) => {
     
     // 기존 결제 정보 확인
     const existingPayment = await storage.getPaymentByOrderId(orderId);
-    
+
     if (existingPayment) {
       return res.status(200).json({
         success: true,
@@ -125,11 +125,107 @@ router.post('/payments/sync', async (req: Request, res: Response) => {
         payment: existingPayment
       });
     }
-    
-    // 결제 정보 생성 (스키마에 맞는 형식으로)
-    // 포트원 V2 API 규격에 맞는 paymentKey 생성
-    const paymentKey = generatePortonePaymentId();
-    console.log(`V2 API 규격 결제 ID 생성: ${paymentKey} (${paymentKey.length}자)`);
+
+    // 포트원에서 실제 결제 ID 검색
+    const portoneV2Client = await import('./portone-v2-client');
+    const portoneClient = portoneV2Client.default;
+    let finalPaymentId = '';
+
+    // 주문의 paymentInfo에서 paymentId 추출 (checkout API에서 orderId와 동일하게 설정됨)
+    let searchPaymentId = orderId;
+    const paymentInfo = order.paymentInfo as any;
+    if (paymentInfo && paymentInfo.paymentId) {
+      searchPaymentId = paymentInfo.paymentId;
+      console.log(`[직접 라우터] paymentInfo에서 paymentId 추출: ${searchPaymentId}`);
+    }
+
+    // searchPaymentId가 pay_ 형식이면 직접 조회 시도 (검색보다 빠름)
+    if (searchPaymentId.startsWith('pay_')) {
+      try {
+        const detail = await portoneClient.getPayment(searchPaymentId);
+        if (detail?.payment) {
+          const statusOk = ['PAID', 'DONE'].includes(detail.payment.status);
+          if (statusOk) {
+            finalPaymentId = searchPaymentId;
+            console.log(`[직접 라우터] pay_ 형식 ID로 직접 조회 성공: ${finalPaymentId}`);
+          }
+        }
+      } catch (e: any) {
+        console.log(`[직접 라우터] 직접 조회 실패, 검색 시도: ${e.message}`);
+      }
+    }
+
+    // 직접 조회 실패 시 검색 시도
+    if (!finalPaymentId) {
+    try {
+      const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+      const maxAttempts = 8;
+      const baseDelayMs = 500;
+      for (let attempt = 1; attempt <= maxAttempts && !finalPaymentId; attempt++) {
+        // searchPaymentId와 orderId 둘 다로 검색 시도
+        const searchResult = await portoneClient.searchPayments({ orderId: searchPaymentId });
+        if (searchResult && Array.isArray(searchResult.payments) && searchResult.payments.length > 0) {
+          // searchPaymentId 또는 orderId와 일치하는 결제 찾기
+          const exact = searchResult.payments.find((p: any) =>
+            p.order_id === searchPaymentId || p.order_id === orderId
+          );
+          const chosen = exact || searchResult.payments[0];
+          finalPaymentId = chosen?.payment_id || '';
+          if (finalPaymentId) {
+            try {
+              const detail = await portoneClient.getPayment(finalPaymentId);
+              // searchPaymentId 또는 orderId와 일치 확인
+              if (detail?.payment?.order_id &&
+                  detail.payment.order_id !== orderId &&
+                  detail.payment.order_id !== searchPaymentId) {
+                finalPaymentId = '';
+              }
+            } catch (detailErr: any) {
+              finalPaymentId = '';
+            }
+          }
+        }
+        if (!finalPaymentId && attempt < maxAttempts) {
+          const waitMs = baseDelayMs * attempt;
+          await sleep(waitMs);
+        }
+      }
+      if (!finalPaymentId) {
+        const today = new Date();
+        const startDate = new Date(today.getTime() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const endDate = today.toISOString().split('T')[0];
+        const recent = await portoneClient.searchPayments({ startDate, endDate, limit: 50 });
+        if (recent && Array.isArray(recent.payments) && recent.payments.length > 0) {
+          // searchPaymentId 또는 orderId와 일치하는 결제 찾기
+          const exactRecent = recent.payments.filter((p: any) =>
+            p.order_id === searchPaymentId || p.order_id === orderId
+          );
+          const chosen = exactRecent[0];
+          finalPaymentId = chosen?.payment_id || '';
+        }
+      }
+      if (finalPaymentId) {
+        try {
+          const detail = await portoneClient.getPayment(finalPaymentId);
+          const amtOk = Number(detail?.payment?.total_amount ?? 0) === Number(order.price);
+          // searchPaymentId 또는 orderId와 일치 확인
+          const orderOk = detail?.payment?.order_id === orderId || detail?.payment?.order_id === searchPaymentId;
+          const statusOk = ['PAID', 'DONE'].includes(detail?.payment?.status);
+          if (!amtOk || !orderOk || !statusOk) {
+            finalPaymentId = '';
+          }
+        } catch {}
+      }
+    } catch (e: any) {
+      console.error('[직접 라우터] 포트원 결제 검색 오류:', e.message || e);
+    }
+    } // if (!finalPaymentId) 블록 종료
+    if (!finalPaymentId) {
+      return res.status(404).json({
+        success: false,
+        error: '포트원에서 결제 정보를 찾을 수 없습니다.'
+      });
+    }
     
     // 주문 정보로부터 올바른 bid ID 찾기
     let bidId = null;
@@ -159,6 +255,15 @@ router.post('/payments/sync', async (req: Request, res: Response) => {
       }
     }
     
+    // 결제 상세 조회로 영수증 URL 등 부가 정보 확보
+    let receiptUrl: string | undefined;
+    try {
+      const info = await portoneClient.getPayment(finalPaymentId);
+      receiptUrl = (info?.payment?.receipt_url as string) || (info?.payment?.receipt?.url as string) || undefined;
+    } catch (detailErr: any) {
+      console.warn('[직접 라우터] 결제 상세 조회 실패로 영수증 URL 설정 생략:', detailErr?.message || detailErr);
+    }
+    
     const paymentData = {
       userId: order.userId,
       bidId: bidId, // 주문과 연관된 실제 입찰 ID 사용
@@ -167,11 +272,18 @@ router.post('/payments/sync', async (req: Request, res: Response) => {
       amount: order.price.toString(),
       method: "CARD",
       status: "success",
-      // 포트원 V2 API 형식의 paymentKey 사용 - pay_로 시작하는 26자 문자열
-      paymentKey: paymentKey,
+      // 포트원에서 조회한 실제 payment_id 사용
+      paymentKey: finalPaymentId,
       customerName: "구매자",
-      paymentUrl: `https://iniweb.inicis.com/receipt/MOI3204387_${orderId}`
+      paymentUrl: receiptUrl
     };
+    
+    if (!finalPaymentId || typeof finalPaymentId !== 'string' || !finalPaymentId.startsWith('pay_')) {
+      return res.status(400).json({
+        success: false,
+        error: '유효한 포트원 결제 ID 형식이 아닙니다.'
+      });
+    }
     
     // 결제 정보 저장
     const payment = await storage.createPayment(paymentData);
@@ -205,10 +317,74 @@ router.get('/payments/order/:orderId', async (req: Request, res: Response) => {
     
     if (!payment) {
       console.log('[직접 라우터] 주문에 대한 결제 정보가 없음:', orderId);
-      return res.status(404).json({ 
-        success: false,
-        error: '결제 정보를 찾을 수 없습니다.' 
-      });
+      // 폴백: 포트원 검색 후 생성 + 응답
+      try {
+        const order = await storage.getOrderByOrderId(orderId);
+        if (!order) {
+          return res.status(404).json({ success: false, error: '주문을 찾을 수 없습니다.' });
+        }
+        const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+        const maxAttempts = 6;
+        const baseDelayMs = 500;
+        let finalPaymentId = '';
+        for (let attempt = 1; attempt <= maxAttempts && !finalPaymentId; attempt++) {
+          try {
+            const searchResult = await portoneV2Client.searchPayments({ orderId });
+            if (searchResult && Array.isArray(searchResult.payments) && searchResult.payments.length > 0) {
+              const exact = searchResult.payments.find((p: any) => p.order_id === orderId);
+              const chosen = exact || searchResult.payments[0];
+              finalPaymentId = chosen?.payment_id || '';
+              if (finalPaymentId) {
+                try {
+                  const detail = await portoneV2Client.getPayment(finalPaymentId);
+                  if (detail?.payment?.order_id && detail.payment.order_id !== orderId) {
+                    console.warn(`[직접 라우터] 상세 조회 결과 주문번호 불일치. 요청=${orderId}, 응답=${detail.payment.order_id}`);
+                    finalPaymentId = '';
+                  }
+                } catch (detailErr: any) {
+                  console.error('[직접 라우터] 결제 상세 조회 오류:', detailErr?.message || detailErr);
+                  finalPaymentId = '';
+                }
+              }
+            }
+          } catch (e: any) {
+            console.error('[직접 라우터] 포트원 결제 검색 오류:', e.message || e);
+          }
+          if (!finalPaymentId && attempt < maxAttempts) {
+            const waitMs = baseDelayMs * attempt;
+            console.log(`[직접 라우터] 포트원 결제 검색 재시도 준비 (${attempt}/${maxAttempts}) 대기 ${waitMs}ms`);
+            await sleep(waitMs);
+          }
+        }
+        if (!finalPaymentId) {
+          return res.status(404).json({ success: false, error: '결제 정보를 찾을 수 없습니다.' });
+        }
+        // 결제 상세 조회로 영수증 URL 등 부가 정보 확보
+        let receiptUrl: string | undefined;
+        try {
+          const info = await portoneV2Client.getPayment(finalPaymentId);
+          receiptUrl = (info?.payment?.receipt_url as string) || (info?.payment?.receipt?.url as string) || undefined;
+        } catch (detailErr: any) {
+          console.warn('[직접 라우터] 결제 상세 조회 실패로 영수증 URL 설정 생략:', detailErr?.message || detailErr);
+        }
+        
+        const created = await storage.createPayment({
+          userId: order.userId,
+          bidId: 1,
+          orderId,
+          orderName: "식물 구매: " + orderId,
+          amount: order.price.toString(),
+          method: "CARD",
+          status: "success",
+          paymentKey: finalPaymentId,
+          customerName: "구매자",
+          paymentUrl: receiptUrl
+        });
+        return res.status(200).json(created);
+      } catch (fallbackErr: any) {
+        console.error('[직접 라우터] 결제 조회 폴백 처리 오류:', fallbackErr?.message || fallbackErr);
+        return res.status(404).json({ success: false, error: '결제 정보를 찾을 수 없습니다.' });
+      }
     }
     
     console.log('[직접 라우터] 결제 정보 찾음:', payment.id);
@@ -220,6 +396,46 @@ router.get('/payments/order/:orderId', async (req: Request, res: Response) => {
       success: false,
       error: error.message || '결제 정보 조회에 실패했습니다.' 
     });
+  }
+});
+
+// 결제 ID 교정(재동기화) API - Vite 미들웨어 우회 경로
+router.post('/payments/reconcile', async (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  try {
+    const { orderId, paymentId } = req.body || {};
+    if (!orderId) {
+      return res.status(400).json({ success: false, error: 'orderId가 필요합니다.' });
+    }
+    const payment = await storage.getPaymentByOrderId(orderId);
+    if (!payment) {
+      return res.status(404).json({ success: false, error: '결제 정보를 찾을 수 없습니다.' });
+    }
+    let finalPaymentId = paymentId;
+    if (!finalPaymentId || typeof finalPaymentId !== 'string') {
+      try {
+        // 포트원 검색으로 실제 payment_id 조회
+        const searchResult = await portoneV2Client.searchPayments({ orderId });
+        if (searchResult && searchResult.payments && searchResult.payments.length > 0) {
+          const exact = searchResult.payments.find((p: any) => p.order_id === orderId);
+          finalPaymentId = exact?.payment_id || '';
+        }
+      } catch (e: any) {
+        console.error('[직접 라우터] 결제 검색 오류:', e.message || e);
+      }
+    }
+    if (!finalPaymentId || !finalPaymentId.startsWith('pay_')) {
+      return res.status(404).json({ success: false, error: '결제 정보를 찾을 수 없습니다.' });
+    }
+    if (!finalPaymentId) {
+      return res.status(404).json({ success: false, error: '포트원에서 결제 정보를 찾을 수 없습니다.' });
+    }
+    const updated = await storage.updatePaymentByOrderId(orderId, { paymentKey: finalPaymentId });
+    return res.status(200).json({ success: true, orderId, paymentId: finalPaymentId, updated });
+  } catch (error: any) {
+    console.error('[직접 라우터] 결제 교정 중 오류:', error.message || error);
+    return res.status(500).json({ success: false, error: error.message || '결제 교정 중 오류' });
   }
 });
 
@@ -383,8 +599,13 @@ async function cancelPaymentV2(paymentId: string, reason: string, amount?: numbe
     // V2 API URL 구성
     const apiUrl = 'https://api.portone.io';
     
-    // 새로 제공받은 V2 API Secret 사용
-    const apiSecret = "Q5xc87z1Sxd5uPQDuz72O7pDGqy7XAC2b9EPO9PWFPvFT5jCy2er5Ap9IWHMP1iRVfcF54qE2nXx22J4"; // 새로 제공받은 V2 시크릿
+    const apiSecret = process.env.PORTONE_SECRET_KEY || process.env.PORTONE_API_SECRET || process.env.PORTONE_V2_API_SECRET || '';
+    if (!apiSecret) {
+      return {
+        success: false,
+        error: 'PortOne API secret not configured'
+      };
+    }
     
     // 포트원 V2 API 호출 준비
     const idempotencyKey = crypto.randomUUID();
@@ -478,31 +699,22 @@ async function cancelPaymentV2(paymentId: string, reason: string, amount?: numbe
         success: true,
         data: response.data
       };
-    } catch (error) {
-      console.error(`❌ 결제 취소 실패:`, error.message);
+    } catch (err: any) {
+      console.error(`❌ 결제 취소 실패:`, err.message);
       
-      // 오류 응답 상세 로깅
-      if (error.response) {
+      if (err.response) {
         console.error(`\n💡 API 오류 상세 정보:`);
-        console.error(`상태 코드: ${error.response.status}`);
-        console.error(`응답 헤더:`, JSON.stringify(error.response.headers, null, 2));
-        console.error(`응답 본문:`, JSON.stringify(error.response.data, null, 2));
+        console.error(`상태 코드: ${err.response.status}`);
+        console.error(`응답 헤더:`, JSON.stringify(err.response.headers, null, 2));
+        console.error(`응답 본문:`, JSON.stringify(err.response.data, null, 2));
       }
       
       return {
         success: false,
-        error: error.message,
-        details: error.response?.data || {}
+        error: err.message,
+        details: err.response?.data || {}
       };
     }
-    
-    console.log(`✅ 취소 성공 (상태 코드: ${response.status})`);
-    console.log(`✅ 응답 데이터: ${JSON.stringify(response.data)}`);
-    
-    return {
-      success: true,
-      data: response.data
-    };
   } catch (error: any) {
     console.error(`❌ 결제 취소 실패: ${error.message}`);
     

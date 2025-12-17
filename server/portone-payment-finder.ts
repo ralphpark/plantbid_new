@@ -6,7 +6,7 @@ import axios from 'axios';
 import crypto from 'crypto';
 
 // 포트원 V2 API 설정
-const API_SECRET = process.env.PORTONE_V2_API_SECRET || "Q5xc87z1Sxd5uPQDuz72O7pDGqy7XAC2b9EPO9PWFPvFT5jCy2er5Ap9IWHMP1iRVfcF54qE2nXx22J4";
+const API_SECRET = process.env.PORTONE_V2_API_SECRET || process.env.PORTONE_SECRET_KEY || process.env.PORTONE_API_SECRET || '';
 const API_BASE_URL = 'https://api.portone.io';
 
 /**
@@ -66,6 +66,9 @@ export async function verifyPaymentId(paymentId: string): Promise<{
   error?: any;
 }> {
   try {
+    if (!API_SECRET) {
+      return { valid: false, error: 'PortOne API secret not configured' };
+    }
     console.log(`[포트원] 결제 ID 확인: ${paymentId}`);
     
     const response = await axios.get(`${API_BASE_URL}/payments/${paymentId}`, {
@@ -110,13 +113,16 @@ export async function findPaymentByOrderId(orderId: string): Promise<{
   error?: any;
 }> {
   try {
+    if (!API_SECRET) {
+      return { found: false, error: 'PortOne API secret not configured' };
+    }
     console.log(`[포트원] 주문 ID로 결제 검색: ${orderId}`);
     
     const response = await axios.get(`${API_BASE_URL}/payments`, {
       params: {
         merchantId: 'MOI3204387',
-        orderId: orderId,
-        status: 'COMPLETE',
+        order_id: orderId,
+        status: 'DONE',
         limit: 10
       },
       headers: {

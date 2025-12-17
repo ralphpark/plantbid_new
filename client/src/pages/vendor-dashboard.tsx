@@ -441,7 +441,7 @@ export default function VendorDashboard() {
             content: "안녕하세요! 주문하신 상품 준비를 시작했습니다. 궁금한 점이 있으시면 알려주세요.",
             timestamp: new Date(),
           };
-          
+
           await fetch(`/api/conversations/${orderToUpdate.conversationId}`, {
             method: 'PATCH',
             headers: {
@@ -452,8 +452,25 @@ export default function VendorDashboard() {
             })
           });
         }
-        
+
         // 다이얼로그는 표시하지 않음 - 준비중 탭에서 바로 조작 가능
+      } else if (status === 'shipped' && orderToUpdate.conversationId) {
+        // 배송 시작 메시지 자동 전송
+        const shippingMessage = {
+          role: "vendor",
+          content: "🚚 안녕하세요! 주문하신 상품이 배송을 시작했습니다. 배송이 완료되면 다시 안내드리겠습니다.",
+          timestamp: new Date(),
+        };
+
+        await fetch(`/api/conversations/${orderToUpdate.conversationId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            messages: [...(conversations[orderToUpdate.conversationId]?.messages || []), shippingMessage]
+          })
+        });
       } else if (status === 'completed' && orderToUpdate.conversationId) {
         // 주문 완료 메시지 자동 전송
         const completeMessage = {
@@ -503,6 +520,9 @@ export default function VendorDashboard() {
       switch(status) {
         case 'preparing':
           statusText = '준비 중';
+          break;
+        case 'shipped':
+          statusText = '배송중';
           break;
         case 'completed':
           statusText = '완료됨';
@@ -835,9 +855,9 @@ export default function VendorDashboard() {
             price: specificMapping ? 
                    parseInt(specificMapping.price) : 
                    (payment.amount || (relatedBid?.price) || 0),
-            productName: specificMapping ? 
-                         specificMapping.plantName : 
-                         (payment.productName || (relatedBid?.plant?.name) || '상품 정보 없음'),
+            productName: specificMapping ?
+                         specificMapping.plantName :
+                         (payment.orderName || payment.productName || (relatedBid?.plant?.name) || '상품 정보 없음'),
             buyerInfo: {
               name: specificMapping ? 
                     specificMapping.customerName : 
@@ -962,6 +982,7 @@ export default function VendorDashboard() {
               <TabsTrigger value="direct">직접 판매 <span className="ml-2 px-1.5 py-0.5 text-xs bg-muted rounded">{directOrders.length}</span></TabsTrigger>
               <TabsTrigger value="paid">결제 완료 <span className="ml-2 px-1.5 py-0.5 text-xs bg-muted rounded">{ordersWithPayments.filter(order => order.status === 'paid').length}</span></TabsTrigger>
               <TabsTrigger value="preparing">상품 준비 중 <span className="ml-2 px-1.5 py-0.5 text-xs bg-muted rounded">{orders.filter(order => order.status === 'preparing').length}</span></TabsTrigger>
+              <TabsTrigger value="shipped">배송중 <span className="ml-2 px-1.5 py-0.5 text-xs bg-muted rounded">{orders.filter(order => order.status === 'shipped').length}</span></TabsTrigger>
               <TabsTrigger value="completed">완료 <span className="ml-2 px-1.5 py-0.5 text-xs bg-muted rounded">{orders.filter(order => order.status === 'completed').length}</span></TabsTrigger>
               <TabsTrigger value="payments">결제 내역 <span className="ml-2 px-1.5 py-0.5 text-xs bg-muted rounded">{payments.length}</span></TabsTrigger>
               <TabsTrigger value="products">상품 관리</TabsTrigger>
@@ -1551,13 +1572,143 @@ export default function VendorDashboard() {
                           <Button
                             size="sm"
                             variant="default"
-                            onClick={() => handleUpdateOrderStatus(order.id.toString(), 'completed')}
+                            onClick={() => handleUpdateOrderStatus(order.id.toString(), 'shipped')}
                             className="gap-1 h-8"
                           >
-                            <CheckCircle className="h-3.5 w-3.5" />
-                            배송 완료 처리
+                            <Truck className="h-3.5 w-3.5" />
+                            배송 시작
                           </Button>
-                          
+
+                          {order.conversationId && (
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8"
+                              onClick={() => {
+                                handleOrderClick(order);
+                                setShowConversation(true);
+                              }}
+                            >
+                              <MessageSquare className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* 배송중 탭 */}
+          <TabsContent value="shipped" className="space-y-4">
+            {loading ? (
+              <div className="flex justify-center items-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : filteredOrders.filter(order => order.status === 'shipped').length === 0 ? (
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                  <div className="rounded-full bg-muted p-3 mb-4">
+                    <Truck className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                  <h3 className="font-medium text-lg mb-2">배송중인 주문 없음</h3>
+                  <p className="text-muted-foreground max-w-md">
+                    현재 배송중인 주문이 없습니다. 배송이 시작되면 이곳에 표시됩니다.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredOrders
+                  .filter(order => order.status === 'shipped')
+                  .map(order => (
+                    <Card key={order.id} className={selectedOrder?.id === order.id ? "border-primary" : ""}>
+                      <CardHeader className="pb-2">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <CardTitle className="text-base flex items-center gap-2">
+                              주문 #{order.orderId || order.id}
+                              <Badge variant="default" className="bg-blue-500 text-white font-medium">
+                                🚚 배송중
+                              </Badge>
+                            </CardTitle>
+                            <CardDescription className="text-sm mt-1">
+                              {new Date(order.createdAt).toLocaleDateString()}
+                            </CardDescription>
+                          </div>
+                          <div className="flex gap-1">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => handleOrderClick(order)}
+                              className="h-7 w-7"
+                            >
+                              <PlusCircle className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="pb-3 text-sm">
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1 text-muted-foreground">
+                              <User className="h-3.5 w-3.5" />
+                              <span>고객:</span>
+                            </div>
+                            <span className="font-medium">{order.buyerInfo?.name || "이름 정보 없음"}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1 text-muted-foreground">
+                              <MapPin className="h-3.5 w-3.5" />
+                              <span>배송지:</span>
+                            </div>
+                            <span className="font-medium truncate max-w-[150px]" title={order.shippingInfo?.address || "주소 정보 없음"}>
+                              {order.shippingInfo?.address || "주소 정보 없음"}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1 text-muted-foreground">
+                              <Phone className="h-3.5 w-3.5" />
+                              <span>연락처:</span>
+                            </div>
+                            <span className="font-medium">
+                              {order.buyerInfo?.phone || "연락처 정보 없음"}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* 고객 대화 버튼 */}
+                        {order.conversationId && (
+                          <div className="mt-4 pt-3 border-t border-dashed">
+                            <div className="flex justify-center">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="gap-1"
+                                onClick={() => {
+                                  setPreparingOrder(order);
+                                  setSendPhotoDialogOpen(true);
+                                }}
+                              >
+                                <MessageSquare className="h-3.5 w-3.5" />
+                                고객에게 메시지 보내기
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="mt-4 pt-3 border-t border-dashed flex justify-between items-center">
+                          <Button
+                            size="sm"
+                            variant="default"
+                            onClick={() => handleUpdateOrderStatus(order.id.toString(), 'completed')}
+                            className="gap-1 h-8 bg-green-600 hover:bg-green-700"
+                          >
+                            <CheckCircle className="h-3.5 w-3.5" />
+                            배송 완료
+                          </Button>
+
                           {order.conversationId && (
                             <Button
                               size="icon"
@@ -1650,9 +1801,9 @@ export default function VendorDashboard() {
                               <span>완료일:</span>
                             </div>
                             <span className="font-medium">
-                              {order.completedAt 
-                                ? new Date(order.completedAt).toLocaleDateString() 
-                                : "완료일 정보 없음"}
+                              {order.trackingInfo?.completedAt
+                                ? new Date(order.trackingInfo.completedAt).toLocaleDateString()
+                                : (order.updatedAt ? new Date(order.updatedAt).toLocaleDateString() : "완료일 정보 없음")}
                             </span>
                           </div>
                         </div>

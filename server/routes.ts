@@ -40,40 +40,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 외부 서비스의 웹훅은 인증을 사용할 수 없으므로 가장 먼저 등록해야 함
   app.use('/api', webhookRouter);
   
-  // 임시 관리자 비밀번호 재설정 엔드포인트 (개발 용도)
-  app.get('/api/admin/reset-password', async (req, res) => {
-    try {
-      const { token } = req.query;
-      // 보안을 위한 간단한 토큰 검증
-      if (token !== 'dev-setup-token') {
-        return res.status(401).json({ error: '인증 실패' });
-      }
-      
-      // 관리자 계정 확인
-      const admin = await db.query.users.findFirst({
-        where: eq(storage.users.id, 2)
-      });
-      
-      if (!admin || admin.username !== 'admin') {
-        return res.status(404).json({ error: '관리자 계정을 찾을 수 없습니다' });
-      }
-      
-      // 비밀번호 해시 직접 생성
-      const scryptAsync = promisify(scrypt);
-      const newPassword = 'admin123';
-      const salt = randomBytes(16).toString("hex");
-      const buf = (await scryptAsync(newPassword, salt, 64)) as Buffer;
-      const hashedPassword = `${buf.toString("hex")}.${salt}`;
-      
-      // 비밀번호 업데이트
-      await db.update(storage.users).set({
-        password: hashedPassword
-      }).where(eq(storage.users.id, 2));
-      
-      // Content-Type 헤더 명시적 설정
-      res.setHeader('Content-Type', 'application/json');
-      
-      return res.json({ 
+      // 임시 관리자 비밀번호 재설정 엔드포인트 (개발 용도)
+      app.get('/api/admin/reset-password', async (req, res) => {
+        try {
+          const { token } = req.query;
+          // 보안을 위한 간단한 토큰 검증
+          if (token !== 'dev-setup-token') {
+            return res.status(401).json({ error: '인증 실패' });
+          }
+          
+          // 관리자 계정 확인
+          const admin = await db.query.users.findFirst({
+            where: eq(users.id, 2)
+          });
+          
+          if (!admin || admin.username !== 'admin') {
+            return res.status(404).json({ error: '관리자 계정을 찾을 수 없습니다' });
+          }
+          
+          // 비밀번호 해시 직접 생성
+          const scryptAsync = promisify(scrypt);
+          const newPassword = 'admin123';
+          const salt = randomBytes(16).toString("hex");
+          const buf = (await scryptAsync(newPassword, salt, 64)) as Buffer;
+          const hashedPassword = `${buf.toString("hex")}.${salt}`;
+          
+          // 비밀번호 업데이트
+          await db.update(users).set({
+            password: hashedPassword
+          }).where(eq(users.id, 2));
+          
+          // Content-Type 헤더 명시적 설정
+          res.setHeader('Content-Type', 'application/json');
+          
+          return res.json({ 
         success: true, 
         message: '관리자 비밀번호가 재설정되었습니다',
         username: 'admin',
@@ -252,9 +252,278 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Setup Payment routes (결제 관련 라우트)
+  setupPaymentRoutes(app, storage);
+
+  // Setup PortOne V2 routes (포트원 V2 API 라우트)
+  setupPortOneV2Routes(app, storage);
+
+  app.get('/api/payments/order/:orderId', async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      console.log(`[결제 조회] orderId: ${orderId}`);
+
+      // 1. 기존 결제 정보 확인
+      const existing = await storage.getPaymentByOrderId(orderId);
+      if (existing) {
+        console.log(`[결제 조회] 기존 결제 정보 발견:`, existing.id);
+        return res.status(200).json(existing);
+      }
+
+      // 2. 주문 정보 확인
+      const order = await storage.getOrderByOrderId(orderId);
+      if (!order) {
+        console.log(`[결제 조회] 주문을 찾을 수 없음: ${orderId}`);
+        return res.status(404).json({ success: false, error: '주문을 찾을 수 없습니다.' });
+      }
+
+      // 3. 포트원 결제 검색을 위한 ID 결정
+      // - orderId가 pay_ 형식이면 그대로 사용
+      // - 아니면 order.paymentInfo에서 paymentId 추출
+      let searchPaymentId = orderId;
+      const paymentInfo = order.paymentInfo as any;
+      if (paymentInfo && paymentInfo.paymentId) {
+        searchPaymentId = paymentInfo.paymentId;
+        console.log(`[결제 조회] paymentInfo에서 paymentId 추출: ${searchPaymentId}`);
+      }
+
+      const portoneV2Client = await import('./portone-v2-client');
+      const portoneClient = portoneV2Client.default;
+      const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+      const maxAttempts = 6;
+      const baseDelayMs = 500;
+      let finalPaymentId = '';
+
+      // 4. searchPaymentId가 pay_ 형식이면 직접 조회 시도
+      if (searchPaymentId.startsWith('pay_')) {
+        console.log(`[결제 조회] pay_ 형식 ID로 직접 조회 시도: ${searchPaymentId}`);
+        try {
+          const detail = await portoneClient.getPayment(searchPaymentId);
+          if (detail?.payment) {
+            finalPaymentId = searchPaymentId;
+            console.log(`[결제 조회] 포트원에서 결제 정보 발견: ${finalPaymentId}`);
+          }
+        } catch (e: any) {
+          console.log(`[결제 조회] 직접 조회 실패, 검색 시도: ${e.message}`);
+        }
+      }
+
+      // 5. 직접 조회 실패 시 검색 시도
+      if (!finalPaymentId) {
+        for (let attempt = 1; attempt <= maxAttempts && !finalPaymentId; attempt++) {
+          try {
+            // searchPaymentId와 orderId 모두로 검색 시도
+            const searchIds = [searchPaymentId];
+            if (searchPaymentId !== orderId) {
+              searchIds.push(orderId);
+            }
+
+            for (const sid of searchIds) {
+              console.log(`[결제 조회] 포트원 검색 시도 (attempt ${attempt}): ${sid}`);
+              const searchResult = await portoneClient.searchPayments({ orderId: sid });
+              if (searchResult && Array.isArray(searchResult.payments) && searchResult.payments.length > 0) {
+                const exact = searchResult.payments.find((p: any) =>
+                  p.order_id === sid || p.payment_id === sid
+                );
+                const chosen = exact || searchResult.payments[0];
+                finalPaymentId = chosen?.payment_id || '';
+                if (finalPaymentId) {
+                  console.log(`[결제 조회] 검색으로 결제 정보 발견: ${finalPaymentId}`);
+                  break;
+                }
+              }
+            }
+          } catch {}
+          if (!finalPaymentId && attempt < maxAttempts) {
+            const waitMs = baseDelayMs * attempt;
+            await sleep(waitMs);
+          }
+        }
+      }
+
+      if (!finalPaymentId) {
+        console.log(`[결제 조회] 포트원에서 결제 정보를 찾을 수 없음`);
+        return res.status(404).json({ success: false, error: '결제 정보를 찾을 수 없습니다.' });
+      }
+
+      let receiptUrl;
+      try {
+        const info = await portoneClient.getPayment(finalPaymentId);
+        receiptUrl = (info?.payment?.receipt_url as string) || (info?.payment?.receipt?.url as string) || undefined;
+      } catch {}
+
+      const created = await storage.createPayment({
+        userId: order.userId,
+        bidId: 1,
+        orderId,
+        orderName: '식물 구매: ' + orderId,
+        amount: order.price.toString(),
+        method: 'CARD',
+        status: 'success',
+        paymentKey: finalPaymentId,
+        customerName: '구매자',
+        paymentUrl: receiptUrl,
+        approvedAt: info?.payment?.paid_at ? new Date(info.payment.paid_at * 1000) : new Date()
+      });
+      console.log(`[결제 조회] 결제 정보 생성 완료: ${created.id}`);
+      return res.status(200).json(created);
+    } catch (error: any) {
+      console.error(`[결제 조회] 오류:`, error);
+      return res.status(500).json({ success: false, error: error.message || '결제 정보 조회에 실패했습니다.' });
+    }
+  });
+
+  // 결제 검증 API - 바로구매 모달 및 AI상담 결제 완료 후 호출
+  app.post('/api/payments/verify', async (req, res) => {
+    try {
+      const { paymentId, orderId, createOrderIfNotExists, productName, amount, vendorId, conversationId } = req.body;
+      console.log(`[결제 검증] paymentId: ${paymentId}, orderId: ${orderId}, createOrderIfNotExists: ${createOrderIfNotExists}`);
+
+      if (!paymentId || !orderId) {
+        return res.status(400).json({ success: false, error: 'paymentId와 orderId가 필요합니다.' });
+      }
+
+      // 1. 주문 정보 확인
+      let order = await storage.getOrderByOrderId(orderId);
+
+      // 주문이 없고 createOrderIfNotExists 플래그가 있으면 주문 생성 (AI상담 결제용)
+      if (!order && createOrderIfNotExists) {
+        console.log(`[결제 검증] 주문 없음, 새로 생성: ${orderId}`);
+
+        // 사용자 정보 가져오기 (로그인된 경우)
+        const userId = req.user?.id || 1; // 기본값 1 (게스트)
+
+        // 새 주문 생성
+        const newOrder = await storage.createOrder({
+          orderId: orderId,
+          userId: userId,
+          vendorId: vendorId || null,
+          productId: null, // AI 상담 결제는 productId가 없을 수 있음
+          price: amount || 0,
+          status: 'pending',
+          conversationId: conversationId || null,
+          buyerInfo: {
+            name: req.user?.username || '구매자',
+            email: req.user?.email || '',
+          },
+          paymentInfo: {
+            paymentId: paymentId,
+            productName: productName || '식물 구매',
+          }
+        });
+
+        console.log(`[결제 검증] 새 주문 생성 완료: ID ${newOrder.id}`);
+        order = newOrder;
+      } else if (!order) {
+        console.log(`[결제 검증] 주문을 찾을 수 없음: ${orderId}`);
+        return res.status(404).json({ success: false, error: '주문을 찾을 수 없습니다.' });
+      }
+
+      // 2. 포트원에서 결제 정보 조회
+      const portoneV2Client = await import('./portone-v2-client');
+      const portoneClient = portoneV2Client.default;
+
+      let paymentDetail = null;
+      try {
+        paymentDetail = await portoneClient.getPayment(paymentId);
+        console.log(`[결제 검증] 포트원 결제 정보:`, paymentDetail?.payment?.status);
+      } catch (e: any) {
+        console.error(`[결제 검증] 포트원 조회 실패:`, e.message);
+      }
+
+      // 3. 결제 상태 확인
+      const paymentStatus = paymentDetail?.payment?.status;
+      const isPaid = paymentStatus === 'PAID' || paymentStatus === 'DONE';
+
+      // createOrderIfNotExists가 true인 경우 (AI 상담 결제)
+      // SDK에서 성공 콜백이 왔으므로 결제가 성공한 것으로 간주
+      if (createOrderIfNotExists) {
+        console.log(`[결제 검증] AI상담 결제 - SDK 콜백 신뢰하여 진행 (포트원 상태: ${paymentStatus || 'N/A'})`);
+      } else {
+        // 기존 로직: 바로구매의 경우 포트원 API 결과 확인
+        // 포트원 API 조회 실패 시에도 SDK 콜백을 신뢰하여 진행
+        // (API 키 환경 불일치 등의 이슈 대응)
+        if (!isPaid && paymentDetail !== null) {
+          console.log(`[결제 검증] 결제 미완료 상태: ${paymentStatus}`);
+          return res.status(400).json({
+            success: false,
+            error: '결제가 완료되지 않았습니다.',
+            status: paymentStatus
+          });
+        }
+      }
+
+      // 포트원 API 조회 실패해도 SDK 콜백이 성공이면 진행
+      if (!paymentDetail) {
+        console.log(`[결제 검증] 포트원 API 조회 실패, SDK 콜백 신뢰하여 진행`);
+      }
+
+      // 4. 주문 상태 업데이트
+      await storage.updateOrderStatusByOrderId(orderId, 'paid');
+      console.log(`[결제 검증] 주문 상태 업데이트 완료: ${orderId} -> paid`);
+
+      // 5. paymentInfo 업데이트
+      const updatedPaymentInfo = {
+        ...(order.paymentInfo as any || {}),
+        paymentId: paymentId,
+        status: 'success',
+        paidAt: new Date().toISOString()
+      };
+
+      await storage.updateOrder(order.id, {
+        paymentInfo: updatedPaymentInfo
+      });
+
+      // 6. 결제 정보 생성 또는 업데이트
+      const existingPayment = await storage.getPaymentByOrderId(orderId);
+
+      if (!existingPayment) {
+        let receiptUrl;
+        try {
+          receiptUrl = paymentDetail?.payment?.receipt_url ||
+                       paymentDetail?.payment?.receipt?.url;
+        } catch {}
+
+        // 상품명 결정: 요청 파라미터 > paymentInfo > 기본값
+        const paymentProductName = productName ||
+          (order.paymentInfo && typeof order.paymentInfo === 'object' ? (order.paymentInfo as any).productName : null) ||
+          '식물 구매';
+
+        await storage.createPayment({
+          userId: order.userId,
+          bidId: order.vendorId || 1,
+          orderId,
+          orderName: paymentProductName,  // 상품명을 orderName에 저장
+          amount: order.price.toString(),
+          method: paymentDetail?.payment?.method || 'CARD',
+          status: 'success',
+          paymentKey: paymentId,
+          customerName: (order.buyerInfo as any)?.name || '구매자',
+          paymentUrl: receiptUrl,
+          approvedAt: paymentDetail?.payment?.paid_at ? new Date(paymentDetail.payment.paid_at * 1000) : new Date() // Unix 타임스탬프 변환
+        });
+        console.log(`[결제 검증] 결제 정보 생성 완료 - 상품명: ${paymentProductName}`);
+      } else {
+        console.log(`[결제 검증] 기존 결제 정보 존재: ${existingPayment.id}`);
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: '결제가 검증되었습니다.',
+        orderId,
+        paymentId,
+        status: 'success'
+      });
+
+    } catch (error: any) {
+      console.error(`[결제 검증] 오류:`, error);
+      return res.status(500).json({ success: false, error: error.message || '결제 검증에 실패했습니다.' });
+    }
+  });
+
   // Setup Test Payment routes (포트원 SDK 우회용 테스트 결제)
   setupTestPayments(app, storage);
-  
+
   // Setup MID Test routes (상점 식별자 테스트용)
   setupMidTestRoutes(app, storage);
   
@@ -423,6 +692,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
         success: false,
         error: '테스트 결제 취소 엔드포인트 오류'
       });
+    }
+  });
+  
+  app.post('/API_TEST/payments/reconcile', async (req, res) => {
+    try {
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      const { orderId, paymentId } = req.body;
+      if (!orderId || !paymentId) {
+        return res.status(400).json({ success: false, error: 'orderId와 paymentId가 필요합니다' });
+      }
+      const payment = await storage.getPaymentByOrderId(orderId);
+      if (!payment) {
+        return res.status(404).json({ success: false, error: '결제 정보를 찾을 수 없습니다' });
+      }
+      const updated = await storage.updatePaymentByOrderId(orderId, { paymentKey: paymentId });
+      return res.status(200).json({ success: true, orderId, paymentId, updated });
+    } catch (error: any) {
+      return res.status(500).json({ success: false, error: error.message || '재동기화 중 오류' });
+    }
+  });
+  
+  app.get('/API_TEST/payments/reconcile', async (req, res) => {
+    try {
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      const orderId = req.query.orderId as string;
+      const paymentId = req.query.paymentId as string;
+      if (!orderId || !paymentId) {
+        return res.status(400).json({ success: false, error: 'orderId와 paymentId가 필요합니다' });
+      }
+      const payment = await storage.getPaymentByOrderId(orderId);
+      if (!payment) {
+        return res.status(404).json({ success: false, error: '결제 정보를 찾을 수 없습니다' });
+      }
+      const updated = await storage.updatePaymentByOrderId(orderId, { paymentKey: paymentId });
+      return res.status(200).json({ success: true, orderId, paymentId, updated });
+    } catch (error: any) {
+      return res.status(500).json({ success: false, error: error.message || '재동기화 중 오류' });
     }
   });
   
@@ -690,7 +998,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // 평점 계산 (reviews 테이블에서 실시간으로 계산)
-      const vendorRatings = new Map();
+      const vendorRatings = new Map<number, number[]>();
       for (const review of allReviews) {
         const ratings = vendorRatings.get(review.vendorId) || [];
         ratings.push(review.rating);
@@ -706,9 +1014,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const popularVendors = vendorsSorted
         .map(vendor => {
-          const vendorReviews = vendorRatings.get(vendor.id) || [];
+          const vendorReviews: number[] = vendorRatings.get(vendor.id) || [];
           const rating = vendorReviews.length > 0 
-            ? vendorReviews.reduce((sum, r) => sum + r, 0) / vendorReviews.length 
+            ? vendorReviews.reduce((sum: number, r: number) => sum + r, 0) / vendorReviews.length 
             : null;
           
           return {
@@ -740,45 +1048,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { region, lat, lng, radius } = req.query;
       const allVendors = await storage.getAllVendors();
       const allProducts = await storage.getAllProducts();
-      
+
+      console.log(`\n========== [상품 API 호출] ==========`);
+      console.log(`전체 판매자: ${allVendors.length}명, 전체 상품: ${allProducts.length}개`);
+      console.log(`쿼리 파라미터: lat=${lat}, lng=${lng}, radius=${radius}, region=${region}`);
+
+      // 판매자 정보 상세 출력
+      console.log(`\n[전체 판매자 목록]`);
+      allVendors.forEach(v => {
+        console.log(`  - ${v.storeName} (vendors.id: ${v.id}, userId: ${v.userId || 'NULL'}, 위치: ${v.latitude},${v.longitude})`);
+      });
+
+      // 상품 정보 상세 출력
+      console.log(`\n[전체 상품 목록]`);
+      allProducts.forEach(p => {
+        console.log(`  - "${p.name}" (products.id: ${p.id}, userId: ${p.userId}, 재고: ${p.stock})`);
+      });
+
       let filteredVendors = allVendors;
-      
+
       // 좌표와 반경이 제공된 경우 거리 기반 필터링 (우선)
       if (lat && lng && radius) {
         const centerLat = parseFloat(lat as string);
         const centerLng = parseFloat(lng as string);
         const radiusKm = parseFloat(radius as string);
-        
+
         console.log(`[상품 필터링] 중심: (${centerLat}, ${centerLng}), 반경: ${radiusKm}km`);
-        
+
         // 좌표가 있는 판매자만 거리 필터링, 좌표가 없는 판매자는 모두 포함
         const vendorsWithCoords = allVendors.filter(v => v.latitude && v.longitude);
         const vendorsWithoutCoords = allVendors.filter(v => !v.latitude || !v.longitude);
-        
+
+        console.log(`[판매자 분류] 좌표있음: ${vendorsWithCoords.length}명, 좌표없음: ${vendorsWithoutCoords.length}명`);
+
         const filteredWithCoords = vendorsWithCoords.filter(vendor => {
           const dlat = (vendor.latitude! - centerLat) * 111;
           const dlng = (vendor.longitude! - centerLng) * 111 * Math.cos(centerLat * Math.PI / 180);
           const distance = Math.sqrt(dlat * dlat + dlng * dlng);
-          return distance <= radiusKm;
+
+          if (distance <= radiusKm) {
+            console.log(`  [반경내] ${vendor.storeName} (ID: ${vendor.id}) - 거리: ${distance.toFixed(2)}km, 주소: ${vendor.address}`);
+            return true;
+          }
+          return false;
         });
-        
+
         filteredVendors = [...filteredWithCoords, ...vendorsWithoutCoords];
         console.log(`[상품 필터링 결과] 거리 기반: ${filteredWithCoords.length}명, 좌표없음: ${vendorsWithoutCoords.length}명, 총: ${filteredVendors.length}명`);
       } else if (region && region !== '내 지역') {
         // 문자열 기반 필터링 (지역 기반)
         filteredVendors = allVendors.filter(v => v.address?.includes(region as string));
+        console.log(`[상품 필터링 결과] 지역 기반: ${filteredVendors.length}명`);
       }
-      
+
       if (filteredVendors.length === 0) {
+        console.log(`[상품 API 응답] 필터링된 판매자가 없어 빈 배열 반환`);
         return res.json([]);
       }
-      
-      // 필터링된 판매자들의 상품만 수집
+
+      // 필터링된 판매자들의 users.id (userId) 목록 생성
+      const filteredVendorUserIds = filteredVendors.map(v => v.userId).filter(id => id !== null && id !== undefined);
+      console.log(`[필터링된 판매자 vendors.id 목록] ${filteredVendors.map(v => v.id).join(', ')}`);
+      console.log(`[필터링된 판매자 users.id 목록] ${filteredVendorUserIds.join(', ')}`);
+
+      // 필터링된 판매자들의 상품만 수집 (products.userId와 vendors.userId로 매칭)
       const availableProducts = [];
       for (const product of allProducts) {
-        const vendorId = product.userId || (product as any).vendorId;
-        if (filteredVendors.find(v => v.id === vendorId)) {
-          const vendor = filteredVendors.find(v => v.id === vendorId);
+        const productUserId = product.userId;
+        // vendors 테이블의 userId로 매칭
+        if (filteredVendorUserIds.includes(productUserId)) {
+          const vendor = filteredVendors.find(v => v.userId === productUserId);
+          console.log(`  [상품 매칭 성공] "${product.name}" (ID: ${product.id}) - 판매자: ${vendor?.storeName} (vendors.id: ${vendor?.id}, users.id: ${productUserId}), 재고: ${product.stock}`);
+
           availableProducts.push({
             id: product.id,
             plantId: product.plantId,
@@ -794,8 +1135,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
       }
-      
-      console.log(`[상품 API 응답] ${availableProducts.length}개의 상품 반환`);
+
+      console.log(`[상품 API 응답] ${availableProducts.length}개의 상품 반환 (최대 20개)`);
+      if (availableProducts.length === 0) {
+        console.log(`⚠️ [경고] 필터링된 판매자는 있지만 등록된 상품이 없습니다!`);
+      }
+
       res.json(availableProducts.slice(0, 20));
     } catch (error) {
       console.error("Error fetching available products:", error);
@@ -1365,25 +1710,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 대화 내용을 복사하여 판매자에 맞게 필터링
       let responseConversation = { ...conversation };
       
-      // 판매자인 경우 대화 내용을 필터링 (또는 개발 모드)
-      if ((isVendor && !isOwner) || process.env.NODE_ENV === 'development') {
-        // 판매자에게 모든 대화 내역을 표시하도록 변경
-        // 필터링을 적용하지 않고 모든 메시지를 반환
-        console.log(`[판매자 대화 조회 개선] 판매자 ID ${vendorId}가 대화 ID ${conversationId}의 모든 메시지를 조회합니다`);
-        
-        // 모든 유효한 메시지만 필터링 (내용이 있거나 product 또는 referenceImages가 있는 메시지)
-        const validMessages = conversation.messages.filter(msg => 
-          msg && (
-            (msg.content !== undefined && msg.content !== null && msg.content !== '') || 
-            msg.product || 
-            (msg.referenceImages && msg.referenceImages.length > 0)
-          )
-        );
-        
-        // 디버깅: 필터링 된 메시지와 원본 메시지 로깅
-        console.log(`[대화 디버깅] 원본 메시지 수: ${conversation.messages.length}`);
-        console.log(`[대화 디버깅] 필터링 후 메시지 수: ${validMessages.length}`);
-        console.log(`[대화 디버깅] 원본 메시지 타입:`, conversation.messages.map(m => m ? m.role : 'undefined'));
+        // 판매자인 경우 대화 내용을 필터링 (또는 개발 모드)
+        if ((isVendor && !isOwner) || process.env.NODE_ENV === 'development') {
+          // 판매자에게 모든 대화 내역을 표시하도록 변경
+          // 필터링을 적용하지 않고 모든 메시지를 반환
+          console.log(`[판매자 대화 조회 개선] 판매자 ID ${vendorId}가 대화 ID ${conversationId}의 모든 메시지를 조회합니다`);
+          
+          const validMessages = conversation.messages.filter(msg => 
+            msg && (msg.content !== undefined && msg.content !== null && msg.content !== '')
+          );
+          
+          // 디버깅: 필터링 된 메시지와 원본 메시지 로깅
+          console.log(`[대화 디버깅] 원본 메시지 수: ${conversation.messages.length}`);
+          console.log(`[대화 디버깅] 필터링 후 메시지 수: ${validMessages.length}`);
+          console.log(`[대화 디버깅] 원본 메시지 타입:`, conversation.messages.map(m => m ? m.role : 'undefined'));
         
         responseConversation.messages = validMessages;
       }
@@ -1564,9 +1904,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (msg.role === messageData.role && 
               msg.content === messageData.content &&
               msg.vendorId === messageData.vendorId) {
-                
+            
             // 메시지의 타임스탬프를 Date 객체로 변환
-            const msgTime = new Date(msg.timestamp || msg.createdAt || 0).getTime();
+            const msgTime = new Date(msg.timestamp || 0).getTime();
             
             // 1분 이내의 메시지인지 검사
             if (now - msgTime < ONE_MINUTE) {
@@ -1822,8 +2162,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId,
         name: productData.name,
         description: productData.description || "",
-        detailedDescription: productData.detailedDescription || "",
-        images: productData.images || [],
         category: productData.category || "",
         price: productData.price,
         stock: productData.stock || 0,
@@ -2101,8 +2439,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // 각 상품별로 주문 생성
         for (const item of items) {
-          const orderId = `ORD_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-          
+          // 결제 ID와 주문 ID를 동일하게 사용 (포트원 V2 API 형식: pay_ + 22자)
+          // 이렇게 하면 결제 완료 후 orderId로 포트원 결제 정보를 조회할 수 있음
+          const timestamp = Date.now();
+          const random = Math.random().toString(36).substring(2, 8);
+          const cleanId = (timestamp.toString() + random).replace(/[^a-zA-Z0-9]/g, '');
+          const paddedId = cleanId.substring(0, 22).padEnd(22, 'f');
+          const orderId = `pay_${paddedId}`;
+
           const order = await storage.createOrder({
             userId,
             vendorId,
@@ -2112,18 +2456,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
             status: 'created',
             orderId,
             buyerInfo: {
-              name: req.user!.name || req.user!.username,
-              email: req.user!.email,
-              phone: req.user!.phone
+              name: (req.user as any)?.name || (req.user as any)?.username,
+              email: (req.user as any)?.email,
+              phone: (req.user as any)?.phone
             },
             recipientInfo: shippingInfo,
             paymentInfo: {
-              paymentId,
+              paymentId: orderId, // 결제 ID와 주문 ID를 동일하게 사용
               amount: parseFloat(item.unitPrice) * item.quantity,
               status: 'pending'
             }
           });
-          
+
           createdOrders.push({
             ...order,
             productName: item.productName,
@@ -2131,10 +2475,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
       }
-      
-      // 응답 반환
-      const finalPaymentId = generatePortonePaymentId();
-      console.log('📤 Checkout response - paymentId:', finalPaymentId, 'totalAmount:', totalAmount);
+
+      // 응답 반환 - 첫 번째 주문의 orderId를 paymentId로 사용
+      // 이렇게 하면 결제 완료 후 해당 orderId로 포트원 결제 정보를 조회할 수 있음
+      const finalPaymentId = createdOrders.length > 0 ? createdOrders[0].orderId : generatePortonePaymentId();
+      console.log('📤 Checkout response - paymentId:', finalPaymentId, 'totalAmount:', totalAmount, 'orderCount:', createdOrders.length);
       res.json({
         orders: createdOrders,
         totalAmount,
@@ -2337,7 +2682,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         plantId = newPlant.id;
       } else {
-        console.log(`식물 매칭 성공: "${plantName}" → ID ${plantId} (${matchingPlant.name})`);
+        console.log(`식물 매칭 성공: "${plantName}" → ID ${plantId} (${matchingPlant?.name || ''})`);
       }
       
       // 4. 각 판매자에게 입찰 요청 생성
@@ -2519,14 +2864,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         selectedProduct = await storage.getProduct(bid.selectedProductId);
       }
       
-      // 선택된 제품들 목록 불러오기 (다중 선택)
-      let selectedProducts = [];
-      // 만약 DB에서 selectedProducts 필드가 있다면 그것을 사용
-      if (bid.selectedProducts && Array.isArray(bid.selectedProducts)) {
-        selectedProducts = bid.selectedProducts;
-      }
-      // 아니면 selectedProductId가 있으면 그것을 바탕으로 제품 추가
-      else if (selectedProduct && !selectedProducts.some((p: any) => p.id === selectedProduct.id)) {
+      // 선택된 제품들 목록 불러오기 (다중 선택) - 현재 스키마에는 selectedProducts 필드가 없음
+      let selectedProducts: any[] = [];
+      if (selectedProduct && !selectedProducts.some((p: any) => p.id === selectedProduct.id)) {
         selectedProducts = [selectedProduct];
       }
       
@@ -2559,10 +2899,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         selectedProduct: selectedProduct,
         selectedProducts: selectedProducts,
         conversation: conversationData ? {
-          requestNotes: conversationData.requestNotes,
-          ribbonRequest: conversationData.ribbonRequest,
-          ribbonMessage: conversationData.ribbonMessage,
-          desiredDeliveryTime: conversationData.desiredDeliveryTime
+          userRequests: (conversationData as any).userRequests,
+          ribbonRequest: (conversationData as any).ribbonRequest,
+          ribbonMessage: (conversationData as any).ribbonMessage,
+          deliveryTime: (conversationData as any).deliveryTime
         } : null
       };
       
@@ -2616,177 +2956,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // 상태 업데이트
       const updatedBid = await storage.updateBidStatus(bidId, status);
-      
-      // 해당 대화가 있는 경우 대화에 판매자 메시지 추가
-      if (bid.conversationId) {
-        try {
-          const conversation = await storage.getConversation(bid.conversationId);
-          
-          if (conversation) {
-            const messages = Array.isArray(conversation.messages) 
-              ? conversation.messages 
-              : (typeof conversation.messages === 'string' 
-                ? JSON.parse(conversation.messages) 
-                : []);
-            
-            // 🎯 입찰 상태별 메시지 생성 로직 (완전 근본적 해결)
-            let statusMessage = message || '';
-            
-            // 🚫 완전 해결: 백엔드에서 모든 자동 메시지 생성 비활성화
-            // 프론트엔드에서만 메시지를 제어하도록 함
-            console.log(`[백엔드 메시지 생성 비활성화] 판매자 ${bid.vendorId}, 상태: ${status} - 프론트엔드에서만 메시지 처리`);
-            
-            // 상태만 업데이트하고 메시지 생성은 하지 않음
-            const updatedBid = await storage.updateBidStatus(bidId, status);
-            return res.json(updatedBid);
-            
-            // 다른 상태들은 기존 로직 유지
-            if (!statusMessage) {
-              switch(status) {
-                case 'reviewing':
-                  // reviewing 상태에서는 메시지 생성 안 함 (중복 방지)
-                  return;
-                  break;
-                case 'preparing':
-                  // 판매자 정보 조회 (이름 가져오기)
-                  const preparingVendor = await storage.getVendorById(bid.vendorId);
-                  
-                  // 판매자 정보 디버깅 로그
-                  console.log(`상태 메시지 생성 (preparing): vendorId=${bid.vendorId}`);
-                  console.log('판매자 정보:', JSON.stringify(preparingVendor, null, 2));
-                  console.log(`상태 메시지 생성 (preparing): vendorId=${bid.vendorId}, 업체명=${preparingVendor?.storeName || '알 수 없음'}`);
-                  
-                  // storeName 필드 존재 확인 및 사용
-                  if (preparingVendor && preparingVendor.storeName) {
-                    statusMessage = `${preparingVendor.storeName}에서 제품을 준비 중입니다.`;
-                  } else {
-                    statusMessage = '판매자가 제품을 준비 중입니다.';
-                    console.error(`판매자 ID ${bid.vendorId}의 상호명을 찾을 수 없습니다.`);
-                  }
-                  break;
-                case 'bidded':
-                  // 입찰 완료 상태일 때는 더 자세한 정보를 포함
-                  try {
-                    // 선택된 상품 정보 가져오기
-                    const product = bid.selectedProductId 
-                      ? await storage.getProduct(bid.selectedProductId) 
-                      : null;
-                      
-                    // 입찰일 때는 사용자 메시지만 포함, 제품 정보와 가격은 별도 필드로 전달
-                    statusMessage = bid.vendorMessage || "";
-                    
-                    // 참고 이미지가 있는 경우 추가 (별도 메시지는 추가하지 않음)
-                    // 이미지는 별도 필드로 처리됨
-                  } catch (error) {
-                    console.error('입찰 정보 처리 오류:', error);
-                    // 입찰일 때는 사용자 메시지만 포함, 제품 정보와 가격은 별도 필드로 전달
-                    statusMessage = bid.vendorMessage || "";
-                  }
-                  break;
-                case 'accepted':
-                  statusMessage = '입찰이 수락되었습니다.';
-                  break;
-                case 'shipped':
-                  statusMessage = '제품이 발송되었습니다.';
-                  break;
-                case 'completed':
-                  statusMessage = '주문이 완료되었습니다.';
-                  break;
-                case 'rejected':
-                  statusMessage = '입찰 요청이 거절되었습니다.';
-                  break;
-                default:
-                  statusMessage = `입찰 상태가 ${status}로 변경되었습니다.`;
-              }
-            }
-            
-            // 참조 이미지 처리 - JSON 문자열을 배열로 변환
-            let referenceImages;
-            
-            if (status === 'bidded' && (bid as any).referenceImages) {
-              try {
-                // 이미 배열인지 확인
-                if (Array.isArray((bid as any).referenceImages)) {
-                  referenceImages = (bid as any).referenceImages;
-                } 
-                // 문자열인지 확인
-                else if (typeof (bid as any).referenceImages === 'string') {
-                  try {
-                    // 이중 직렬화된 JSON 문자열 패턴 확인 ("""[\""..\"]""")
-                    if ((bid as any).referenceImages.startsWith('"""') && (bid as any).referenceImages.endsWith('"""')) {
-                      // 외부 따옴표 제거
-                      const cleanedJson = (bid as any).referenceImages.slice(3, -3);
-                      // 이스케이프된 따옴표 처리
-                      const unescapedJson = cleanedJson.replace(/\\"/g, '"');
-                      // 배열로 파싱
-                      referenceImages = JSON.parse(unescapedJson);
-                    } else {
-                      // 일반 JSON 문자열
-                      referenceImages = JSON.parse((bid as any).referenceImages);
-                    }
-                    
-                    console.log("참조 이미지 파싱 성공:", referenceImages);
-                  } catch (parseError) {
-                    console.error("참조 이미지 파싱 오류:", parseError);
-                    referenceImages = undefined;
-                  }
-                }
-              } catch (error) {
-                console.error("참조 이미지 처리 중 오류:", error);
-                referenceImages = undefined;
-              }
-            }
-            
-            // 판매자 메시지 추가 전 로그 추가
-            console.log("판매자 메시지 처리:", {
-              status,
-              bidVendorMessage: bid.vendorMessage,
-              statusMessage
-            });
-            
-            // 판매자 메시지 추가
-            const vendorMessage: any = {
-              role: "vendor",
-              // bidded 상태에서는 판매자 메시지를 그대로 표시 (null 처리 추가)
-              content: status === 'bidded' ? (bid.vendorMessage || statusMessage || "판매자의 새 입찰이 도착했습니다.") : statusMessage,
-              timestamp: new Date(),
-              // 항상 입찰에 있는 vendorId를 사용하여 일관된 색상과 상호명 표시 
-              vendorId: bid.vendorId
-            };
-            
-            // bidded 상태일 때만 제품 정보 포함
-            if (status === 'bidded') {
-              const product = bid.selectedProductId 
-                ? await storage.getProduct(bid.selectedProductId) 
-                : null;
-              
-              if (product) {
-                vendorMessage.product = product;
-                vendorMessage.price = bid.price;
-                vendorMessage.referenceImages = referenceImages;
-                vendorMessage.imageUrl = referenceImages && Array.isArray(referenceImages) && referenceImages.length > 0 
-                  ? referenceImages[0] 
-                  : undefined;
-              }
-            }
-            
-            messages.push(vendorMessage);
-            
-            // 대화 업데이트
-            await storage.updateConversation(bid.conversationId, messages);
-            
-            console.log(`대화 ID ${bid.conversationId}에 판매자 메시지 추가: ${statusMessage}`);
-          }
-        } catch (error) {
-          console.error("대화에 메시지 추가 중 오류:", error);
-          // 대화 업데이트 오류는 전체 작업을 실패시키지 않음
-        }
-      }
-      
       if (updatedBid) {
-        res.json(updatedBid);
+        return res.json(updatedBid);
       } else {
-        res.status(500).json({ error: "입찰 상태 업데이트에 실패했습니다" });
+        return res.status(500).json({ error: "입찰 상태 업데이트에 실패했습니다" });
       }
     } catch (error) {
       console.error("Error updating bid status:", error);
@@ -3400,8 +3573,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { orderId } = req.params;
       const { status } = req.body;
       
-      // 주문 상태 유효성 검사
-      const validStatuses = ['created', 'paid', 'preparing', 'shipping', 'delivered', 'completed', 'cancelled'];
+      // 주문 상태 유효성 검사 (shipped 추가 - 판매자 대시보드에서 사용)
+      const validStatuses = ['created', 'paid', 'preparing', 'shipping', 'shipped', 'delivered', 'completed', 'cancelled'];
       if (!validStatuses.includes(status)) {
         return res.status(400).json({ error: '유효하지 않은 주문 상태입니다' });
       }
@@ -3423,20 +3596,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         hasPermission = true;
       }
       else if (req.user?.id === order.userId) {
-        // 주문 소유자(구매자)는 취소만 가능
+        // 주문 소유자(구매자)는 취소 또는 결제 완료(paid) 상태 변경 가능
         if (status === 'cancelled') {
           hasPermission = true;
           console.log(`구매자(ID:${req.user.id})의 주문 취소 권한 확인 성공`);
+        } else if (status === 'paid') {
+          // 결제 완료 후 클라이언트에서 상태 동기화를 위해 허용
+          hasPermission = true;
+          console.log(`구매자(ID:${req.user.id})의 결제 완료 상태 업데이트 권한 확인 성공`);
         } else {
           console.log(`구매자의 권한 오류: 상태 변경 불가 (요청 상태: ${status})`);
-          return res.status(403).json({ error: '구매자는 주문 취소만 가능합니다' });
+          return res.status(403).json({ error: '구매자는 주문 취소 또는 결제 완료만 가능합니다' });
         }
       }
       else if (req.user?.role === 'vendor') {
         // 판매자 정보 조회
         const vendor = await storage.getVendorByUserId(req.user.id);
+        console.log(`판매자 권한 체크 - userId: ${req.user.id}, vendorId: ${vendor?.id}, orderVendorId: ${order.vendorId}`);
         if (vendor && vendor.id === order.vendorId) {
           hasPermission = true;
+          console.log(`판매자(ID:${vendor.id})의 주문 상태 변경 권한 확인 성공`);
+        } else {
+          console.log(`판매자 권한 실패: vendor=${vendor?.id}, orderVendor=${order.vendorId}`);
         }
       }
       
@@ -3447,9 +3628,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // 배송 정보 추가
       let trackingInfo = order.trackingInfo;
-      
-      // 상태가 'shipping'으로 변경될 때 배송 정보 추가
-      if (status === 'shipping' && order.status !== 'shipping') {
+
+      // 상태가 'shipping' 또는 'shipped'로 변경될 때 배송 정보 추가
+      if ((status === 'shipping' || status === 'shipped') && order.status !== 'shipping' && order.status !== 'shipped') {
         trackingInfo = {
           company: '우편택배',
           trackingNumber: `TK-${Date.now().toString().slice(-8)}`,
@@ -3498,10 +3679,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
+      // 완료 상태로 변경될 때 완료일 추가
+      if (status === 'completed') {
+        trackingInfo = {
+          ...trackingInfo,
+          completedAt: new Date()
+        };
+      }
+
       // 주문 상태 업데이트
       const updatedOrder = await storage.updateOrder(order.id, {
         status,
-        trackingInfo
+        trackingInfo,
+        updatedAt: new Date()
       });
       
       if (!updatedOrder) {
@@ -3846,7 +4036,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (!payment) {
         console.log('주문에 대한 결제 정보가 없음:', orderId);
-        return res.status(404).json({ error: '결제 정보를 찾을 수 없습니다.' });
+        // 바로 404를 반환하지 않고 포트원 검색으로 생성 폴백 수행
+        try {
+          const order = await storage.getOrderByOrderId(orderId);
+          if (!order) {
+            return res.status(404).json({ error: '주문을 찾을 수 없습니다.' });
+          }
+          const portoneV2Client = await import('./portone-v2-client');
+          const portoneClient = portoneV2Client.default;
+          const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+          const maxAttempts = 6;
+          const baseDelayMs = 500;
+          let finalPaymentId = '';
+          for (let attempt = 1; attempt <= maxAttempts && !finalPaymentId; attempt++) {
+            try {
+              const searchResult = await portoneClient.searchPayments({ orderId });
+              if (searchResult && Array.isArray(searchResult.payments) && searchResult.payments.length > 0) {
+                const exact = searchResult.payments.find((p: any) => p.order_id === orderId);
+                const chosen = exact || searchResult.payments[0];
+                finalPaymentId = chosen?.payment_id || '';
+                if (finalPaymentId) {
+                  // 상세 조회로 주문번호 확인
+                  try {
+                    const detail = await portoneClient.getPayment(finalPaymentId);
+                    if (detail?.payment?.order_id && detail.payment.order_id !== orderId) {
+                      console.warn(`상세 조회 결과 주문번호 불일치. 요청=${orderId}, 응답=${detail.payment.order_id}`);
+                      finalPaymentId = '';
+                    }
+                  } catch (detailErr: any) {
+                    console.error('결제 상세 조회 오류:', detailErr?.message || detailErr);
+                    finalPaymentId = '';
+                  }
+                }
+              }
+            } catch (e: any) {
+              console.error('포트원 결제 검색 오류:', e.message || e);
+            }
+            if (!finalPaymentId && attempt < maxAttempts) {
+              const waitMs = baseDelayMs * attempt;
+              console.log(`포트원 결제 검색 재시도 준비 (${attempt}/${maxAttempts}) 대기 ${waitMs}ms`);
+              await sleep(waitMs);
+            }
+          }
+          if (!finalPaymentId) {
+            return res.status(404).json({ error: '결제 정보를 찾을 수 없습니다.' });
+          }
+          const paymentData = {
+            userId: order.userId,
+            bidId: 1,
+            orderId: orderId,
+            orderName: "식물 구매: " + orderId,
+            amount: order.price.toString(),
+            method: "CARD",
+            status: "success",
+            paymentKey: finalPaymentId,
+            customerName: "구매자"
+          };
+          // 결제 상세 조회로 영수증 URL 등 부가 정보 확보
+          let receiptUrl: string | undefined;
+          try {
+            const info = await portoneClient.getPayment(finalPaymentId);
+            receiptUrl = (info?.payment?.receipt_url as string) || (info?.payment?.receipt?.url as string) || undefined;
+          } catch (detailErr: any) {
+            console.warn('[결제 조회 폴백] 결제 상세 조회 실패로 영수증 URL 설정 생략:', detailErr?.message || detailErr);
+          }
+          
+          const created = await storage.createPayment({
+            ...paymentData,
+            paymentUrl: receiptUrl
+          });
+          return res.json(created);
+        } catch (fallbackErr: any) {
+          console.error('결제 조회 폴백 처리 오류:', fallbackErr?.message || fallbackErr);
+          return res.status(404).json({ error: '결제 정보를 찾을 수 없습니다.' });
+        }
       }
       
       // V2 API 형식의 결제키 확인
@@ -3901,23 +4164,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // 결제 정보 생성 (스키마에 맞는 형식으로)
+      const portoneV2Client = await import('./portone-v2-client');
+      const portoneClient = portoneV2Client.default;
+      let finalPaymentId = '';
+      
+      try {
+        const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+        const maxAttempts = 6;
+        const baseDelayMs = 500;
+        for (let attempt = 1; attempt <= maxAttempts && !finalPaymentId; attempt++) {
+          const searchResult = await portoneClient.searchPayments({ orderId });
+          if (searchResult && Array.isArray(searchResult.payments) && searchResult.payments.length > 0) {
+            const exact = searchResult.payments.find((p: any) => p.order_id === orderId);
+            const chosen = exact || searchResult.payments[0];
+            finalPaymentId = chosen?.payment_id || '';
+            if (finalPaymentId) break;
+          }
+          if (attempt < maxAttempts) {
+            const waitMs = baseDelayMs * attempt;
+            console.log(`포트원 결제 검색 재시도 준비 (${attempt}/${maxAttempts}) 대기 ${waitMs}ms`);
+            await sleep(waitMs);
+          }
+        }
+      } catch (e: any) {
+        console.error('포트원 결제 검색 오류:', e.message || e);
+      }
+      
+      if (!finalPaymentId) {
+        return res.status(404).json({
+          success: false,
+          error: '포트원에서 결제 정보를 찾을 수 없습니다.'
+        });
+      }
+      
+      // 결제 상세 조회로 영수증 URL 등 부가 정보 확보
+      let receiptUrl: string | undefined;
+      try {
+        const info = await portoneClient.getPayment(finalPaymentId);
+        receiptUrl = (info?.payment?.receipt_url as string) || (info?.payment?.receipt?.url as string) || undefined;
+      } catch (detailErr: any) {
+        console.warn('[공개 동기화] 결제 상세 조회 실패로 영수증 URL 설정 생략:', detailErr?.message || detailErr);
+      }
+      
       const paymentData = {
         userId: order.userId,
-        bidId: 1, // 기본값 설정 (임시 처리)
+        bidId: 1,
         orderId: orderId,
         orderName: "식물 구매: " + orderId,
         amount: order.price.toString(),
-        method: "CARD", 
-        status: "success", // 결제 성공 상태로 설정
-        // pay_로 시작하는 V2 API 형식의 paymentKey 사용
-        paymentKey: `pay_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-        // receipt 필드 제외
+        method: "CARD",
+        status: "success",
+        paymentKey: finalPaymentId,
         customerName: "구매자",
-        paymentUrl: `https://iniweb.inicis.com/receipt/MOI3204387_${orderId}`
+        paymentUrl: receiptUrl
       };
       
-      // 결제 정보 저장
       const payment = await storage.createPayment(paymentData);
       
       return res.status(200).json({
@@ -3930,6 +4231,138 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(500).json({
         success: false,
         error: error.message || '결제 정보 동기화 중 오류가 발생했습니다.'
+      });
+    }
+  });
+
+  // 포트원에서 결제 상태 확인 및 동기화 API
+  app.post("/api/payments/sync-status", async (req, res) => {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+
+    try {
+      const { orderId } = req.body;
+
+      if (!orderId) {
+        return res.status(400).json({
+          success: false,
+          error: '주문 ID가 필요합니다.'
+        });
+      }
+
+      console.log(`[결제 동기화] 주문 ${orderId}에 대한 포트원 상태 동기화 요청`);
+
+      // 기존 결제 정보 확인
+      const existingPayment = await storage.getPaymentByOrderId(orderId);
+
+      if (!existingPayment) {
+        return res.status(404).json({
+          success: false,
+          error: '결제 정보를 찾을 수 없습니다.'
+        });
+      }
+
+      // 포트원에서 결제 정보 조회
+      const portoneV2Client = await import('./portone-v2-client');
+      const portoneClient = portoneV2Client.default;
+
+      try {
+        // paymentKey 또는 orderId로 결제 정보 조회
+        const paymentInfo = await portoneClient.getPayment(orderId);
+
+        if (!paymentInfo || !paymentInfo.payment) {
+          console.log('[결제 동기화] 포트원에서 결제 정보를 찾을 수 없음, orderId로 검색 시도');
+
+          // orderId로 검색 시도
+          const searchResult = await portoneClient.searchPayments({ orderId });
+          if (!searchResult?.payments?.length) {
+            return res.status(404).json({
+              success: false,
+              error: '포트원에서 결제 정보를 찾을 수 없습니다.'
+            });
+          }
+
+          const payment = searchResult.payments[0];
+          const portoneStatus = payment.status?.toUpperCase();
+
+          console.log(`[결제 동기화] 포트원 결제 상태: ${portoneStatus}`);
+
+          // 취소 상태인 경우 DB 업데이트
+          if (portoneStatus === 'CANCELLED' || portoneStatus === 'PARTIAL_CANCELLED') {
+            await storage.updatePayment(existingPayment.id, {
+              status: 'CANCELLED',
+              cancelReason: '포트원 콘솔에서 취소됨',
+              cancelledAt: new Date(),
+              updatedAt: new Date()
+            });
+
+            // 주문 상태도 업데이트
+            const order = await storage.getOrderByOrderId(orderId);
+            if (order) {
+              await storage.updateOrderStatus(order.id, 'cancelled');
+            }
+
+            return res.status(200).json({
+              success: true,
+              message: '결제가 취소 상태로 동기화되었습니다.',
+              status: 'CANCELLED'
+            });
+          }
+
+          return res.status(200).json({
+            success: true,
+            message: '결제 상태가 이미 동기화되어 있습니다.',
+            status: portoneStatus
+          });
+        }
+
+        const portonePayment = paymentInfo.payment;
+        const portoneStatus = portonePayment.status?.toUpperCase();
+
+        console.log(`[결제 동기화] 포트원 결제 상태: ${portoneStatus}`);
+
+        // 취소 상태인 경우 DB 업데이트
+        if (portoneStatus === 'CANCELLED' || portoneStatus === 'PARTIAL_CANCELLED') {
+          const cancelReason = portonePayment.cancellations?.[0]?.reason || '포트원 콘솔에서 취소됨';
+
+          await storage.updatePayment(existingPayment.id, {
+            status: 'CANCELLED',
+            cancelReason,
+            cancelledAt: portonePayment.cancelled_at ? new Date(portonePayment.cancelled_at) : new Date(),
+            updatedAt: new Date()
+          });
+
+          // 주문 상태도 업데이트
+          const order = await storage.getOrderByOrderId(orderId);
+          if (order) {
+            await storage.updateOrderStatus(order.id, 'cancelled');
+          }
+
+          return res.status(200).json({
+            success: true,
+            message: '결제가 취소 상태로 동기화되었습니다.',
+            status: 'CANCELLED'
+          });
+        }
+
+        return res.status(200).json({
+          success: true,
+          message: '결제 상태가 이미 동기화되어 있습니다.',
+          status: portoneStatus
+        });
+
+      } catch (portoneError: any) {
+        console.error('[결제 동기화] 포트원 API 호출 오류:', portoneError.message);
+        return res.status(500).json({
+          success: false,
+          error: '포트원 API 호출 중 오류가 발생했습니다: ' + portoneError.message
+        });
+      }
+
+    } catch (error: any) {
+      console.error('[결제 동기화] 오류:', error);
+      return res.status(500).json({
+        success: false,
+        error: error.message || '결제 상태 동기화 중 오류가 발생했습니다.'
       });
     }
   });
@@ -4211,7 +4644,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // 일별 매출 데이터 배열로 변환
       const dailySales = [];
-      for (const [date, amount] of salesByDate.entries()) {
+      for (const [date, amount] of Array.from(salesByDate.entries())) {
         dailySales.push({
           date,
           순매출액: amount
@@ -4260,8 +4693,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 실제 데이터로 카테고리별 매출 집계
       validOrders.forEach(order => {
         try {
-          // order.productId 또는 order.plantId를 사용 (어느 필드가 실제로 존재하는지에 따라)
-          const productId = order.productId || order.plantId;
+          // order.productId 또는 (임시) order.plantId를 사용
+          const productId = order.productId || (order as any).plantId;
           if (!productId) return; // 유효한 제품 ID가 없는 경우 건너뛰기
           
           const price = parseFloat(order.price.replace(/[^0-9.-]+/g, "")) || 0;
@@ -4274,8 +4707,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             productName = productNameMap[productId];
           } 
           // 2. 주문에 저장된 제품명 사용 (plantName 또는 productName 필드가 있는 경우)
-          else if (typeof order.plantName === 'string' || typeof order.productName === 'string') {
-            productName = order.plantName || order.productName || '';
+        else if (typeof (order as any).plantName === 'string' || typeof (order as any).productName === 'string') {
+          productName = (order as any).plantName || (order as any).productName || '';
           } 
           // 3. 기본 이름 생성
           else {
@@ -4288,7 +4721,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               name: productName, 
               sales: 0, 
               count: 0,
-              isBidProduct: order.isBid === true || false
+              isBidProduct: (order as any).isBid === true || false
             });
           }
           
@@ -4339,7 +4772,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         
         // 4. 판매자 정보와 매출 데이터 결합
-        for (const [vendorId, salesData] of vendorSalesMap.entries()) {
+        for (const [vendorId, salesData] of Array.from(vendorSalesMap.entries())) {
           const vendorInfo = allVendors.find(v => v.id === vendorId);
           const storeName = vendorInfo ? vendorInfo.storeName : `판매자 ID: ${vendorId}`;
           
@@ -4497,7 +4930,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // 주문 상태 디버깅 정보 출력
       console.log('===== 주문 상태 디버깅 시작 =====');
-      const statusCounts = {};
+      const statusCounts: Record<string, number> = {};
       filteredOrders.forEach(order => {
         statusCounts[order.status] = (statusCounts[order.status] || 0) + 1;
       });
@@ -4613,7 +5046,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`${timeRange} 기간 데이터 표시 방식: ${useMonthlyGrouping ? '월별 그룹화' : '일별 상세'}`);
       
       // 클라이언트 시간대 보정 함수
-      function correctTimezone(dateObj: Date): Date {
+      const correctTimezone = (dateObj: Date): Date => {
         // 한국 시간대로 맞추기 (UTC+9)
         // 주의: 서버가 UTC로 실행 중이라면 9시간 더하고, 이미 KST라면 그대로 사용
         const serverTimeZoneOffset = dateObj.getTimezoneOffset();
@@ -4800,7 +5233,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validProductMap = new Map();
       
       for (const order of validOrdersForProducts) {
-        const productId = parseInt(order.plantId, 10) || parseInt(order.productId, 10);
+        const productId = Number((order as any).plantId) || Number(order.productId);
         if (isNaN(productId)) continue;
         
         if (!validProductMap.has(productId)) {
@@ -4817,8 +5250,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // 기간 내 모든 날짜에 대해 초기 매출 데이터 (0원) 설정
-      const dailySalesArray = [];
-      for (const [date, _] of salesDataMap.entries()) {
+      const dailySalesArray: Array<{ date: string; 순매출액: number }> = [];
+      for (const [date, _] of Array.from(salesDataMap.entries())) {
         dailySalesArray.push({
           date,
           순매출액: 0
@@ -4827,7 +5260,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // 실제 주문 데이터 (DB의 매출 데이터 기반)
       // filteredOrders에서 추출한 유효한 주문 기반 실제 데이터
-      const realSales = [];
+      const realSales: Array<{ date: string; 순매출액: number }> = [];
       
       // 유효한 주문을 날짜별로 처리
       filteredOrders.forEach(order => {
@@ -4878,7 +5311,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // validProductMap이 비어있지 않으면 이를 사용, 비어있으면 빈 데이터 표시
       if (validProductMap && validProductMap.size > 0) {
-        console.log(`유효한 주문에서 찾은 제품 ID: ${[...validProductMap.keys()].join(', ')}`);
+        console.log(`유효한 주문에서 찾은 제품 ID: ${Array.from(validProductMap.keys()).join(', ')}`);
         // 이제 categoryMap 대신 validProductMap 사용
         // 그대로 두고 아래 코드에서 새 맵 참조하도록 수정
       } else {
@@ -4915,7 +5348,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error("입찰 정보 조회 실패:", err);
       }
       filteredOrders.forEach(order => {
-        console.log(`주문 ID ${order.id}: productId=${order.productId || '없음'}, plantId=${order.plantId || '없음'}`);
+        console.log(`주문 ID ${order.id}: productId=${order.productId || '없음'}, plantId=${(order as any).plantId || '없음'}`);
       });
       
       // 먼저 기본 제품 정보 설정
@@ -4971,12 +5404,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       console.log("제품 이름 매핑 결과:");
-      console.log([...productNameMap.entries()].map(([id, name]) => `${id}: ${name}`).join(', '));
+      console.log(Array.from(productNameMap.entries()).map(([id, name]) => `${id}: ${name}`).join(', '));
       
       // 유효한 주문만 사용하여 카테고리 데이터 계산
       for (const order of validOrdersForProducts) {
         // 제품 ID 확인 (주문 객체에 productId가 있는지 확인, 없으면 plantId 사용)
-        const productId = order.productId || order.plantId || null;
+        const productId = order.productId || (order as any).plantId || null;
         
         // 제품 ID가 없는 경우 건너뛰기
         if (!productId) {
@@ -5018,7 +5451,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`제품별 매출 데이터: ${categoryMap.size}개 제품 (${timeRange} 기간 필터 적용)`);
       
       // 식물 이름으로 카테고리 매핑
-      const categories = [];
+      const categories: Array<{ id: number; name: string; sales: number; count: number; isBidProduct?: boolean }> = [];
       const plants = await storage.getAllPlants();
       
       const plantMap = new Map();
@@ -5053,7 +5486,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           for (const product of productsData) {
             productInfoMap.set(product.id, {
               id: product.id,
-              name: product.name || product.productName || `제품 ID: ${product.id}`
+              name: product.name || `제품 ID: ${product.id}`
             });
           }
         }
@@ -5144,8 +5577,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 중복 제거됨 - 첫 번째 부분에서 이미 처리됨
       
       // 실제 성장률 계산 (이전 기간과 비교)
-      let salesGrowth = 0;
-      let orderGrowth = 0;
+      let salesGrowth: string = '0.0';
+      let orderGrowth: string = '0.0';
       
       if (prevPeriodNetSales > 0) {
         // 매출 성장률 계산 - 순매출 기준으로 ((현재 순매출 - 이전 순매출) / 이전 순매출 * 100)
@@ -5173,7 +5606,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         dailySales: dailySalesArray || [],
         dataFormat: useMonthlyGrouping ? 'monthly' : 'daily', // 데이터 형식 정보 추가
         categories: categories,
-        vendorSales: vendorSales,
         timeRange: timeRange // 선택된 기간 정보 포함
       };
       
@@ -5214,6 +5646,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+
   // 외부 식물 API 연동 라우트들
   console.log('🚀 서버 시작: air-purifying-new-64 라우트 등록됨');
   
@@ -5251,8 +5684,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('🌿 모든 응답 받음, 길이들:', xmlDatas.map(xml => xml.length));
       
       // 정규식으로 <result> 태그들 추출
-      const resultRegex = /<result>.*?<\/result>/gs;
-      let allResults = [];
+      const resultRegex = /<result>[\s\S]*?<\/result>/g;
+      let allResults: string[] = [];
       
       xmlDatas.forEach((xmlData, index) => {
         const results = xmlData.match(resultRegex) || [];
@@ -5939,10 +6372,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let uniquePlants = 0;
       
       // 각 그룹에서 가장 최근 것만 남기고 나머지 삭제
-      for (const [name, plants] of plantGroups) {
+      for (const [name, plants] of Array.from(plantGroups.entries())) {
         if (plants.length > 1) {
           // 가장 최근 것 찾기 (ID가 가장 큰 것)
-          plants.sort((a, b) => b.id - a.id);
+      plants.sort((a: any, b: any) => b.id - a.id);
           const keepPlant = plants[0];
           
           let groupRemoved = 0;
@@ -6124,7 +6557,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // 영어 감지 함수
-      function isEnglishText(text: string): boolean {
+      const isEnglishText = (text: string): boolean => {
         if (!text) return false;
         const koreanRegex = /[\uAC00-\uD7AF]/g;
         const koreanCount = (text.match(koreanRegex) || []).length;
@@ -6252,7 +6685,7 @@ ${fieldsToTranslate.map(field => {
           return {
             ...review,
             authorName: user?.name || user?.username || "익명",
-            authorImage: user?.profileImageUrl
+            authorImage: undefined
           };
         })
       );

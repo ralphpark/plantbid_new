@@ -28,8 +28,11 @@ import { v4 as uuidv4 } from 'uuid';
 
 // 환경 변수에서 포트원 API 키 및 시크릿 가져오기
 const portoneApiKey = process.env.PORTONE_API_KEY || '';
-// 새로운 API 키 직접 사용 (임시 테스트용)
-const portoneApiSecret = "Q5xc87z1Sxd5uPQDuz72O7pDGqy7XAC2b9EPO9PWFPvFT5jCy2er5Ap9IWHMP1iRVfcF54qE2nXx22J4";
+// 운영 환경 시크릿을 우선 사용
+const portoneApiSecret = process.env.PORTONE_SECRET_KEY 
+  || process.env.PORTONE_API_SECRET 
+  || process.env.PORTONE_V2_API_SECRET 
+  || '';
 
 // 상점 및 채널 정보 (고정값 또는 환경 변수에서 가져옴)
 export const PORTONE_STORE_ID = process.env.PORTONE_STORE_ID || "store-c2335caa-ad5c-4d3a-802b-568328aab2bc";
@@ -332,8 +335,8 @@ console.log('- 채널 키 (CHANNEL_KEY):', PORTONE_CHANNEL_KEY);
 console.log('- 채널 이름 (CHANNEL_NAME):', PORTONE_CHANNEL_NAME);
 console.log('- API 키 설정 여부:', !!portoneApiKey);
 console.log('- API 시크릿 길이:', portoneApiSecret.length);
-console.log('- API 시크릿 유형:', portoneApiSecret.startsWith('TK') ? 'V2 API 키' : '비표준 API 키');
-console.log('- API 시크릿 첫 10자:', portoneApiSecret.substring(0, 10));
+console.log('- API 시크릿 유형:', portoneApiSecret.startsWith('gs') ? '운영 시크릿' : (portoneApiSecret.startsWith('TK') ? '테스트 시크릿' : '미설정/비표준'));
+console.log('- API 시크릿 첫 10자:', portoneApiSecret ? portoneApiSecret.substring(0, 10) : '미설정');
 
 // 환경 변수 로딩 상태 확인
 console.log('🔑 환경 변수 확인:');
@@ -564,6 +567,7 @@ export class PortOneV2Client {
       const requestOptions = {
         headers: {
           'Authorization': `PortOne ${this.apiSecret}`, // 인증 헤더 추가
+          'Store-Id': PORTONE_STORE_ID, // 상점 ID 헤더 추가 (필수)
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         }
@@ -572,8 +576,9 @@ export class PortOneV2Client {
       // API 요청 전송
       console.log('결제 정보 조회 요청 전송...');
       // 중요: 헤더 상세 로깅
-      console.log('요청 헤더:', JSON.stringify({ 
+      console.log('요청 헤더:', JSON.stringify({
         Authorization: `PortOne ${this.apiSecret.substring(0, 5)}...${this.apiSecret.substring(this.apiSecret.length-5)}`,
+        'Store-Id': PORTONE_STORE_ID,
         'Content-Type': 'application/json',
         'Accept': 'application/json'
       }, null, 2));
@@ -839,10 +844,10 @@ export class PortOneV2Client {
       // 검색 파라미터 구성
       const searchParams = new URLSearchParams();
       
-      // 주문 ID로 검색
+      // 주문 ID로 검색 (V2 표준: order_id)
       if (params.orderId) {
-        searchParams.append('orderId', params.orderId);
-        console.log(`주문 ID로 검색: ${params.orderId}`);
+        searchParams.append('order_id', params.orderId);
+        console.log(`주문 ID(order_id)로 검색: ${params.orderId}`);
       }
       
       // 상태로 검색
@@ -871,8 +876,8 @@ export class PortOneV2Client {
       
       // 결제 ID로 검색
       if (params.paymentId) {
-        searchParams.append('paymentId', params.paymentId);
-        console.log(`결제 ID로 검색: ${params.paymentId}`);
+        searchParams.append('payment_id', params.paymentId);
+        console.log(`결제 ID(payment_id)로 검색: ${params.paymentId}`);
       }
       
       // 상품 ID로 검색

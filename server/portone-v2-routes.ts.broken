@@ -376,8 +376,13 @@ export function setupPortOneV2Routes(app: Express, storage: IStorage) {
           });
         }
         
-        // 첫 번째 검색 결과 사용
-        const foundPaymentData = paymentsList.payments[0];
+        const foundPaymentData = paymentsList.payments.find((p: any) => p.order_id === orderId);
+        if (!foundPaymentData) {
+          return res.status(StatusCodes.NOT_FOUND).json({
+            success: false,
+            error: '주문 ID에 해당하는 결제 정보를 찾을 수 없습니다.'
+          });
+        }
         const paymentKey = foundPaymentData.payment_id;
         
         // 결제 정보 상세 조회
@@ -392,23 +397,13 @@ export function setupPortOneV2Routes(app: Express, storage: IStorage) {
           });
         }
         
-        // 주문 번호 일치 여부 확인 (금액 기반 검색으로 찾은 경우에는 이 부분 건너뜀)
         if (paymentInfo.payment.order_id !== orderId) {
-          // 주문번호가 다르지만, 금액이 일치하면 가져다 사용
-          console.log(`주문번호 불일치: 예상(${orderId}) vs 실제(${paymentInfo.payment.order_id}), 
-                      금액 정보: 주문(${order.price}) vs 결제(${paymentInfo.payment.total_amount})`);
-                      
-          if (Number(order.price) === Number(paymentInfo.payment.total_amount)) {
-            console.log("주문번호는 다르지만 금액이 일치하므로 결제 정보를 사용합니다.");
-            // 처리 계속
-          } else {
-            return res.status(StatusCodes.BAD_REQUEST).json({
-              success: false,
-              error: "주문 번호와 금액이 일치하지 않습니다.",
-              expected: { orderId, amount: order.price },
-              actual: { orderId: paymentInfo.payment.order_id, amount: paymentInfo.payment.total_amount }
-            });
-          }
+          return res.status(StatusCodes.BAD_REQUEST).json({
+            success: false,
+            error: '주문 번호가 일치하지 않습니다.',
+            expected: orderId,
+            actual: paymentInfo.payment.order_id
+          });
         }
         
         // 결제 정보 생성

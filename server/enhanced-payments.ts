@@ -16,6 +16,7 @@ export async function cancelPaymentWithRetry(
 ) {
   try {
     const { convertToV2PaymentId } = await import('./portone-v2-client');
+    const { smartCancelPayment } = await import('./portone-payment-finder');
     // 포트원 V2 클라이언트 가져오기
     const portoneV2Client = await import('./portone-v2-client');
     const portoneClient = portoneV2Client.default;
@@ -105,40 +106,61 @@ export async function cancelPaymentWithRetry(
       }
     }
     
+    // 최종 대안: 스마트 취소 유틸 사용 시도
     if (!portoneCallSuccess) {
-      console.warn('[결제 취소 API] 모든 시도 실패 후 DB 업데이트로 진행');
+      console.log('[결제 취소 API] 모든 재시도 실패. 스마트 취소 유틸을 사용하여 최종 시도 진행');
+      try {
+        const smartResult = await smartCancelPayment(portonePaymentId, reason || '고객 요청에 의한 취소');
+        if (smartResult.success) {
+          portoneCallSuccess = true;
+          response = smartResult.data;
+          console.log('[결제 취소 API] 스마트 취소 유틸을 통한 취소 성공');
+        } else {
+          console.error('[결제 취소 API] 스마트 취소 유틸 실패:', smartResult.error);
+        }
+      } catch (smartError: any) {
+        console.error('[결제 취소 API] 스마트 취소 유틸 시도 중 오류:', smartError?.message || smartError);
+      }
     }
     
-    // 결제 정보 업데이트 - CANCELLED로 변경
-    const updatedPayment = await storage.updatePayment(payment.id, {
-      status: 'CANCELLED',
-      updatedAt: new Date(),
-      cancelReason: reason || '고객 요청에 의한 취소',
-      cancelledAt: new Date()
-    });
-    
-    // 주문 상태 업데이트
-    const updatedOrder = await storage.updateOrderStatusByOrderId(orderId, 'cancelled');
-    if (!updatedOrder) {
-      console.error(`주문 ID ${orderId}의 상태를 변경하지 못했습니다.`);
+    // 성공 시에만 DB 업데이트
+    if (portoneCallSuccess) {
+      const updatedPayment = await storage.updatePayment(payment.id, {
+        status: 'CANCELLED',
+        updatedAt: new Date(),
+        cancelReason: reason || '고객 요청에 의한 취소',
+        cancelledAt: new Date()
+      });
+      
+      const updatedOrder = await storage.updateOrderStatusByOrderId(orderId, 'cancelled');
+      if (!updatedOrder) {
+        console.error(`주문 ID ${orderId}의 상태를 변경하지 못했습니다.`);
+      } else {
+        console.log(`결제 취소 완료 - 주문 ID: ${orderId}, 결제 ID: ${payment.id}`);
+      }
+      
+      const refreshedPayment = await storage.getPaymentByOrderId(orderId);
+      return res.json({
+        success: true,
+        message: '결제가 성공적으로 취소되었습니다.',
+        portoneCallSuccess: true,
+        payment: refreshedPayment || updatedPayment,
+        order: updatedOrder,
+        timestamp: new Date().toISOString()
+      });
     } else {
-      console.log(`결제 취소 완료 - 주문 ID: ${orderId}, 결제 ID: ${payment.id}`);
+      // 실패 시 상태 변경 없이 오류 반환
+      console.warn('[결제 취소 API] 모든 취소 시도 실패. 데이터베이스 상태는 변경하지 않습니다.');
+      return res.status(502).json({
+        success: false,
+        message: '포트원 결제 취소 요청이 실패했습니다.',
+        portoneCallSuccess: false,
+        error: '포트원 API 취소 실패',
+        payment,
+        orderId,
+        timestamp: new Date().toISOString()
+      });
     }
-
-    // 업데이트된 결제 정보를 다시 가져와서 클라이언트에 전달
-    const refreshedPayment = await storage.getPaymentByOrderId(orderId);
-    
-    // 응답 - 클라이언트에 원본 포트원 응답이 아닌 필요한 데이터만 전송
-    return res.json({
-      success: true,
-      message: portoneCallSuccess 
-        ? '결제가 성공적으로 취소되었습니다.' 
-        : '결제가 취소되었지만 결제망에서 열람이 필요할 수 있습니다.',
-      portoneCallSuccess,
-      payment: refreshedPayment || updatedPayment,
-      order: updatedOrder,
-      timestamp: new Date().toISOString()
-    });
   } catch (portoneError: any) {
     console.error('포트원 API 취소 오류:', portoneError?.message || portoneError);
     

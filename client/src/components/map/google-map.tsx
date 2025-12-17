@@ -42,7 +42,7 @@ const mapOptions = {
   zoomControl: true,
   streetViewControl: false,
   mapTypeControl: false,
-  mapId: '',  // 고급 마커를 사용하지 않으므로 mapId는 비워둠
+  mapId: 'DEMO_MAP_ID',  // AdvancedMarkerElement 사용을 위한 Map ID (Google Cloud Console에서 생성 권장)
 };
 
 // 원 스타일
@@ -122,7 +122,7 @@ function GoogleMapWrapper({
     }
   }, [toast]);
 
-  // 마커 생성 함수
+  // 마커 생성 함수 - AdvancedMarkerElement 사용 (2024년 2월 이후 권장)
   const createAdvancedMarker = useCallback((position: google.maps.LatLngLiteral, id: string, isMainMarker: boolean = false, vendorInfo?: any) => {
     if (!mapRef.current || !isLoaded) return null;
 
@@ -133,19 +133,28 @@ function GoogleMapWrapper({
     }
 
     try {
-      // 항상 일반 마커만 사용 - 고급 마커 없이 사용 가능
-      const advancedMarker = new google.maps.Marker({
+      // 커스텀 마커 콘텐츠 생성
+      const markerContent = document.createElement('div');
+      markerContent.innerHTML = isMainMarker
+        ? `<div style="background-color: #5046e4; padding: 8px; border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.3);">
+             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="white">
+               <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+             </svg>
+           </div>`
+        : `<div style="background-color: #22c55e; padding: 6px; border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.3);">
+             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="white">
+               <path d="M3 13h1v7c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-7h1a1 1 0 0 0 .4-1.92l-9-4.5a1 1 0 0 0-.8 0l-9 4.5A1 1 0 0 0 3 13z"/>
+             </svg>
+           </div>`;
+
+      // AdvancedMarkerElement 생성
+      const advancedMarker = new google.maps.marker.AdvancedMarkerElement({
         map: mapRef.current,
         position,
         title: isMainMarker ? '선택 위치' : vendorInfo?.storeName || vendorInfo?.name || '판매자 위치',
-        icon: {
-          url: isMainMarker 
-            ? 'https://maps.google.com/mapfiles/ms/icons/homegardenbusiness.png'
-            : 'https://maps.google.com/mapfiles/ms/icons/tree.png'
-        },
-        animation: isMainMarker ? google.maps.Animation.DROP : undefined
+        content: markerContent,
       });
-      
+
       // 판매자 마커에 정보창 추가
       if (!isMainMarker && vendorInfo) {
         const infoWindow = new google.maps.InfoWindow({
@@ -157,7 +166,7 @@ function GoogleMapWrapper({
             </div>
           `
         });
-        
+
         // 마커 클릭 시 정보창 표시
         advancedMarker.addListener('click', () => {
           infoWindow.open(mapRef.current, advancedMarker);
@@ -166,7 +175,7 @@ function GoogleMapWrapper({
 
       // 레퍼런스 저장
       markerRefs.current[id] = advancedMarker;
-      
+
       return advancedMarker;
     } catch (error) {
       console.error('마커 생성 오류:', error);

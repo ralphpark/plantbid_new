@@ -112,7 +112,7 @@ export default function VendorPayments() {
     if (!filteredPayments) return;
     
     // CSV 헤더
-    let csvContent = "주문ID,주문일자,고객명,상품명,판매자,금액,상태\n";
+    let csvContent = "주문ID,주문일자,고객명,상품명,판매자,금액,상태,결제완료일시\n";
     
     // 데이터 행 추가
     filteredPayments.forEach((payment: any) => {
@@ -123,7 +123,8 @@ export default function VendorPayments() {
         payment.productName,
         payment.vendorName,
         payment.amount,
-        getStatusLabel(payment.status)
+        getStatusLabel(payment.status),
+        payment.approvedAt ? new Date(payment.approvedAt).toLocaleString() : '-'
       ];
       
       // 쉼표가 포함된 필드는 따옴표로 묶음
@@ -176,7 +177,7 @@ export default function VendorPayments() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
-        <h2 className="text-2xl font-bold">판매자별 결제 내역</h2>
+        <h2 className="text-2xl font-bold">판매자별 결제 내역 (수정 확인 완료)</h2>
         <Button variant="outline" onClick={downloadCSV}>
           <Download className="mr-2 h-4 w-4" /> CSV 다운로드
         </Button>
@@ -338,6 +339,7 @@ export default function VendorPayments() {
                 <TableHead>주문일시</TableHead>
                 <TableHead>고객명</TableHead>
                 <TableHead>상품명</TableHead>
+                <TableHead>결제 완료 일시</TableHead>
                 <TableHead>판매자</TableHead>
                 <TableHead>금액</TableHead>
                 <TableHead>상태</TableHead>
@@ -351,6 +353,9 @@ export default function VendorPayments() {
                   <TableCell>{new Date(payment.orderDate).toLocaleString()}</TableCell>
                   <TableCell>{payment.customerName}</TableCell>
                   <TableCell>{payment.productName}</TableCell>
+                  <TableCell>
+                    {payment.approvedAt ? new Date(payment.approvedAt).toLocaleString() : '-'}
+                  </TableCell>
                   <TableCell>{payment.vendorName}</TableCell>
                   <TableCell>
                     {payment.displayAmount ? 
@@ -409,6 +414,10 @@ export default function VendorPayments() {
                 <div>
                   <p className="text-sm text-gray-500">주문일시</p>
                   <p>{new Date(viewOrderDetails.orderDate).toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">결제 완료 일시</p>
+                  <p>{viewOrderDetails.approvedAt ? new Date(viewOrderDetails.approvedAt).toLocaleString() : '-'}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">금액</p>

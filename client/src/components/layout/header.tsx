@@ -40,6 +40,8 @@ export function Header({ onLocationChange }: { onLocationChange?: (location: str
   const [gpsLocation, setGpsLocation] = useState<string>("내 지역");
   const [searchLocation, setSearchLocation] = useState<string>("내 지역");
   const [gpsLocationData, setGpsLocationData] = useState<LocationData | null>(null);
+  const [isLoadingLocation, setIsLoadingLocation] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
   const [searchLocationData, setSearchLocationData] = useState<LocationData | null>(null);
   const [addressSearch, setAddressSearch] = useState<string>("");
   const [showSearchResults, setShowSearchResults] = useState(false);
@@ -52,19 +54,28 @@ export function Header({ onLocationChange }: { onLocationChange?: (location: str
   const queryClient = useQueryClient();
   
   // GPS 위치 업데이트 (검색에 영향 없음)
-  const handleSetGpsLocation = (newLocation: string, data?: LocationData) => {
+  const handleSetGpsLocation = (newLocation: string, data?: LocationData & { timestamp?: number }) => {
     setGpsLocation(newLocation);
     if (data) {
       setGpsLocationData(data);
+      // GPS 위치도 로컬 스토리지에 저장하여 재방문 시 즉시 표시
+      localStorage.setItem('gpsLocation', JSON.stringify({
+        ...data,
+        address: newLocation.replace(' (GPS)', '').replace(' (캐시)', ''), // 표시용 텍스트 제거
+        timestamp: data.timestamp || Date.now()
+      }));
     }
   };
 
   // 검색 위치 업데이트 (판매자/상품 필터링에 사용)
-  const handleSetSearchLocation = (newLocation: string, data?: LocationData) => {
+  const handleSetSearchLocation = (newLocation: string, data?: LocationData & { timestamp?: number }) => {
     setSearchLocation(newLocation);
     if (data) {
       setSearchLocationData(data);
-      localStorage.setItem('searchLocation', JSON.stringify(data));
+      localStorage.setItem('searchLocation', JSON.stringify({
+        ...data,
+        timestamp: data.timestamp || Date.now()
+      }));
     }
     // 검색 결과에 따라 필터링 갱신
     notifyLocationChange({ gpsLocation, searchLocation: newLocation });
@@ -107,39 +118,132 @@ export function Header({ onLocationChange }: { onLocationChange?: (location: str
   const isHomePage = location === "/";
   
   useEffect(() => {
-    // GPS 위치 감지
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          try {
-            const lat = position.coords.latitude;
-            const lng = position.coords.longitude;
-            
-            const response = await fetch(`/api/map/address-by-coords?lat=${lat}&lng=${lng}`);
-            const data = await response.json();
-            
-            if (data.success && data.results && data.results.length > 0) {
-              const address = data.results[0].formatted_address;
-              handleSetGpsLocation(address, { address, lat, lng });
-            }
-          } catch (error) {
-            console.error('GPS 감지 실패:', error);
-          }
-        },
-        (error) => {
-          console.error('GPS 오류:', error);
+    // 1. 저장된 GPS 위치 먼저 로드 (즉시 표시용) - 1시간 TTL 적용
+    const savedGps = localStorage.getItem('gpsLocation');
+    if (savedGps) {
+      try {
+        const parsed = JSON.parse(savedGps);
+        const savedTime = parsed?.timestamp || 0;
+        const now = Date.now();
+        const oneHour = 60 * 60 * 1000;
+
+        // 1시간 이내의 캐시만 사용
+        if (parsed?.address && (now - savedTime < oneHour)) {
+          setGpsLocation(parsed.address + ' (캐시)');
+          setGpsLocationData(parsed);
+        } else {
+          // 만료된 캐시 제거
+          localStorage.removeItem('gpsLocation');
         }
-      );
+      } catch {
+        // ignore parsing error
+      }
     }
 
-    // 검색 위치 로드
+    // 2. 실제 GPS 위치 감지 (최신화) - 높은 정확도로 5초 시도
+    if (navigator.geolocation) {
+      setIsLoadingLocation(true);
+
+      const successCallback = async (position: GeolocationPosition) => {
+        try {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          const accuracy = position.coords.accuracy;
+
+          console.log(`GPS 감지 성공 - 좌표: ${lat}, ${lng}, 정확도: ${accuracy}m`);
+
+          const response = await fetch(`/api/map/address-by-coords?lat=${lat}&lng=${lng}`);
+          const data = await response.json();
+
+          if (data.success && data.results && data.results.length > 0) {
+            // '대한민국' 제거하고 주소 간소화
+            let address = data.results[0].formatted_address;
+            address = address.replace('대한민국 ', '');
+
+            handleSetGpsLocation(address + ' (GPS)', { address, lat, lng, timestamp: Date.now() });
+            setLocationError(null);
+
+            // 캐시된 검색 위치가 없으면 GPS 위치를 검색 위치로도 설정
+            // (바로구매 상품 등 위치 기반 데이터가 초기 로딩 시 표시되도록)
+            const savedSearchLocation = localStorage.getItem('searchLocation');
+            if (!savedSearchLocation) {
+              handleSetSearchLocation(address, { address, lat, lng, timestamp: Date.now() });
+            } else {
+              // 캐시된 검색 위치가 있어도 리스너에 알림 (초기 로딩 시 상품 표시용)
+              try {
+                const parsed = JSON.parse(savedSearchLocation);
+                const savedTime = parsed?.timestamp || 0;
+                const now = Date.now();
+                const oneHour = 60 * 60 * 1000;
+                if (parsed?.address && (now - savedTime < oneHour)) {
+                  notifyLocationChange({ gpsLocation: address + ' (GPS)', searchLocation: parsed.address });
+                } else {
+                  // 만료된 캐시는 GPS 위치로 대체
+                  handleSetSearchLocation(address, { address, lat, lng, timestamp: Date.now() });
+                }
+              } catch {
+                handleSetSearchLocation(address, { address, lat, lng, timestamp: Date.now() });
+              }
+            }
+          } else {
+            console.warn('주소를 찾을 수 없음:', data);
+            setLocationError("주소 확인 불가");
+          }
+        } catch (error) {
+          console.error('GPS 감지 실패:', error);
+          setLocationError("위치 확인 오류");
+        } finally {
+          setIsLoadingLocation(false);
+        }
+      };
+
+      const errorCallback = (error: GeolocationPositionError) => {
+        console.error('GPS 오류 (높은 정확도):', error);
+
+        // 첫 번째 시도 실패 시, 낮은 정확도로 재시도
+        console.log('낮은 정확도 모드로 재시도...');
+        navigator.geolocation.getCurrentPosition(
+          successCallback,
+          (retryError) => {
+            console.error('GPS 재시도 실패:', retryError);
+            let errorMsg = "위치 권한 필요";
+            if (retryError.code === retryError.TIMEOUT) errorMsg = "GPS 시간 초과";
+            if (retryError.code === retryError.POSITION_UNAVAILABLE) errorMsg = "GPS 신호 없음";
+            if (retryError.code === retryError.PERMISSION_DENIED) errorMsg = "위치 권한 거부됨";
+
+            setLocationError(errorMsg);
+            setIsLoadingLocation(false);
+          },
+          { timeout: 8000, enableHighAccuracy: false, maximumAge: 0 }
+        );
+      };
+
+      // 첫 번째 시도: 높은 정확도, 5초 제한
+      navigator.geolocation.getCurrentPosition(
+        successCallback,
+        errorCallback,
+        { timeout: 5000, enableHighAccuracy: true, maximumAge: 0 }
+      );
+    } else {
+      setLocationError("GPS 미지원");
+    }
+
+    // 검색 위치 로드 - 1시간 TTL 적용
     const saved = localStorage.getItem('searchLocation');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed?.address) {
+        const savedTime = parsed?.timestamp || 0;
+        const now = Date.now();
+        const oneHour = 60 * 60 * 1000;
+
+        // 1시간 이내의 캐시만 사용
+        if (parsed?.address && (now - savedTime < oneHour)) {
           setSearchLocation(parsed.address);
           setSearchLocationData(parsed);
+        } else {
+          // 만료된 캐시 제거
+          localStorage.removeItem('searchLocation');
         }
       } catch {
         // ignore
@@ -151,32 +255,74 @@ export function Header({ onLocationChange }: { onLocationChange?: (location: str
     // 검색 위치를 GPS 위치로 리셋
     localStorage.removeItem('searchLocation');
     handleSetSearchLocation("내 지역");  // 검색 필터만 리셋
-    
+    setLocationError(null);
+    setIsLoadingLocation(true); // 로딩 상태 즉시 시작
+
     // GPS 위치 기반으로 판매자/상품 필터링
     if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          try {
-            const lat = position.coords.latitude;
-            const lng = position.coords.longitude;
-            
-            // 백엔드 API를 통해 역지오코딩 수행
-            const response = await fetch(`/api/map/address-by-coords?lat=${lat}&lng=${lng}`);
-            const data = await response.json();
-            
-            if (data.success && data.results && data.results.length > 0) {
-              const address = data.results[0].formatted_address;
-              // GPS 위치로 필터링 설정
-              handleSetSearchLocation(address, { address, lat, lng });
-            }
-          } catch (error) {
-            console.error('위치 정보 조회 실패:', error);
+      const successCallback = async (position: GeolocationPosition) => {
+        try {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          const accuracy = position.coords.accuracy;
+
+          console.log(`GPS 버튼 클릭 - 좌표: ${lat}, ${lng}, 정확도: ${accuracy}m`);
+
+          // 백엔드 API를 통해 역지오코딩 수행
+          const response = await fetch(`/api/map/address-by-coords?lat=${lat}&lng=${lng}`);
+          const data = await response.json();
+
+          if (data.success && data.results && data.results.length > 0) {
+            // '대한민국' 제거하고 주소 간소화
+            let address = data.results[0].formatted_address;
+            address = address.replace('대한민국 ', '');
+
+            // GPS 위치로 필터링 설정
+            handleSetSearchLocation(address, { address, lat, lng, timestamp: Date.now() });
+            // 상단 표시용 GPS 위치도 업데이트
+            handleSetGpsLocation(address + ' (GPS)', { address, lat, lng, timestamp: Date.now() });
+            setLocationError(null);
+          } else {
+             setLocationError("주소 확인 불가");
           }
-        },
-        (error) => {
-          console.error('GPS 감지 오류:', error);
+        } catch (error) {
+          console.error('위치 정보 조회 실패:', error);
+          setLocationError("위치 확인 오류");
+        } finally {
+          setIsLoadingLocation(false);
         }
+      };
+
+      const errorCallback = (error: GeolocationPositionError) => {
+        console.error('GPS 버튼 오류 (높은 정확도):', error);
+
+        // 첫 번째 시도 실패 시, 낮은 정확도로 재시도
+        console.log('낮은 정확도 모드로 재시도...');
+        navigator.geolocation.getCurrentPosition(
+          successCallback,
+          (retryError) => {
+            console.error('GPS 버튼 재시도 실패:', retryError);
+            let errorMsg = "위치 권한 필요";
+            if (retryError.code === retryError.TIMEOUT) errorMsg = "GPS 시간 초과 - 직접 검색하세요";
+            if (retryError.code === retryError.POSITION_UNAVAILABLE) errorMsg = "GPS 신호 없음 - 직접 검색하세요";
+            if (retryError.code === retryError.PERMISSION_DENIED) errorMsg = "위치 권한 거부됨";
+
+            setLocationError(errorMsg);
+            setIsLoadingLocation(false);
+          },
+          { timeout: 8000, enableHighAccuracy: false, maximumAge: 0 }
+        );
+      };
+
+      // 1차 시도: 높은 정확도, 5초 제한
+      navigator.geolocation.getCurrentPosition(
+        successCallback,
+        errorCallback,
+        { timeout: 5000, enableHighAccuracy: true, maximumAge: 0 }
       );
+    } else {
+      setLocationError("GPS 미지원");
+      setIsLoadingLocation(false);
     }
   };
   
@@ -280,11 +426,19 @@ export function Header({ onLocationChange }: { onLocationChange?: (location: str
               <MapPin className="w-4 h-4" />
               <span className="text-xs">현재위치</span>
             </Button>
-            {gpsLocation && gpsLocation !== "내 지역" && (
+            {isLoadingLocation ? (
+              <span className={`text-xs ${isHomePage ? "text-white/70" : "text-gray-500"} animate-pulse`}>
+                위치 확인 중...
+              </span>
+            ) : locationError ? (
+              <span className={`text-xs ${isHomePage ? "text-red-300" : "text-red-500"}`} title={locationError}>
+                {locationError}
+              </span>
+            ) : gpsLocation && gpsLocation !== "내 지역" ? (
               <span className={`text-xs max-w-xs truncate ${isHomePage ? "text-white/70" : "text-gray-600"}`}>
                 {gpsLocation}
               </span>
-            )}
+            ) : null}
           </div>
 
           {/* 위치 검색 */}

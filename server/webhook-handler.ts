@@ -102,14 +102,28 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
       
       if (v2Data.data && v2Data.data.payment) {
         const payment = v2Data.data.payment;
-        status = payment.status;
-        paymentKey = payment.paymentKey;
-        orderId = payment.orderId;
-        amount = payment.amount;
-        method = payment.method;
-        requestedAt = payment.requestedAt;
-        approvedAt = payment.approvedAt;
+        // 상태 값은 V2에서 'PAID', 'CANCELED', 'FAILED' 등으로 전달됨
+        status = payment.status || payment.payment_status || 'UNKNOWN';
+        // 결제 ID는 snake_case가 표준 (payment_id)
+        // 일부 환경에서 paymentKey/camelCase로 전달될 수 있어 하위 호환 처리
+        paymentKey = payment.payment_id || payment.paymentKey || payment.paymentId;
+        // 주문 번호 역시 snake_case(order_id) 우선 처리
+        orderId = payment.order_id || payment.orderId;
+        // 금액은 payment.amount.total 형식이 일반적, 없으면 fallback
+        amount = (payment.amount && (payment.amount.total ?? payment.amount)) ?? v2Data.amount ?? 0;
+        method = payment.method || payment.pay_method || null;
+        // 시간 필드는 snake_case가 표준, camelCase도 보조 처리
+        requestedAt = payment.requested_at || payment.requestedAt || null;
+        approvedAt = payment.approved_at || payment.approvedAt || undefined;
         cancellations = payment.cancellations || [];
+        // 중요 필드 로깅
+        console.log('[웹훅] V2 파싱 결과:',
+          JSON.stringify({
+            status, paymentKey, orderId,
+            amount: typeof amount === 'object' ? amount.total ?? amount : amount,
+            method, requestedAt, approvedAt
+          }, null, 2)
+        );
       } else {
         // 필수 필드가 없는 경우 오류
         console.error('[웹훅] V2 형식이지만 payment 정보가 없음');
@@ -153,6 +167,40 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
     
     // 5. 결제 상태에 따른 처리
     switch (eventType) {
+      // V2 웹훅: 결제 취소 이벤트 처리
+      case 'Transaction.Cancelled':
+      case 'Transaction.PartialCancelled': {
+        console.log('[웹훅] V2 결제 취소 이벤트 수신:', eventType);
+        const existingPayment = await storage.getPaymentByOrderId(orderId);
+
+        if (existingPayment) {
+          console.log('[웹훅] 결제 정보 업데이트 (V2 CANCELLED)');
+          // 취소 사유 추출
+          let cancelReason = '관리자 콘솔에서 취소';
+          if (cancellations && cancellations.length > 0) {
+            cancelReason = cancellations[0].reason || '사용자 요청';
+          }
+
+          // 결제 정보 업데이트
+          await storage.updatePayment(existingPayment.id, {
+            status: 'CANCELLED',
+            cancelReason,
+            cancelledAt: new Date(),
+            updatedAt: new Date()
+          });
+
+          // 주문 상태도 업데이트
+          const order = await storage.getOrderByOrderId(orderId);
+          if (order) {
+            await storage.updateOrderStatus(order.id, 'cancelled');
+            console.log('[웹훅] 주문 상태 취소로 변경 완료:', orderId);
+          }
+        } else {
+          console.warn('[웹훅] 취소할 결제 정보를 찾을 수 없음:', orderId);
+        }
+        break;
+      }
+
       case 'PAYMENT_STATUS_CHANGED': {
         // 결제 상태가 변경된 경우
         switch (status) {
@@ -299,12 +347,12 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
                       const deliveryInfoMessage = {
                         role: "assistant",
                         content: `👤 구매자 정보:
-▪️ 이름: ${order.buyerInfo?.name || '이름 정보 없음'}
-▪️ 이메일: ${order.buyerInfo?.email || '이메일 정보 없음'}
-▪️ 연락처: ${order.buyerInfo?.phone || '연락처 정보 없음'}
+▪️ 이름: ${(order.buyerInfo as any)?.name || '이름 정보 없음'}
+▪️ 이메일: ${(order.buyerInfo as any)?.email || '이메일 정보 없음'}
+▪️ 연락처: ${(order.buyerInfo as any)?.phone || '연락처 정보 없음'}
 
 📦 배송 정보:
-▪️ 주소: ${order.buyerInfo?.address || '주소 정보 없음'}\n📱 연락처: ${order.buyerInfo?.phone || '연락처 정보 없음'}\n✉️ 이메일: ${order.buyerInfo?.email || '이메일 정보 없음'}`,
+▪️ 주소: ${(order.buyerInfo as any)?.address || '주소 정보 없음'}\n📱 연락처: ${(order.buyerInfo as any)?.phone || '연락처 정보 없음'}\n✉️ 이메일: ${(order.buyerInfo as any)?.email || '이메일 정보 없음'}`,
                         timestamp: new Date(new Date().getTime() + 1000).toISOString()
                       };
                       
@@ -411,7 +459,7 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
                       // 판매자에게 배송지 정보 전달 메시지
                       const deliveryInfoMessage = {
                         role: "assistant",
-                        content: `📦 배송 정보: ${order.buyerInfo?.address || '주소 정보 없음'}\n📱 연락처: ${order.buyerInfo?.phone || '연락처 정보 없음'}\n✉️ 이메일: ${order.buyerInfo?.email || '이메일 정보 없음'}`,
+                        content: `📦 배송 정보: ${(order.buyerInfo as any)?.address || '주소 정보 없음'}\n📱 연락처: ${(order.buyerInfo as any)?.phone || '연락처 정보 없음'}\n✉️ 이메일: ${(order.buyerInfo as any)?.email || '이메일 정보 없음'}`,
                         timestamp: new Date(new Date().getTime() + 1000).toISOString()
                       };
                       

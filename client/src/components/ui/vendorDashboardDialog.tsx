@@ -147,7 +147,30 @@ export function OrderDetailsDialog({
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              {order.plant && (
+              {/* 상품명 표시 (productName, paymentInfo.productName, plant.name 순으로 확인) */}
+              {(order.productName || order.paymentInfo?.productName || order.plant?.name) && (
+                <div className="mb-4">
+                  <div className="grid grid-cols-[100px_1fr] gap-x-3 gap-y-2">
+                    <div className="text-sm font-medium">상품명:</div>
+                    <div className="text-sm font-medium">
+                      {order.productName ||
+                       (order.paymentInfo && typeof order.paymentInfo === 'object' ? order.paymentInfo.productName : null) ||
+                       order.plant?.name ||
+                       '상품 정보 없음'}
+                    </div>
+
+                    {order.plant?.description && (
+                      <>
+                        <div className="text-sm font-medium">설명:</div>
+                        <div className="text-sm text-muted-foreground">{order.plant.description}</div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* 기존 plant 정보만 있는 경우 (productName 없을 때) */}
+              {!order.productName && !order.paymentInfo?.productName && order.plant && (
                 <div className="mb-4">
                   <h4 className="text-sm font-medium mb-1">{order.plant.name || '식물명 정보 없음'}</h4>
                   {order.plant.description && (
@@ -155,7 +178,7 @@ export function OrderDetailsDialog({
                   )}
                 </div>
               )}
-              
+
               {order.selectedProducts && order.selectedProducts.length > 0 && (
                 <div>
                   <h4 className="text-sm font-medium mb-2">선택된 상품:</h4>
@@ -167,6 +190,12 @@ export function OrderDetailsDialog({
                     ))}
                   </ul>
                 </div>
+              )}
+
+              {/* 상품 정보가 전혀 없는 경우 */}
+              {!order.productName && !order.paymentInfo?.productName && !order.plant &&
+               (!order.selectedProducts || order.selectedProducts.length === 0) && (
+                <div className="text-sm text-muted-foreground">상품 정보가 없습니다.</div>
               )}
             </CardContent>
           </Card>

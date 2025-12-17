@@ -69,30 +69,34 @@ export default function OrderDetailPage() {
   // 자동 동기화 함수
   const autoSyncPayment = useCallback(async () => {
     if (!orderId) return null;
-    
+
     try {
       setIsSyncing(true);
-      
-      // 자동 동기화 API 호출 (Vite 미들웨어를 우회하는 직접 경로로 변경)
-      const response = await fetch(`/__direct/payments/sync`, {
+
+      // 결제 검증 API 호출 (SDK 콜백 신뢰 방식)
+      // orderId가 pay_ 형식이면 paymentId와 동일
+      const response = await fetch(`/api/payments/verify`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Cache-Control': 'no-cache'
         },
-        body: JSON.stringify({ orderId })
+        body: JSON.stringify({
+          orderId,
+          paymentId: orderId // pay_ 형식의 orderId를 paymentId로도 사용
+        })
       });
-      
+
       const data = await response.json();
-      
+
       if (!response.ok) {
         console.error('결제 정보 자동 동기화 실패:', data.error);
         return null;
       }
-      
+
       console.log('결제 정보 자동 동기화 성공:', data);
-      return data.payment;
-      
+      return data;
+
     } catch (error) {
       console.error('결제 정보 자동 동기화 오류:', error);
       return null;
@@ -128,8 +132,7 @@ export default function OrderDetailPage() {
   } = useQuery({
     queryKey: [`payment-${orderId}`],
     queryFn: async () => {
-      // 직접 API 경로로 변경하여 Vite 미들웨어 우회
-      const response = await fetch(`/__direct/payments/order/${orderId}`);
+      const response = await fetch(`/api/payments/order/${orderId}`);
       if (!response.ok) {
         console.log('결제 정보 조회 실패:', orderId);
         return null; // 결제 정보가 없을 수 있으므로 오류로 처리하지 않음
@@ -266,8 +269,8 @@ export default function OrderDetailPage() {
         status: payment.status
       });
       
-      // 직접 라우터 엔드포인트 사용 (가이드에 따른 변경)
-      const endpoint = '/__direct/payments/cancel';
+      // API 엔드포인트 사용
+      const endpoint = '/api/payments/cancel';
       
       // 결제 취소 API 호출 (Accept 헤더 추가 - 가이드에 따른 변경)
       const response = await fetch(endpoint, {

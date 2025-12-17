@@ -35,19 +35,23 @@ export async function handleGoogleImageSearch(req: Request, res: Response) {
       return res.status(400).json({ error: ERROR_MISSING_QUERY });
     }
 
-    // 검색어 디코딩 (식물 키워드 제거 - 구글 검색과 동일한 결과를 위해)
+    // 검색어 디코딩 및 식물 키워드 추가
+    // "극락조" 같은 동물과 이름이 같은 식물 검색 시 식물 결과만 나오도록 함
     const decodedQuery = decodeURIComponent(query);
-    const searchQuery = decodedQuery; // 검색어 그대로 사용 - 구글 검색과 동일한 결과
+    const searchQuery = `${decodedQuery} 식물`; // 식물 키워드 추가
     console.log(`구글 이미지 검색 실행: "${searchQuery}"`);
     
     // 구글 커스텀 검색 API 호출
+    // 참고: Custom Search API는 Google 웹 검색과 다른 결과를 반환할 수 있음
+    // - 웹 검색: 개인화, 실시간 트렌드, 사용자 히스토리 반영
+    // - API: 프로그래밍용 별도 인덱스 사용
     const searchParams = {
       key: GOOGLE_API_KEY,
       cx: GOOGLE_CSE_ID,
       q: searchQuery,
       searchType: 'image',
       num: 10, // 상위 10개 요청 (6개 표시를 위해 여유 있게)
-      imgSize: 'large', // 큰 크기 이미지로 변경 - 구글 검색 상위 이미지와 유사
+      // imgSize 제거: 크기 필터 없이 구글 웹 검색과 유사한 결과 반환
       safe: 'active', // 안전한 검색 결과만
       gl: 'kr', // 한국 검색 결과 우선
       hl: 'ko' // 한국어 인터페이스

@@ -118,7 +118,7 @@ interface ChatMessage {
 // 대화 컨텍스트에서 사용자의 식물 선호도를 분석하는 함수
 async function analyzePlantPreferences(chatHistory: ChatMessage[], userMessage: string): Promise<any> {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite-preview-02-05" });
     
     // 대화 내역을 기준으로 식물 추천 요청 생성
     console.log("Analyzing plant preferences for recommendation...");
@@ -280,8 +280,11 @@ async function getAllPlantNames(): Promise<string[]> {
     });
     
     // 2. 공기정화식물 API 데이터 가져오기 (64종)
+    const port = process.env.PORT || 5000;
+    const baseUrl = `http://localhost:${port}`;
+    
     try {
-      const airResponse = await fetch('http://localhost:5000/api/admin/external-plants/air-purifying-new-64');
+      const airResponse = await fetch(`${baseUrl}/api/admin/external-plants/air-purifying-new-64`);
       if (airResponse.ok) {
         const airXml = await airResponse.text();
         const airPlants = parseAirPurifyingXML(airXml);
@@ -295,7 +298,7 @@ async function getAllPlantNames(): Promise<string[]> {
     
     // 3. 건조에 강한 식물 API 데이터 가져오기 (97종)
     try {
-      const dryResponse = await fetch('http://localhost:5000/api/admin/external-plants/dry-garden');
+      const dryResponse = await fetch(`${baseUrl}/api/admin/external-plants/dry-garden`);
       if (dryResponse.ok) {
         const dryXml = await dryResponse.text();
         const dryPlants = parseDryGardenXML(dryXml);
@@ -309,7 +312,7 @@ async function getAllPlantNames(): Promise<string[]> {
     
     // 4. 실내정원용 식물 API 데이터 가져오기 (217종)
     try {
-      const indoorResponse = await fetch('http://localhost:5000/api/admin/external-plants/indoor-garden');
+      const indoorResponse = await fetch(`${baseUrl}/api/admin/external-plants/indoor-garden`);
       if (indoorResponse.ok) {
         const indoorXml = await indoorResponse.text();
         const indoorPlants = parseIndoorGardenXML(indoorXml);
@@ -469,7 +472,7 @@ export async function handleChatMessage(req: Request, res: Response) {
     
     
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
+      model: "gemini-2.0-flash-lite-preview-02-05",
       safetySettings,
     });
     

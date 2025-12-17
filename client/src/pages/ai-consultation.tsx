@@ -2669,8 +2669,8 @@ export default function AIConsultationPage() {
                                       setInteractionMode("location-selection");
                                     }}
                                   >
-                                    <div 
-                                      className="h-28 bg-center bg-cover"
+                                    <div
+                                      className="h-28 bg-center bg-contain bg-no-repeat bg-gray-50"
                                       style={{ backgroundImage: `url(${plant.imageUrl || '/assets/plants/default-plant.png'})` }}
                                     />
                                     <div className="p-2">
@@ -3575,15 +3575,27 @@ export default function AIConsultationPage() {
           <DialogFooter>
             <div className="w-full space-y-2">
               {paymentResult ? (
-                <div className={`p-3 rounded border ${paymentResult.success ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'} text-center`}>
-                  <div className={`font-medium ${paymentResult.success ? 'text-green-700' : 'text-red-700'} mb-1`}>
-                    {paymentResult.success ? '결제 완료' : '결제 실패'}
-                  </div>
-                  <p className="text-sm">{paymentResult.message}</p>
-                  {paymentResult.success && paymentResult.orderId && (
-                    <div className="mt-2 text-sm">
-                      주문번호: {paymentResult.orderId}
+                <div className="space-y-3">
+                  <div className={`p-3 rounded border ${paymentResult.success ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'} text-center`}>
+                    <div className={`font-medium ${paymentResult.success ? 'text-green-700' : 'text-red-700'} mb-1`}>
+                      {paymentResult.success ? '결제 완료' : '결제 실패'}
                     </div>
+                    <p className="text-sm">{paymentResult.message}</p>
+                    {paymentResult.success && paymentResult.orderId && (
+                      <div className="mt-2 text-sm">
+                        주문번호: {paymentResult.orderId}
+                      </div>
+                    )}
+                  </div>
+                  {/* 결제 실패 시 다시 시도 버튼 */}
+                  {!paymentResult.success && (
+                    <button
+                      className="w-full bg-primary hover:bg-primary/90 text-primary-foreground h-11 rounded-md px-8 py-3 flex items-center justify-center text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      onClick={() => setPaymentResult(null)}
+                    >
+                      <span className="mr-2">🔄</span>
+                      다시 시도
+                    </button>
                   )}
                 </div>
               ) : (
