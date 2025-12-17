@@ -15,6 +15,7 @@ export async function cancelPaymentWithRetry(
   res: Response
 ) {
   try {
+    const { convertToV2PaymentId } = await import('./portone-v2-client');
     // 포트원 V2 클라이언트 가져오기
     const portoneV2Client = await import('./portone-v2-client');
     const portoneClient = portoneV2Client.default;
@@ -56,6 +57,9 @@ export async function cancelPaymentWithRetry(
           if (foundPayment.payment_id.startsWith('pay_')) {
             console.log('[결제 취소 API] 유효한 pay_ 접두사 형식의 결제 ID 발견');
             portonePaymentId = foundPayment.payment_id;
+          } else {
+            console.log('[결제 취소 API] 비표준 ID 형식 발견, V2 형식으로 변환 시도');
+            portonePaymentId = convertToV2PaymentId(foundPayment.payment_id);
           }
         }
       } else {
@@ -66,6 +70,13 @@ export async function cancelPaymentWithRetry(
       console.log('[결제 취소 API] 원래 결제 ID 사용 계속');
     }
     
+    // 최종 결제 ID를 V2 규격(pay_ + 22자)으로 보정
+    if (!portonePaymentId.startsWith('pay_') || portonePaymentId.length !== 26) {
+      console.log('[결제 취소 API] 최종 결제 ID 형식 보정 필요, 변환 수행');
+      portonePaymentId = convertToV2PaymentId(portonePaymentId);
+      console.log('[결제 취소 API] 변환된 최종 결제 ID:', portonePaymentId);
+    }
+    
     // 재시도 로직 추가
     while (attempts < maxAttempts && !portoneCallSuccess) {
       attempts++;
@@ -73,9 +84,9 @@ export async function cancelPaymentWithRetry(
       console.log(`[결제 취소 API] 사용할 결제 ID: ${portonePaymentId}`);
       
       try {
-        // 포트원 API 호출 (orderId 형식 사용 - pay_ 형식)
+        // 포트원 API 호출 - 반드시 pay_ 형식의 결제 ID 사용
         response = await portoneClient.cancelPayment({
-          paymentId: orderId, // 주문 ID 사용 (pay_ 형식)
+          paymentId: portonePaymentId,
           reason: reason || '고객 요청에 의한 취소'
         });
         
