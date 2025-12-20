@@ -1,9 +1,9 @@
 import { Express, Request, Response } from 'express';
-import { IStorage } from './storage';
+import { IStorage } from './storage.js';
 import { isNumber, isString } from 'util';
 import { StatusCodes } from 'http-status-codes';
-import { PortOneV2Client } from './portone-v2-client';
-import { preparePaymentSimple } from './portone-simple-client';
+import { PortOneV2Client } from './portone-v2-client.js';
+import { preparePaymentSimple } from './portone-simple-client.js';
 
 // 토스페이먼츠 테스트 계정 정보
 const TOSS_PAYMENTS_TEST = {
@@ -12,7 +12,7 @@ const TOSS_PAYMENTS_TEST = {
   storeId: 'store-cb422187-16bc-4ea5-8fd8-9d08094d27a1',  // 스토어 ID - SDK 내부 사용
   channelKey: 'channel-key-7046923a-823b-4b40-9acc-64bfadc1594d', // 채널키 - plantbid_v2_real 채널
   merchantId: 'imp16062547', // 토스페이먼츠 가맹점 ID (V1 API와 호환 위해 추가)
-  
+
   // 서버 측 정보
   apiSecretKey: 'MtRe07cJYILv8ito8E40Z7ALsZoaGlBNPV6LDOXpvn072iDl4f142QSQRiOKYEF5vXtHI0RZDuipl6LP', // V2 API Secret - 매우 중요
   secretKey: 'test_sk_d26DlbXAaV0xQbpa7y1VqY50Q9RB', // 시크릿 키 - 배포 후 아래 V1 호환용으로 남김
@@ -36,10 +36,10 @@ async function preparePortOnePayment(params: {
   try {
     // 전체 요청 로깅
     console.log('포트원 V2 결제 준비 요청 (디버깅):', JSON.stringify(params, null, 2));
-    
+
     // portone-v2-client 모듈 동적 로드
     const { default: portOneClient } = await import('./portone-v2-client');
-    
+
     // 실제 V2 API를 통한 결제 생성 요청 수행
     const response = await portOneClient.createPayment({
       orderId: params.orderId,
@@ -56,24 +56,24 @@ async function preparePortOnePayment(params: {
       },
       // V2 API에서는 추가 메타 정보가 지원되지 않음
     });
-    
+
     // 응답 데이터 로깅
     console.log('포트원 V2 API 응답 (디버깅):', JSON.stringify(response, null, 2));
-    
+
     // 생성된 결제 URL 추출 - V2 API 응답 형식에 맞게 수정
     // checkoutUrl 필드를 사용 (V2 API 응답 형식에 맞게)
     const paymentPageUrl = response.checkoutUrl || null;
     const paymentId = response.paymentId || null;
-    
+
     if (!paymentPageUrl) {
       throw new Error('결제 URL이 생성되지 않았습니다.');
     }
-    
+
     console.log('포트원 V2 API - 생성된 결제 정보:', {
       paymentId: paymentId,
       checkoutUrl: paymentPageUrl
     });
-    
+
     // 응답 데이터 구성
     return {
       code: 0,
@@ -96,11 +96,11 @@ async function preparePortOnePayment(params: {
     } else {
       console.error('포트원 결제 준비 오류:', error.message || error);
     }
-    
+
     // 실패 시 상세 오류 메시지 반환
     throw new Error(
-      error.response?.data?.message || 
-      error.message || 
+      error.response?.data?.message ||
+      error.message ||
       '결제 준비 중 오류가 발생했습니다.'
     );
   }
@@ -112,16 +112,16 @@ async function preparePortOnePayment(params: {
 async function verifyPortOnePayment(impUid: string, merchantUid: string, amount: number) {
   try {
     console.log('포트원 V2 결제 검증 요청:', { impUid, merchantUid, amount });
-    
+
     // V2 API를 통한 결제 정보 조회
     const result = await import('./portone-v2-client').then(module => {
       const client = module.default;
       return client.getPayment(impUid);
     });
-    
+
     // 결제 정보 검증
-    if (result.payment?.orderId !== merchantUid || 
-        (amount > 0 && result.payment?.amount?.total !== amount)) {
+    if (result.payment?.orderId !== merchantUid ||
+      (amount > 0 && result.payment?.amount?.total !== amount)) {
       throw new Error('결제 정보가 일치하지 않습니다.');
     }
 
@@ -136,7 +136,7 @@ async function verifyPortOnePayment(impUid: string, merchantUid: string, amount:
  * 포트원(PortOne) 결제 관련 API 엔드포인트 설정
  */
 export function setupPortOneRoutes(app: Express, storage: IStorage) {
-  
+
   // 간소화된 결제 준비 엔드포인트 (신규 테스트 코드로 대체)
   app.post('/api/payments/portone-prepare-simple', async (req: Request, res: Response) => {
     // 사용자 인증 확인
@@ -146,19 +146,19 @@ export function setupPortOneRoutes(app: Express, storage: IStorage) {
         error: '로그인이 필요합니다.'
       });
     }
-    
+
     try {
       const { bidId, orderId, productName, amount, customerEmail, customerName } = req.body;
-      
+
       if (!orderId || !productName || !amount) {
         return res.status(StatusCodes.BAD_REQUEST).json({
           success: false,
           error: '필수 결제 정보가 누락되었습니다.'
         });
       }
-      
+
       console.log('간소화된 포트원 클라이언트 결제 준비 시작...');
-      
+
       // 간소화된 포트원 클라이언트 사용
       const paymentData = await preparePaymentSimple({
         orderId,
@@ -168,17 +168,17 @@ export function setupPortOneRoutes(app: Express, storage: IStorage) {
         customerEmail,
         customerTel: '010-0000-0000'
       });
-      
+
       // 사용자 ID 가져오기
       const userId = req.user!.id;
-      
+
       // V2 API 규격에 맞는 결제 ID 및 상점 주문번호 생성
       const portoneV2Client = await import('./portone-v2-client');
       const paymentKey = portoneV2Client.generatePortonePaymentId();
       const merchantId = portoneV2Client.generateInicisOrderNumber();
-      console.log(`포트원 V2 API 규격 결제 ID 생성: ${paymentKey}`);
-      console.log(`이니시스 상점 주문번호(MID) 생성: ${merchantId}`);
-      
+      console.log(`포트원 V2 API 규격 결제 ID 생성: ${paymentKey} `);
+      console.log(`이니시스 상점 주문번호(MID) 생성: ${merchantId} `);
+
       // 결제 ID 생성 및 저장 (V2 API 형식 paymentKey 및 MID 사용)
       const payment = await storage.createPayment({
         bidId: bidId || 0,
@@ -191,7 +191,7 @@ export function setupPortOneRoutes(app: Express, storage: IStorage) {
         status: 'READY',
         method: '' // 결제 완료 후 업데이트
       });
-      
+
       // 전송할 응답 데이터 생성
       const responseData = {
         success: true,
@@ -202,12 +202,12 @@ export function setupPortOneRoutes(app: Express, storage: IStorage) {
         url: paymentData.url,
         clientKey: paymentData.clientKey
       };
-      
+
       console.log('간소화된 포트원 결제 준비 완료, 응답 데이터:', JSON.stringify(responseData, null, 2));
-      
+
       // 응답 반환
       res.json(responseData);
-      
+
     } catch (error) {
       console.error('간소화된 포트원 결제 준비 오류:', error);
       res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
@@ -216,7 +216,7 @@ export function setupPortOneRoutes(app: Express, storage: IStorage) {
       });
     }
   });
-  
+
   // 기존 결제 준비 엔드포인트 (REST API 방식)
   app.post('/api/payments/portone-prepare', async (req: Request, res: Response) => {
     // 사용자 인증 확인
@@ -226,27 +226,27 @@ export function setupPortOneRoutes(app: Express, storage: IStorage) {
         error: '로그인이 필요합니다.'
       });
     }
-    
+
     try {
       const { bidId, orderId, productName, amount, customerEmail, customerName } = req.body;
-      
+
       if (!bidId || !orderId || !productName || !amount) {
         return res.status(StatusCodes.BAD_REQUEST).json({
           success: false,
           error: '필수 결제 정보가 누락되었습니다.'
         });
       }
-      
+
       // 현재 서버 도메인 구하기
       const host = req.headers.host || req.get('host') || '';
-      const protocol = req.headers['x-forwarded-proto'] || 
-                      (host.includes('localhost') ? 'http' : 'https');
+      const protocol = req.headers['x-forwarded-proto'] ||
+        (host.includes('localhost') ? 'http' : 'https');
       const baseUrl = `${protocol}://${host}`;
-      
+
       // 결제 성공/실패 시 리다이렉트 URL
       const successUrl = `${baseUrl}/api/payments/portone-success?orderId=${orderId}&amount=${amount}`;
       const failUrl = `${baseUrl}/api/payments/portone-fail`;
-      
+
       // 포트원 API를 통해 결제 준비
       const paymentData = await preparePortOnePayment({
         orderId,
@@ -257,17 +257,17 @@ export function setupPortOneRoutes(app: Express, storage: IStorage) {
         customerEmail,
         customerName
       });
-      
+
       // 사용자 ID 가져오기 (인증 처리 된 경우 req.user가 반드시 존재함)
       const userId = req.user!.id;
-      
+
       // V2 API 규격에 맞는 결제 ID 및 상점 주문번호 생성
       const portoneV2Client = await import('./portone-v2-client');
       const paymentKey = portoneV2Client.generatePortonePaymentId();
       const merchantId = portoneV2Client.generateInicisOrderNumber();
       console.log(`포트원 V2 API 규격 결제 ID 생성: ${paymentKey}`);
       console.log(`이니시스 상점 주문번호(MID) 생성: ${merchantId}`);
-      
+
       // 결제 ID 생성 및 저장 (V2 API 형식 paymentKey 및 MID 사용)
       const payment = await storage.createPayment({
         bidId,
@@ -280,7 +280,7 @@ export function setupPortOneRoutes(app: Express, storage: IStorage) {
         status: 'READY',
         method: '' // 결제 완료 후 업데이트
       });
-      
+
       // 전송할 응답 데이터 생성 - 간소화된 구조
       const responseData = {
         success: true,
@@ -298,17 +298,17 @@ export function setupPortOneRoutes(app: Express, storage: IStorage) {
       // 응답 데이터 로깅
       console.log('클라이언트에 전송할 응답 데이터:', JSON.stringify(responseData, null, 2));
       console.log('URL 포함 여부 확인:', responseData.url || '없음');
-      
+
       // 분명하게 URL 로깅
       if (responseData.url) {
         console.log('결제 URL을 정상적으로 찾음. 결제 URL:', responseData.url);
       } else {
         console.error('심각한 오류: 결제 URL이 응답 데이터에 없음');
       }
-      
+
       // 응답 반환
       res.json(responseData);
-      
+
     } catch (error) {
       console.error('결제 준비 오류:', error);
       res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
@@ -327,7 +327,7 @@ export function setupPortOneRoutes(app: Express, storage: IStorage) {
         error: '필수 파라미터가 올바르지 않습니다.'
       });
     }
-    
+
     // amount가 없으면 결제 정보에서 조회
     const paymentAmount = isString(amount) ? amount : undefined;
 
@@ -339,7 +339,7 @@ export function setupPortOneRoutes(app: Express, storage: IStorage) {
         try {
           // 포트원 V1 API로 결제정보 확인
           const verifiedPayment = await verifyPortOnePayment(imp_uid, merchant_uid, 0);
-          
+
           if (verifiedPayment && verifiedPayment.amount) {
             // API에서 조회한 금액으로 설정
             const amountNum = verifiedPayment.amount;
@@ -353,7 +353,7 @@ export function setupPortOneRoutes(app: Express, storage: IStorage) {
           });
         }
       }
-      
+
       // 주문 ID에서 bidId 추출 (merchant_uid는 사용자 정의 형식이어야 함)
       const bidIdMatch = merchant_uid.match(/^(\d+)_/);
       const bidId = bidIdMatch ? parseInt(bidIdMatch[1]) : null;
@@ -383,18 +383,18 @@ export function setupPortOneRoutes(app: Express, storage: IStorage) {
       // 결제 정보 저장
       const payment = await storage.getPaymentByOrderId(merchant_uid);
       const orderName = payment?.orderName || `포트원 결제 - ${bidId}`;
-      
+
       // 입찰에서 사용자 ID 가져오기 (비로그인시 첫 결제 때는 사용자 ID를 입찰에서 가져와야 함)
       const userId = payment?.userId || bid.userId;
-      
+
       if (!userId) {
         throw new Error('사용자 정보를 찾을 수 없습니다.');
       }
-      
+
       // V1 API(imp_uid)에서 V2 API 형식으로 변환
       // V2 API 규격에 맞는 결제 ID가 필요함
       const portoneV2Client = await import('./portone-v2-client');
-      
+
       // imp_uid가 있고 V2 형식이 아닌 경우 변환
       let paymentKey = imp_uid;
       if (imp_uid && (!imp_uid.startsWith('pay_') || imp_uid.length !== 26)) {
@@ -409,7 +409,7 @@ export function setupPortOneRoutes(app: Express, storage: IStorage) {
           console.log(`변환 실패로 새 V2 API 결제 ID 생성: ${paymentKey}`);
         }
       }
-      
+
       await storage.createPayment({
         bidId,
         userId,

@@ -3,7 +3,7 @@ const require = createRequire(import.meta.url);
 const pg = require("pg");
 const { Pool } = pg;
 import { drizzle } from 'drizzle-orm/node-postgres';
-import * as schema from "@shared/schema";
+import * as schema from "../shared/schema.js";
 
 const connectionString = process.env.SUPABASE_DB_URL || process.env.DATABASE_URL;
 
@@ -13,7 +13,7 @@ if (!connectionString) {
   console.log("Found DB connection string.");
 }
 
-export const pool = new Pool({ 
+export const pool = new Pool({
   connectionString: connectionString || "postgres://dummy:dummy@localhost:5432/dummy",
   ssl: {
     rejectUnauthorized: false

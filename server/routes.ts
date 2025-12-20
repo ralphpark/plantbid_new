@@ -1,30 +1,30 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
-import { db } from "./db";
-import { orders, users, vendors, plants, reviews } from "@shared/schema";
-import { setupAuth } from "./auth";
-import { handleChatMessage } from "./ai";
-import { searchAddressByQuery, getAddressByCoords, findNearbyVendors, getMapConfig } from "./map";
-import { verifyBusinessNumber } from "./business-verification";
-import { sendVerificationCode, verifyCode } from "./sms";
-import { uploadImage, getUploadedImage } from "./uploads";
+import { storage } from "./storage.js";
+import { db } from "./db.js";
+import { orders, users, vendors, plants, reviews } from "../shared/schema.js";
+import { setupAuth } from "./auth.js";
+import { handleChatMessage } from "./ai.js";
+import { searchAddressByQuery, getAddressByCoords, findNearbyVendors, getMapConfig } from "./map.js";
+import { verifyBusinessNumber } from "./business-verification.js";
+import { sendVerificationCode, verifyCode } from "./sms.js";
+import { uploadImage, getUploadedImage } from "./uploads.js";
 import multer from 'multer';
 import * as XLSX from 'xlsx';
-import { setupPaymentRoutes } from "./payments";
-import { setupPortOneRoutes } from "./portone-payment";
-import { setupPortOneV2Routes } from "./portone-v2-routes";
-import { setupTestPayments } from "./test-payments";
-import { setupMidTestRoutes } from "./mid-test-routes";
-import { setupApiDirectRouter } from "./api_direct_router";
+import { setupPaymentRoutes } from "./payments.js";
+import { setupPortOneRoutes } from "./portone-payment.js";
+import { setupPortOneV2Routes } from "./portone-v2-routes.js";
+import { setupTestPayments } from "./test-payments.js";
+import { setupMidTestRoutes } from "./mid-test-routes.js";
+import { setupApiDirectRouter } from "./api_direct_router.js";
 import { nanoid } from 'nanoid';
 import { eq, asc, desc, sql, and, or, like, ilike, not } from "drizzle-orm";
-import webhookRouter from "./webhook-handler";
+import webhookRouter from "./webhook-handler.js";
 import { DOMParser } from '@xmldom/xmldom';
-import uploadRouter from "./upload-routes";
+import uploadRouter from "./upload-routes.js";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
-import { setupPlantRoutes } from "./plant-routes";
+import { setupPlantRoutes } from "./plant-routes.js";
 // WebSocket 대신 HTTP 폴링 방식을 사용
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -62,7 +62,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       '/api/plants/search',
       '/api/products/available'
     ];
-    
+
     const isPublicRoute = publicRoutes.some(route => {
       if (route.includes(':')) {
         const pattern = route.replace(/:[^/]+/g, '[^/]+');
@@ -70,7 +70,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       return route === req.path;
     });
-    
+
     if (isPublicRoute) {
       console.log(`Public access allowed for ${req.path}`);
       // Force override isAuthenticated to return true
@@ -80,7 +80,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         (req as any).user = { id: 0, username: 'guest', role: 'user', email: 'guest@example.com' };
       }
     }
-    
+
     next();
   });
 

@@ -1,26 +1,27 @@
 import { Express, Request, Response } from 'express';
 import { nanoid } from 'nanoid';
-import { IStorage } from './storage';
+import { Router } from 'express';
+import { IStorage } from './storage.js';
 import axios from 'axios';
-import { cancelPaymentWithRetry } from './enhanced-payments';
+import { cancelPaymentWithRetry } from './enhanced-payments.js';
 
 /**
  * 인증 상태로부터 사용자 정보를 안전하게 가져오는 함수
  */
-  function getUserFromRequest(req: Request) {
-    // 일반 인증 확인
-    if (req.isAuthenticated() && req.user) {
-      return req.user;
-    }
-    
-    // Express 세션에서 특정 프로퍼티 확인
-    const sessionAny = req.session as any;
-    if (sessionAny && sessionAny.passport && sessionAny.passport.user) {
-      return { id: sessionAny.passport.user };
-    }
-    
-    return null;
+function getUserFromRequest(req: Request) {
+  // 일반 인증 확인
+  if (req.isAuthenticated() && req.user) {
+    return req.user;
   }
+
+  // Express 세션에서 특정 프로퍼티 확인
+  const sessionAny = req.session as any;
+  if (sessionAny && sessionAny.passport && sessionAny.passport.user) {
+    return { id: sessionAny.passport.user };
+  }
+
+  return null;
+}
 
 /**
  * 경로별 헤더 설정
@@ -40,7 +41,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
   const PORTONE_API_URL = 'https://api.portone.io/v2';
   const PORTONE_SUCCESS_URL = process.env.PORTONE_SUCCESS_URL || '/api/payments/success-redirect';
   const PORTONE_FAIL_URL = process.env.PORTONE_FAIL_URL || '/api/payments/fail-redirect';
-  
+
   // KG이니시스 설정
   const INICIS_CHANNEL_KEY = 'channel-key-7046923a-823b-4b40-9acc-64bfadc1594d';
   const INICIS_MID = 'MOI3204387';
@@ -48,7 +49,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
   const INICIS_API_KEY = 'S1clN44uzgLhgsVi';
   const INICIS_API_IV = 'nmHNqbyRYxTePR==';
   const INICIS_HASH_KEY = 'BEAFB1B74BB086E749E8989F5108C067';
-  
+
   // 시크릿 키가 설정되었는지 확인
   console.log(`포트원 시크릿 키 설정 여부: ${!!process.env.PORTONE_SECRET_KEY}, 길이: ${process.env.PORTONE_SECRET_KEY?.length || 0}`);
 
@@ -83,10 +84,10 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
 
       // 결제 준비를 위한 주문 ID 생성
       const orderId = `${bidId}_${nanoid(10)}`;
-      
+
       // 상품 정보 설정
       let orderName = '심다 식물';
-      
+
       // 클라이언트에서 전송한 제품명을 우선적으로 사용
       if (req.body.productName) {
         console.log(`클라이언트에서 전송한 제품명 사용: ${req.body.productName}`);
@@ -110,7 +111,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
           console.log(`입찰에 저장된 제품 ID ${bid.selectedProductId}의 이름: ${orderName}`);
         }
       }
-      
+
       // 판매자 정보
       const vendor = await storage.getVendor(bid.vendorId);
       if (vendor) {
@@ -121,12 +122,12 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
 
       // 결제 금액 처리
       let amount = 0;
-      
+
       // 0. 클라이언트에서 전송한 가격 정보가 있는 경우 무조건 우선 사용
       if (clientPrice !== undefined && clientPrice !== null) {
         amount = typeof clientPrice === 'string' ? parseFloat(clientPrice) : Number(clientPrice);
         console.log(`클라이언트에서 전송한 가격 정보 사용: ${amount}, 원래 값: ${clientPrice}`);
-        
+
         // 입력값이 유효하면 DB의 입찰 가격도 업데이트 (선택적)
         if (!isNaN(amount) && amount > 0) {
           try {
@@ -137,7 +138,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
           }
         }
       }
-      
+
       // 클라이언트 가격이 유효하지 않은 경우에만 서버에서 가격 추출 시도
       if (isNaN(amount) || amount <= 0) {
         // 입찰 메시지에서 정확한 가격 추출 시도
@@ -146,7 +147,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
           if (bid.price !== undefined && bid.price !== null) {
             amount = typeof bid.price === 'string' ? parseFloat(bid.price) : Number(bid.price);
           }
-          
+
           // 2. 잘못된 값이거나 0인 경우 conversation에서 vendorId가 같은 메시지 찾기
           if (isNaN(amount) || amount <= 0) {
             // 대화 가져오기
@@ -156,7 +157,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
               const vendorMessages = conversation.messages.filter(
                 (msg: any) => msg.role === 'vendor' && msg.vendorId === bid.vendorId
               );
-              
+
               // 가격 정보가 있는 메시지 찾기
               for (const msg of vendorMessages) {
                 if (msg.price) {
@@ -164,7 +165,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
                   console.log(`대화에서 추출한 가격: ${amount}, 원래 값: ${msg.price}`);
                   break;
                 }
-                
+
                 // 메시지 내용에서 가격 추출 시도
                 if (msg.content && typeof msg.content === 'string') {
                   const priceMatch = msg.content.match(/입찰가격:\s*([0-9,]+)원/);
@@ -181,16 +182,16 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
           console.error('가격 추출 중 오류:', extractionError);
         }
       }
-      
+
       // 유효한 가격인지 확인
       if (isNaN(amount) || amount <= 0) {
         amount = 300000; // 기본값으로 300,000원 설정 (비상용)
         console.warn(`유효한 가격을 찾을 수 없어 기본값 설정: ${amount}원`);
       }
-      
+
       // 입찰 가격 로깅 (디버깅용)
       console.log(`결제 준비 - 입찰 ID: ${bidId}, 금액: ${amount}, 원래 형식: ${typeof bid.price}, 원래 값: ${bid.price}`);
-      
+
       // 결제 정보 생성 (초기 상태 저장)
       const payment = await storage.createPayment({
         userId: req.user.id,
@@ -208,11 +209,11 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
       // 응답 전에 실제 금액 확인 및 로깅
       const responseAmount = payment.amount;
       console.log(`결제 API 응답 전 최종 금액 확인: ${responseAmount}, 원 입찰가: ${bid.price}`);
-      
+
       // clientKey 생성 또는 가져오기 (포트원 V2에서는 secretKey로부터 생성)
       // 사용자가 제공한 최신 클라이언트 키 사용
       const clientKey = 'test_ck_lpP2YxJ4K877JAdv7KX8RGZwXLOb'; // 업데이트된 테스트 키
-      
+
       // 실제 API 키를 우선적으로 사용
       if (process.env.PORTONE_SECRET_KEY) {
         // V2 API에서는 clientKey가 별도로 없으므로 로그만 남김
@@ -290,12 +291,12 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
       });
     } catch (error: any) {
       console.error("결제 승인 중 오류:", error);
-      
+
       // 토스페이먼츠 API 에러인 경우 자세한 메시지 반환
       if (error.response && error.response.data) {
         return res.status(error.response.status).json(error.response.data);
       }
-      
+
       res.status(500).json({ error: "결제 승인에 실패했습니다" });
     }
   });
@@ -304,22 +305,22 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
   async function handlePaymentCancel(req: Request, res: Response) {
     // 헤더 설정 및 인증 오류 처리 강화
     setJsonHeaders(res);
-    
+
     // 세션 디버깅 정보 출력
     console.log('쿽키 정보:', req.headers.cookie ? '있음' : '없음');
     console.log('세션 정보:', req.session ? '있음' : '없음');
     console.log('사용자 정보:', req.user ? `ID: ${req.user.id}, 이름: ${req.user.username}` : '없음');
-    
+
     // 인증 여부 확인 및 실패 시 오류 반환
     if (!req.isAuthenticated()) {
       console.error('인증 요청 실패: 사용자가 로그인되지 않았습니다.');
-      return res.status(401).json({ 
-        success: false, 
+      return res.status(401).json({
+        success: false,
         error: '로그인이 필요합니다',
         authenticated: false
       });
     }
-    
+
     // 유효한 사용자, 인증 성공 로그
     console.log('인증 성공:', req.user.username);
 
@@ -331,31 +332,31 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
       const payment = await storage.getPaymentByOrderId(orderId);
       if (!payment) {
         console.error('결제 정보 찾기 실패. 주문 ID:', orderId);
-        return res.status(404).json({ 
-          success: false, 
-          error: "결제 정보를 찾을 수 없습니다", 
-          orderId 
+        return res.status(404).json({
+          success: false,
+          error: "결제 정보를 찾을 수 없습니다",
+          orderId
         });
       }
 
       // 이미 취소된 결제인지 확인
       if (payment.status === 'CANCELLED') {
         console.log('이미 취소된 결제. 결제 ID:', payment.id, '주문 ID:', orderId);
-        return res.status(400).json({ 
-          success: false, 
-          error: "이미 취소된 결제입니다", 
-          payment 
+        return res.status(400).json({
+          success: false,
+          error: "이미 취소된 결제입니다",
+          payment
         });
       }
 
       // KG이니시스 관리자에 대한 취소 호출
       try {
         console.log('포트원 V2 결제 취소 API 호출 시도. 결제 키:', payment.paymentKey);
-        
+
         // 포트원 V2 클라이언트 가져오기
         const portoneV2Client = await import('./portone-v2-client');
         const portoneClient = portoneV2Client.default;
-        
+
         if (!payment.paymentKey) {
           throw new Error('취소할 결제 키가 없습니다.');
         }
@@ -366,7 +367,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
         console.log('- API 시크릿 키 길이:', portoneClient.apiSecret ? portoneClient.apiSecret.length : 0);
         console.log('- API 시크릿 키 시작부분:', portoneClient.apiSecret ? `${portoneClient.apiSecret.substring(0, 5)}...` : '없음');
         console.log('- 취소 사유:', reason || '고객 요청에 의한 취소');
-        
+
         // 포트원 API로 결제 취소 요청
         console.log('포트원 V2 API 엔드포인트 URL:', `/payments/${payment.paymentKey}/cancel`);
         const response = await portoneClient.cancelPayment({
@@ -375,7 +376,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
         });
 
         console.log('포트원 결제 취소 성공. 응답:', JSON.stringify(response, null, 2));
-        
+
         // 결제 정보 업데이트 - CANCELLED로 변경
         const updatedPayment = await storage.updatePayment(payment.id, {
           status: 'CANCELLED',
@@ -383,7 +384,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
           cancelReason: reason || '고객 요청에 의한 취소',
           cancelledAt: new Date()
         });
-        
+
         // 주문 상태 업데이트
         const updatedOrder = await storage.updateOrderStatusByOrderId(orderId, 'cancelled');
         if (!updatedOrder) {
@@ -394,7 +395,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
 
         // 업데이트된 결제 정보를 다시 가져와서 클라이언트에 전달
         const refreshedPayment = await storage.getPaymentByOrderId(orderId);
-        
+
         // 응답 - 클라이언트에 원본 포트원 응답이 아닌 필요한 데이터만 전송
         return res.json({
           success: true,
@@ -405,7 +406,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
         });
       } catch (portoneError: any) {
         console.error('포트원 API 취소 오류:', portoneError?.message || portoneError);
-        
+
         // 오류 객체 상세 출력
         if (portoneError.response) {
           console.error('포트원 API 오류 응답 상태:', portoneError.response.status);
@@ -413,15 +414,15 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
         } else if (portoneError.request) {
           console.error('포트원 API 요청은 전송되었으나 응답이 없음:', portoneError.request);
         }
-        
+
         // 결제 키 유형 확인
         if (payment.paymentKey) {
           console.log('결제 키 유형 확인:', payment.paymentKey.startsWith('imp_') ? 'IMP 형식' : '기타 형식');
         }
-        
+
         // DB에만 취소로 처리
         console.log('포트원 API 오류에도 불구하고 DB에는 취소 처리함');
-        
+
         // 결제 정보 업데이트
         const updatedPayment = await storage.updatePayment(payment.id, {
           status: 'CANCELLED',
@@ -429,13 +430,13 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
           cancelReason: reason || '고객 요청에 의한 취소 (API 오류)',
           cancelledAt: new Date()
         });
-        
+
         // 주문 상태 업데이트
         const updatedOrder = await storage.updateOrderStatusByOrderId(orderId, 'cancelled');
-        
+
         // 업데이트된 결제 정보 다시 가져오기
         const refreshedPayment = await storage.getPaymentByOrderId(orderId);
-        
+
         // 오류 응답 - 포트원 API 오류 응답 설정
         return res.json({
           success: true,
@@ -448,10 +449,10 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
       }
     } catch (error: any) {
       console.error('결제 취소 중 오류:', error?.message || error);
-      
-      return res.status(500).json({ 
-        success: false, 
-        error: error?.message || '결제 취소에 실패했습니다', 
+
+      return res.status(500).json({
+        success: false,
+        error: error?.message || '결제 취소에 실패했습니다',
         orderId,
         timestamp: new Date().toISOString()
       });
@@ -463,7 +464,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
     // 헤더 설정 및 로그 추가
     setJsonHeaders(res);
     console.log('결제 취소 API 요청 받음 (기존 경로) - 개선된 버전');
-    
+
     // 로그인 상태 예외 처리를 강화
     if (!req.isAuthenticated()) {
       console.error('[Original API] 인증되지 않은 사용자가 결제 취소 기능에 접근했습니다.');
@@ -473,7 +474,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
         authenticated: false
       });
     }
-    
+
     // 공통 함수 호출 전 세션 정보 로깅
     const session = req.session;
     console.log('세션 ID:', session?.id);
@@ -482,36 +483,36 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
     try {
       const { orderId, reason } = req.body;
       console.log('[기존 취소 API] 요청 정보:', { orderId, reason });
-      
+
       if (!orderId) {
         return res.status(400).json({
           success: false,
           error: '주문 ID가 필요합니다'
         });
       }
-      
+
       // 결제 정보 확인
       const payment = await storage.getPaymentByOrderId(orderId);
-      
+
       if (!payment) {
         console.error('결제 정보 찾기 실패. 주문 ID:', orderId);
-        return res.status(404).json({ 
-          success: false, 
-          error: "결제 정보를 찾을 수 없습니다", 
-          orderId 
+        return res.status(404).json({
+          success: false,
+          error: "결제 정보를 찾을 수 없습니다",
+          orderId
         });
       }
-      
+
       // 이미 취소된 결제인지 확인
       if (payment.status === 'CANCELLED') {
         console.log('이미 취소된 결제. 결제 ID:', payment.id, '주문 ID:', orderId);
-        return res.status(400).json({ 
-          success: false, 
-          error: "이미 취소된 결제입니다", 
-          payment 
+        return res.status(400).json({
+          success: false,
+          error: "이미 취소된 결제입니다",
+          payment
         });
       }
-      
+
       // 개선된 취소 함수 사용
       console.log('[기존 취소 API] 개선된 결제 취소 함수 사용');
       return await cancelPaymentWithRetry(payment, orderId, reason || '고객 요청에 의한 취소', storage, res);
@@ -530,39 +531,39 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
     // 헤더 설정 축중 강화
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    
+
     const { orderId, reason, userId } = req.body;
-    
+
     if (!orderId) {
       return res.status(400).json({
         success: false,
         error: '주문 ID가 필요합니다'
       });
     }
-    
+
     // 로그 추가
     console.log('[공개 취소 API] 결제 취소 요청 받음. 주문 ID:', orderId);
-    
+
     try {
       // 결제 정보 확인
       const payment = await storage.getPaymentByOrderId(orderId);
-      
+
       if (!payment) {
         console.error('결제 정보 찾기 실패. 주문 ID:', orderId);
-        return res.status(404).json({ 
-          success: false, 
-          error: "결제 정보를 찾을 수 없습니다", 
-          orderId 
+        return res.status(404).json({
+          success: false,
+          error: "결제 정보를 찾을 수 없습니다",
+          orderId
         });
       }
-      
+
       // 이미 취소된 결제인지 확인
       if (payment.status === 'CANCELLED') {
         console.log('이미 취소된 결제. 결제 ID:', payment.id, '주문 ID:', orderId);
-        return res.status(400).json({ 
-          success: false, 
-          error: "이미 취소된 결제입니다", 
-          payment 
+        return res.status(400).json({
+          success: false,
+          error: "이미 취소된 결제입니다",
+          payment
         });
       }
 
@@ -573,36 +574,36 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
       return await cancelPaymentWithRetry(payment, orderId, reason || '고객 요청에 의한 취소', storage, res);
     } catch (error: any) {
       console.error('결제 취소 중 오류:', error?.message || error);
-      
-      return res.status(500).json({ 
-        success: false, 
-        error: error?.message || '결제 취소에 실패했습니다', 
+
+      return res.status(500).json({
+        success: false,
+        error: error?.message || '결제 취소에 실패했습니다',
         orderId,
         timestamp: new Date().toISOString()
       });
     }
   });
-  
+
   // 결제 취소 API (V2) - 긴급 수정 (추가 경로)
   app.post("/api/payments/v2/cancel", async (req, res) => {
     // 헤더 설정 및 인증 오류 처리 강화
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    
+
     // 세션 디버깅 정보 출력
     console.log('쿽키 정보:', req.headers.cookie ? '있음' : '없음');
     console.log('세션 정보:', req.session ? '있음' : '없음');
     console.log('사용자 정보:', req.user ? `ID: ${req.user.id}, 이름: ${req.user.username}` : '없음');
-    
+
     // 인증 여부 확인 및 실패 시 오류 반환
     if (!req.isAuthenticated()) {
       console.error('인증 요청 실패: 사용자가 로그인되지 않았습니다.');
-      return res.status(401).json({ 
-        success: false, 
+      return res.status(401).json({
+        success: false,
         error: '로그인이 필요합니다',
         authenticated: false
       });
     }
-    
+
     // 유효한 사용자, 인증 성공 로그
     console.log('인증 성공:', req.user.username);
 
@@ -614,31 +615,31 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
       const payment = await storage.getPaymentByOrderId(orderId);
       if (!payment) {
         console.error('결제 정보 찾기 실패. 주문 ID:', orderId);
-        return res.status(404).json({ 
-          success: false, 
-          error: "결제 정보를 찾을 수 없습니다", 
-          orderId 
+        return res.status(404).json({
+          success: false,
+          error: "결제 정보를 찾을 수 없습니다",
+          orderId
         });
       }
 
       // 이미 취소된 결제인지 확인
       if (payment.status === 'CANCELLED') {
         console.log('이미 취소된 결제. 결제 ID:', payment.id, '주문 ID:', orderId);
-        return res.status(400).json({ 
-          success: false, 
-          error: "이미 취소된 결제입니다", 
-          payment 
+        return res.status(400).json({
+          success: false,
+          error: "이미 취소된 결제입니다",
+          payment
         });
       }
 
       // KG이니시스 관리자에 대한 취소 호출
       try {
         console.log('포트원 V2 결제 취소 API 호출 시도. 결제 키:', payment.paymentKey);
-        
+
         // 포트원 V2 클라이언트 가져오기
         const portoneV2Client = await import('./portone-v2-client');
         const portoneClient = portoneV2Client.default;
-        
+
         if (!payment.paymentKey) {
           throw new Error('취소할 결제 키가 없습니다.');
         }
@@ -649,7 +650,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
         console.log('- API 시크릿 키 길이:', portoneClient.apiSecret ? portoneClient.apiSecret.length : 0);
         console.log('- API 시크릿 키 시작부분:', portoneClient.apiSecret ? `${portoneClient.apiSecret.substring(0, 5)}...` : '없음');
         console.log('- 취소 사유:', reason || '고객 요청에 의한 취소');
-        
+
         // 포트원 API로 결제 취소 요청
         console.log('포트원 V2 API 엔드포인트 URL:', `/payments/${payment.paymentKey}/cancel`);
         const response = await portoneClient.cancelPayment({
@@ -658,7 +659,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
         });
 
         console.log('포트원 결제 취소 성공. 응답:', JSON.stringify(response, null, 2));
-        
+
         // 결제 정보 업데이트 - CANCELLED로 변경
         const updatedPayment = await storage.updatePayment(payment.id, {
           status: 'CANCELLED',
@@ -666,7 +667,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
           cancelReason: reason || '고객 요청에 의한 취소',
           cancelledAt: new Date()
         });
-        
+
         // 주문 상태 업데이트
         const updatedOrder = await storage.updateOrderStatusByOrderId(orderId, 'cancelled');
         if (!updatedOrder) {
@@ -677,7 +678,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
 
         // 업데이트된 결제 정보를 다시 가져와서 클라이언트에 전달
         const refreshedPayment = await storage.getPaymentByOrderId(orderId);
-        
+
         // 응답 - 클라이언트에 원본 포트원 응답이 아닌 필요한 데이터만 전송
         return res.json({
           success: true,
@@ -688,7 +689,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
         });
       } catch (portoneError: any) {
         console.error('포트원 API 취소 오류:', portoneError?.message || portoneError);
-        
+
         // 오류 객체 상세 출력
         if (portoneError.response) {
           console.error('포트원 API 오류 응답 상태:', portoneError.response.status);
@@ -696,15 +697,15 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
         } else if (portoneError.request) {
           console.error('포트원 API 요청은 전송되었으나 응답이 없음:', portoneError.request);
         }
-        
+
         // 결제 키 유형 확인
         if (payment.paymentKey) {
           console.log('결제 키 유형 확인:', payment.paymentKey.startsWith('imp_') ? 'IMP 형식' : '기타 형식');
         }
-        
+
         // DB에만 취소로 처리
         console.log('포트원 API 오류에도 불구하고 DB에는 취소 처리함');
-        
+
         // 결제 정보 업데이트
         const updatedPayment = await storage.updatePayment(payment.id, {
           status: 'CANCELLED',
@@ -712,13 +713,13 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
           cancelReason: reason || '고객 요청에 의한 취소 (API 오류)',
           cancelledAt: new Date()
         });
-        
+
         // 주문 상태 업데이트
         const updatedOrder = await storage.updateOrderStatusByOrderId(orderId, 'cancelled');
-        
+
         // 업데이트된 결제 정보 다시 가져오기
         const refreshedPayment = await storage.getPaymentByOrderId(orderId);
-        
+
         // 오류 응답 - 포트원 API 오류 응답 설정
         return res.json({
           success: true,
@@ -731,10 +732,10 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
       }
     } catch (error: any) {
       console.error('결제 취소 중 오류:', error?.message || error);
-      
-      return res.status(500).json({ 
-        success: false, 
-        error: error?.message || '결제 취소에 실패했습니다', 
+
+      return res.status(500).json({
+        success: false,
+        error: error?.message || '결제 취소에 실패했습니다',
         orderId,
         timestamp: new Date().toISOString()
       });
@@ -796,7 +797,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
     }
 
     const { orderId } = req.params;
-    const { 
+    const {
       impUid,                 // 포트원 결제 고유 ID
       merchantUid,            // 판매자 주문번호
       status,                 // 결제 상태
@@ -812,35 +813,35 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
       payMethod,              // 결제 수단
       custom_data             // 추가 데이터 (테스트 모드에서 원래 금액 정보)
     } = req.body;
-    
+
     console.log('결제 처리 API 호출 데이터:', req.body);
-    
+
     // 포트원 테스트 모드에서 지급 시작 (모빌리언스/KCP 테스트용 - 100원 고정금액)
     if (pg === 'mobilians' && custom_data && custom_data.productAmount) {
       try {
-        console.log('테스트 결제 처리 - 통과: ', { 
+        console.log('테스트 결제 처리 - 통과: ', {
           bidId,
           productAmount: custom_data.productAmount,
           originalName: custom_data.originalName,
           testAmount: amount  // 100원 고정금액 (테스트용)
         });
-        
+
         // 변경: 입찰 ID가 있는 경우 처리
         if (bidId) {
           const bid = await storage.getBid(bidId);
           if (!bid) {
             return res.status(404).json({
-              success: false, 
+              success: false,
               error: '입찰 정보를 찾을 수 없습니다.'
             });
           }
-          
+
           // 테스트용 결제이류도 입찰 성공으로 처리
           await storage.updateBid(bidId, { status: 'paid' });
-          
+
           // 테스트 결제인경우 imp_uid 생성
           const testImpUid = `imp_test_${new Date().getTime()}_${Math.floor(Math.random() * 1000)}`;
-          
+
           return res.json({
             success: true,
             message: '테스트 모드에서 결제가 완료되었습니다.',
@@ -851,7 +852,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
             testMode: true
           });
         }
-        
+
         // 주문번호로 처리되는 경우
         return res.json({
           success: true,
@@ -863,9 +864,9 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
         });
       } catch (error) {
         console.error('테스트 결제 처리 오류:', error);
-        return res.status(500).json({ 
-          success: false, 
-          error: '테스트 결제 처리 중 오류가 발생했습니다.' 
+        return res.status(500).json({
+          success: false,
+          error: '테스트 결제 처리 중 오류가 발생했습니다.'
         });
       }
     }
@@ -875,20 +876,20 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
       // IMP 결제 ID가 있으면 결제 처리
       if (impUid && merchantUid) {
         console.log('포트원 결제 정보 처리:', { impUid, merchantUid, status });
-        
+
         // 입찰 ID가 있는 경우 처리
         if (bidId) {
           const bid = await storage.getBid(bidId);
           if (!bid) {
             return res.status(404).json({
-              success: false, 
+              success: false,
               error: '입찰 정보를 찾을 수 없습니다.'
             });
           }
-          
+
           // 입찰 상태 업데이트
           await storage.updateBid(bidId, { status: 'paid' });
-          
+
           return res.json({
             success: true,
             message: '결제가 성공적으로 처리되었습니다.',
@@ -897,7 +898,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
             merchantUid: merchantUid
           });
         }
-        
+
         // 주문이 있는 경우 결제 정보 업데이트
         return res.json({
           success: true,
@@ -906,7 +907,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
           merchantUid: merchantUid
         });
       }
-      
+
       // 아래에서부터는 기존 서버 API 방식 방식으로 처리
       // 주문 정보 확인
       const order = await storage.getOrderByOrderId(orderId);
@@ -924,11 +925,11 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
       const host = req.get('host') || 'localhost:5000';
       const protocol = req.protocol || 'http';
       const baseUrl = `${protocol}://${host}`;
-      
+
       // 콜백 URL 설정
       const successUrl = `${baseUrl}/api/payments/success?orderId=${orderId}`;
       const failUrl = `${baseUrl}/api/payments/fail?orderId=${orderId}`;
-      
+
       // 포트원 V2 API를 통해 결제 시작
       try {
         // 이미 초기화된 클라이언트 사용
@@ -984,7 +985,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
         console.error('포트원 API 호출 오류:', apiError);
         res.status(500).json({
           success: false,
-          error: apiError.message || '결제 처리 중 오류가 발생했습니다.' 
+          error: apiError.message || '결제 처리 중 오류가 발생했습니다.'
         });
       }
     } catch (error: any) {
@@ -999,12 +1000,12 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
   // 결제 성공 리디렉션 처리
   app.get('/api/payments/success', async (req, res) => {
     const { orderId } = req.query;
-    
+
     try {
       if (!orderId) {
         return res.status(400).send('주문 ID가 없습니다.');
       }
-      
+
       // 포트원 결제 검색으로 실제 payment_id 확인
       const portoneV2Client = await import('./portone-v2-client');
       const portoneClient = portoneV2Client.default;
@@ -1027,7 +1028,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
       } catch (e: any) {
         console.error('결제 검색 오류:', e.message || e);
       }
-      
+
       if (!realPaymentId) {
         return res.status(404).json({ success: false, error: '결제 정보를 찾을 수 없습니다.', orderId });
       }
@@ -1047,7 +1048,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
       res.status(500).json({ success: false, error: '결제 성공 처리 중 오류가 발생했습니다.' });
     }
   });
-  
+
   // 결제 ID 동기화(재조회) 엔드포인트 - 포트원 결제번호로 보정
   app.post('/api/payments/reconcile', async (req, res) => {
     const { orderId, paymentId: overridePaymentId } = req.body;
@@ -1088,7 +1089,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
   // 결제 실패 리디렉션 처리
   app.get('/api/payments/fail', async (req, res) => {
     const { orderId, message } = req.query;
-    
+
     try {
       if (orderId) {
         // DB에 결제 실패 상태 업데이트
@@ -1097,7 +1098,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
           failReason: message as string || '결제 취소 또는 실패'
         });
       }
-      
+
       // 실패 페이지 렌더링
       res.send(`
         <html>
@@ -1197,11 +1198,11 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
       const host = req.get('host') || 'localhost:5000';
       const protocol = req.protocol || 'http';
       const baseUrl = `${protocol}://${host}`;
-      
+
       // 콜백 URL 설정
       const successUrl = `${baseUrl}/api/payments/success?orderId=${orderId}`;
       const failUrl = `${baseUrl}/api/payments/fail?orderId=${orderId}`;
-      
+
       // 주문 생성
       const orderData = {
         orderId: orderId,
@@ -1211,24 +1212,24 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
         customerEmail: req.user?.email,
         customerPhone: (req.user as any)?.phone || ''
       };
-      
+
       // 주문 정보 직접 생성 (fetch 대신 엔드포인트 호출 시)
       try {
         // 사용자 ID 확인
         if (!req.user) {
           throw new Error('로그인이 필요합니다.');
         }
-        
+
         // 구매자 정보 생성
         const buyerInfo = {
           name: req.user.username || '',
           email: req.user.email || '',
           phone: (req.user as any)?.phone || ''
         };
-        
+
         // vendors 테이블에서 유효한 판매자 ID 찾기 (3번은 ralphparkvendor)
         const vendorId = 3; // 기본 판매자 ID
-        
+
         // 주문 정보 작성
         const order = await storage.createOrder({
           orderId,
@@ -1241,17 +1242,17 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
           buyerInfo,
           recipientInfo: buyerInfo  // 기본적으로 구매자 정보와 동일하게 설정
         });
-        
+
         console.log('주문 생성 성공:', order);
       } catch (orderError) {
         console.error('주문 생성 오류:', orderError);
         throw new Error('주문 생성에 실패했습니다. ' + (orderError instanceof Error ? orderError.message : ''));
       }
-      
+
       // 포트원 V2 API를 통해 결제 시작
       const portoneV2Client = await import('./portone-v2-client');
       const portoneClient = portoneV2Client.default;
-      
+
       const paymentData = await portoneClient.createPayment({
         orderId: orderId,
         orderName: productName,
@@ -1342,19 +1343,19 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
       res.status(500).json({ error: "결제 웹훅 처리에 실패했습니다" });
     }
   });
-  
+
   // 결제 성공 리다이렉트 처리
   app.get("/api/payments/success-redirect", (req, res) => {
     const { paymentKey, orderId, amount } = req.query;
-    
+
     // 결제 성공 페이지로 리다이렉트 (querystring 유지)
     res.redirect(`/payment/success?paymentKey=${paymentKey}&orderId=${orderId}&amount=${amount}`);
   });
-  
+
   // 결제 실패 리다이렉트 처리
   app.get("/api/payments/fail-redirect", (req, res) => {
     const { code, message, orderId } = req.query;
-    
+
     // 결제 실패 페이지로 리다이렉트 (querystring 유지)
     res.redirect(`/payment/fail?code=${code}&message=${encodeURIComponent(message as string)}&orderId=${orderId}`);
   });
@@ -1362,7 +1363,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
   // 결제 성공 페이지
   app.get("/payment/success", (req, res) => {
     const { paymentKey, orderId, amount } = req.query;
-    
+
     // NOTE: 실제 애플리케이션에서는 이 페이지를 React 라우트로 처리해야 합니다.
     // 여기서는 임시로 HTML 응답을 반환합니다.
     res.send(`
@@ -1471,29 +1472,29 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ error: "로그인이 필요합니다" });
     }
-    
+
     // 세션이 있는 경우에만 결제 페이지 렌더링
     try {
       const { orderId, orderName, amount, clientKey, successUrl, failUrl } = req.body;
-      
+
       // KG이니시스 설정 추가
       const merchantID = 'imp49910675';  // 포트원 가맹점 식별코드
       const inicisCode = 'MOI3204387';  // KG이니시스 상점ID(MID) - 스크린샷에서 확인
-      
+
       // 사용자 정보 가져오기 (있는 경우)
       const buyer_email = req.user?.email || '';
       const buyer_name = req.user?.username || '';
       const buyer_tel = '';  // 사용자 전화번호 필드 추가 필요
-      
+
       if (!orderId || !amount || !clientKey) {
         return res.status(400).json({ error: "필수 정보가 누락되었습니다" });
       }
-      
+
       // 템플릿 변수 치환 문제를 피하기 위해 하드코딩 방식으로 구현
       const displayOrderName = orderName || '식물 상품';
       const displayAmount = parseInt(amount).toLocaleString();
       const amountValue = parseInt(amount);
-      
+
       const html = `
         <!DOCTYPE html>
         <html>
@@ -1660,17 +1661,17 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
         </body>
         </html>
       `;
-      
+
       res.send(html);
     } catch (error) {
       console.error("체크아웃 페이지 생성 중 오류:", error);
       res.status(500).json({ error: "체크아웃 페이지 생성에 실패했습니다" });
     }
   });
-  
+
   app.get("/payment/fail", (req, res) => {
     const { code, message, orderId } = req.query;
-    
+
     // NOTE: 실제 애플리케이션에서는 이 페이지를 React 라우트로 처리해야 합니다.
     // 여기서는 임시로 HTML 응답을 반환합니다.
     res.send(`

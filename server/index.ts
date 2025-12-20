@@ -9,9 +9,9 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
-import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
-import { syncVendorsTable } from "./sync-vendors";
+import { registerRoutes } from "./routes.js";
+import { setupVite, serveStatic, log } from "./vite.js";
+import { syncVendorsTable } from "./sync-vendors.js";
 
 const app = express();
 
@@ -43,7 +43,7 @@ const allowPublicAccess = (req: Request, res: Response, next: NextFunction) => {
     '/api/plants/remove-duplicates', // 중복 정리 API
     '/api/plants/upload-excel' // 엑셀 업로드 API
   ];
-  
+
   // 정확한 경로 매칭 또는 패턴 매칭 (경로에 매개변수가 있는 경우)
   const isPublicRoute = publicRoutes.some(route => {
     // 경로에 ':' 문자가 있으면 패턴 매칭 수행
@@ -56,14 +56,14 @@ const allowPublicAccess = (req: Request, res: Response, next: NextFunction) => {
     // 정확한 경로 매칭
     return route === req.path;
   });
-  
+
   if (isPublicRoute) {
     console.log(`Public access allowed for ${req.path}`);
     // Create a dummy user for the request if needed
     (req as any).isAuthenticated = () => true;
     (req as any).user = { id: 1, username: 'ralphpark', role: 'user', email: 'ralphpark@example.com' };
   }
-  
+
   next();
 };
 app.use(express.json());
@@ -81,7 +81,7 @@ app.use((req, res, next) => {
     // 가이드에 따라 강화된 헤더 설정
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.type('json'); // Content-Type 강제 설정
-    
+
     // Vite Dev Server 미들웨어를 건너뛰도록 플래그 설정
     (req as any).isApiRequest = true;
   }
@@ -119,7 +119,7 @@ app.use((req, res, next) => {
 });
 
 // Vite 미들웨어를 우회하는 직접 API 라우터 임포트
-import directRouter from './direct-router';
+import directRouter from './direct-router.js';
 
 // Vite 미들웨어를 등록하기 전에 직접 API 라우터 등록
 app.use('/direct', directRouter);
@@ -145,17 +145,17 @@ app.use('/__direct', directRouter);
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
-    
+
     // 명시적으로 JSON 형식 및 Content-Type 강제 설정
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.type('json');
-    
+
     // 가이드에 따른 표준화된 에러 응답 구조
     res.status(status).json({
       errorCode: err.code || 'INTERNAL_ERROR',
       message: message
     });
-    
+
     throw err;
   });
 

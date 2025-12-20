@@ -3,8 +3,8 @@
  * 포트원 V2 API를 사용한 결제 취소 처리 로직
  */
 import { Request, Response } from 'express';
-import { storage } from './storage';
-import { smartCancelPayment } from './portone-payment-finder';
+import { storage } from './storage.js';
+import { smartCancelPayment } from './portone-payment-finder.js';
 
 /**
  * 결제 취소 요청 처리
@@ -13,22 +13,22 @@ import { smartCancelPayment } from './portone-payment-finder';
  */
 export async function handleCancelPayment(req: Request, res: Response) {
   const { orderId, reason } = req.body;
-  
+
   if (!orderId) {
     return res.status(400).json({
       success: false,
       error: '주문 ID가 필요합니다.'
     });
   }
-  
+
   try {
     console.log(`\n===== 결제 취소 요청 처리 =====`);
     console.log(`주문 ID: ${orderId}`);
     console.log(`취소 사유: ${reason || '고객 요청에 의한 취소'}`);
-    
+
     // 1. 주문 ID로 결제 정보 조회
     const payment = await storage.getPaymentByOrderId(orderId);
-    
+
     if (!payment) {
       console.error(`[결제 취소] 결제 정보를 찾을 수 없음: ${orderId}`);
       return res.status(404).json({
@@ -36,7 +36,7 @@ export async function handleCancelPayment(req: Request, res: Response) {
         error: '주문에 대한 결제 정보를 찾을 수 없습니다.'
       });
     }
-    
+
     // 2. 결제 상태 확인
     if (payment.status === 'CANCELLED') {
       console.log(`[결제 취소] 이미 취소된 결제: ${orderId}`);
@@ -46,7 +46,7 @@ export async function handleCancelPayment(req: Request, res: Response) {
         payment
       });
     }
-    
+
     if (!payment.paymentKey) {
       console.error(`[결제 취소] 결제 키가 없음: ${orderId}`);
       return res.status(400).json({
@@ -54,20 +54,20 @@ export async function handleCancelPayment(req: Request, res: Response) {
         error: '결제 키가 없어 취소할 수 없습니다.'
       });
     }
-    
+
     // 3. 스마트 결제 취소 함수 사용 - 다양한 ID 형식 시도
     console.log(`[결제 취소] 스마트 결제 취소 시도:`);
     console.log(`- 결제 키: ${payment.paymentKey}`);
     console.log(`- 주문 ID: ${payment.orderId}`);
     console.log(`- 상점 ID: ${payment.merchantId || 'MOI3204387'}`);
-    
+
     // 3.1 paymentKey로 시도
     console.log(`[결제 취소] paymentKey로 취소 시도: ${payment.paymentKey}`);
     const cancelResultByKey = await smartCancelPayment(
       payment.paymentKey,
       reason || '고객 요청에 의한 취소'
     );
-    
+
     // 3.2 성공했으면 결과 반환
     if (cancelResultByKey.success) {
       console.log(`[결제 취소] paymentKey로 취소 성공`);
@@ -76,13 +76,13 @@ export async function handleCancelPayment(req: Request, res: Response) {
         cancelReason: reason || '고객 요청에 의한 취소',
         cancelledAt: new Date()
       });
-      
+
       // 주문 상태 업데이트
       const order = await storage.getOrderByOrderId(orderId);
       if (order) {
         await storage.updateOrderStatus(order.id, 'cancelled');
       }
-      
+
       return res.status(200).json({
         success: true,
         message: '결제가 성공적으로 취소되었습니다.',
@@ -92,7 +92,7 @@ export async function handleCancelPayment(req: Request, res: Response) {
         }
       });
     }
-    
+
     // 3.3 paymentKey로 실패한 경우 orderId로 시도
     console.log(`[결제 취소] paymentKey 취소 실패, orderId로 시도: ${payment.orderId}`);
     if (payment.orderId) {
@@ -100,21 +100,21 @@ export async function handleCancelPayment(req: Request, res: Response) {
         payment.orderId,
         reason || '고객 요청에 의한 취소'
       );
-      
+
       if (cancelResultByOrder.success) {
         console.log(`[결제 취소] orderId로 취소 성공`);
         const updatedPayment = await storage.updatePayment(payment.id, {
-          status: 'CANCELLED', 
+          status: 'CANCELLED',
           cancelReason: reason || '고객 요청에 의한 취소',
           cancelledAt: new Date()
         });
-        
+
         // 주문 상태 업데이트
         const order = await storage.getOrderByOrderId(orderId);
         if (order) {
           await storage.updateOrderStatus(order.id, 'cancelled');
         }
-        
+
         return res.status(200).json({
           success: true,
           message: '결제가 성공적으로 취소되었습니다.',
@@ -124,7 +124,7 @@ export async function handleCancelPayment(req: Request, res: Response) {
           }
         });
       }
-      
+
       // 두 방법 모두 실패한 경우 - DB만 업데이트 (fallback)
       console.warn('[결제 취소] 포트원 API에서 결제를 찾을 수 없음. DB만 업데이트합니다.');
       console.log('[결제 취소 Fallback] 결제 및 주문 상태를 취소로 변경');
@@ -132,6 +132,7 @@ export async function handleCancelPayment(req: Request, res: Response) {
       // DB에서 결제 및 주문 상태만 업데이트
       const updatedPayment = await storage.updatePaymentStatus(payment.id, 'CANCELLED', '포트원 API에서 결제를 찾을 수 없어 수동 취소');
 
+      const order = await storage.getOrderByOrderId(orderId);
       if (order) {
         await storage.updateOrderStatus(order.id, 'cancelled');
       }
@@ -151,7 +152,7 @@ export async function handleCancelPayment(req: Request, res: Response) {
       // orderId가 없는 경우
       console.error('[결제 취소] 취소 실패:', cancelResultByKey.error);
       return res.status(500).json({
-        success: false, 
+        success: false,
         error: `결제 취소 실패: ${cancelResultByKey.error}`,
         details: cancelResultByKey.error
       });

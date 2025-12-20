@@ -1,33 +1,22 @@
-import { 
-  users, plants, vendors, bids, conversations, products, storeLocations, payments, orders, notifications, siteSettings, aiSettings, passwordResetTokens, cartItems, reviews,
-  type User, type InsertUser, 
-  type Plant, type InsertPlant,
-  type Vendor, type InsertVendor,
-  type Bid, type InsertBid,
-  type Conversation, type InsertConversation,
-  type Product, type InsertProduct,
-  type StoreLocation, type InsertStoreLocation,
-  type Payment, type InsertPayment,
-  type Order, type InsertOrder,
-  type Notification, type InsertNotification,
-  type AISettings, type InsertAISettings,
-  type PasswordResetToken, type InsertPasswordResetToken,
-  type CartItem, type InsertCartItem,
-  type Review, type InsertReview
-} from "@shared/schema";
-import { db } from "./db";
+import { db } from "./db.js";
 import { eq, and, desc, isNull, notInArray, or, inArray, sql, not } from "drizzle-orm";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
-import { pool } from "./db";
+import { pool } from "./db.js";
 
 const PostgresSessionStore = connectPg(session);
+
+
+import {
+  users, plants, vendors, products, payments, orders, bids, reviews, conversations, storeLocations, notifications, passwordResetTokens, aiSettings, cartItems, siteSettings,
+  type User, type InsertUser, type Plant, type InsertPlant, type Vendor, type InsertVendor, type Product, type InsertProduct, type Payment, type InsertPayment, type Order, type InsertOrder, type Bid, type InsertBid, type Conversation, type InsertConversation, type StoreLocation, type InsertStoreLocation, type Notification, type InsertNotification, type PasswordResetToken, type InsertPasswordResetToken, type AISettings, type InsertAISettings, type CartItem, type InsertCartItem, type Review, type InsertReview
+} from "../shared/schema.js";
 
 // Storage interface for the application
 export interface IStorage {
   // Session store
   sessionStore: session.Store;
-  
+
   // User methods
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
@@ -37,13 +26,13 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: number, userData: Partial<User>): Promise<User | undefined>;
   updateUserPassword(id: number, hashedPassword: string): Promise<User | undefined>;
-  
+
   // Password reset token methods
   createPasswordResetToken(token: InsertPasswordResetToken): Promise<PasswordResetToken>;
   getPasswordResetToken(token: string): Promise<PasswordResetToken | undefined>;
   markTokenAsUsed(token: string): Promise<void>;
   deleteExpiredTokens(): Promise<void>;
-  
+
   // Plant methods
   getPlant(id: number): Promise<Plant | undefined>;
   getAllPlants(): Promise<Plant[]>;
@@ -53,7 +42,7 @@ export interface IStorage {
   deletePlant(id: number): Promise<void>;
   removeAllPlants(): Promise<void>;
   insertMultiplePlants(plantsData: any[]): Promise<void>;
-  
+
   // Vendor methods
   getVendor(id: number): Promise<Vendor | undefined>;
   getVendorById(id: number): Promise<Vendor | undefined>;
@@ -62,9 +51,9 @@ export interface IStorage {
   getAllVendors(): Promise<Vendor[]>;
   createVendor(vendor: InsertVendor): Promise<Vendor>;
   updateVendor(id: number, vendorData: Partial<Vendor>): Promise<Vendor | undefined>;
-  getVendorWithProducts(id: number): Promise<{vendor: Vendor, products: Product[]} | undefined>;
+  getVendorWithProducts(id: number): Promise<{ vendor: Vendor, products: Product[] } | undefined>;
   getOnlineVisibleProductsByRegion(region?: string): Promise<any[]>;
-  
+
   // Payment methods
   getPayment(id: number): Promise<Payment | undefined>;
   getPaymentByOrderId(orderId: string): Promise<Payment | undefined>;
@@ -79,7 +68,7 @@ export interface IStorage {
   updatePayment(id: number, paymentData: Partial<Payment>): Promise<Payment | undefined>;
   updatePaymentByOrderId(orderId: string, paymentData: Partial<Payment>): Promise<Payment | undefined>;
   fixPaymentBidId(paymentId: number, orderId: string): Promise<Payment | undefined>;
-  
+
   // Order methods
   getOrder(id: number): Promise<Order | undefined>;
   getOrderByOrderId(orderId: string): Promise<Order | undefined>;
@@ -89,12 +78,12 @@ export interface IStorage {
   createOrder(order: InsertOrder): Promise<Order>;
   updateOrderStatus(id: number, status: string): Promise<Order | undefined>;
   updateOrderStatusByOrderId(orderId: string, status: string): Promise<Order | undefined>;
-  
+
   // Site Settings methods
   getSiteSettings(): Promise<any | undefined>;
   updateSiteSettings(settings: { homePage?: string }): Promise<void>;
   updateOrder(id: number, orderData: Partial<Order>): Promise<Order | undefined>;
-  
+
   // Bid methods
   getBid(id: number): Promise<Bid | undefined>;
   getBidById(id: number): Promise<Bid | undefined>; // Alias for getBid for compatibility
@@ -104,7 +93,7 @@ export interface IStorage {
   createBid(bid: InsertBid): Promise<Bid>;
   updateBidStatus(id: number, status: string): Promise<Bid | undefined>;
   updateBid(id: number, bidData: Partial<Bid>): Promise<Bid | undefined>;
-  
+
   // Conversation methods
   getConversation(id: number): Promise<Conversation | undefined>;
   getConversationsForUser(userId: number): Promise<Conversation[]>;
@@ -112,34 +101,34 @@ export interface IStorage {
   updateConversation(id: number, messages: any[], recommendations?: any[]): Promise<Conversation | undefined>;
   updateConversationData(id: number, data: Partial<Conversation>): Promise<Conversation | undefined>;
   addMessageToConversation(conversationId: number, message: any): Promise<boolean>;
-  
+
   // Product methods
   getProduct(id: number): Promise<Product | undefined>;
   getProductsForUser(userId: number): Promise<Product[]>;
   createProduct(product: InsertProduct): Promise<Product>;
   updateProduct(id: number, product: Partial<Product>): Promise<Product | undefined>;
   deleteProduct(id: number): Promise<boolean>;
-  
+
   // Store Location methods
   getStoreLocation(id: number): Promise<StoreLocation | undefined>;
   getStoreLocationForUser(userId: number): Promise<StoreLocation | undefined>;
   createStoreLocation(location: InsertStoreLocation): Promise<StoreLocation>;
   updateStoreLocation(id: number, location: Partial<StoreLocation>): Promise<StoreLocation | undefined>;
-  
+
   // Notification methods
   getNotification(id: number): Promise<Notification | undefined>;
   getNotificationsForUser(userId: number): Promise<Notification[]>;
   createNotification(notification: InsertNotification): Promise<Notification>;
   updateNotification(id: number, notificationData: Partial<Notification>): Promise<Notification | undefined>;
   markNotificationAsRead(id: number): Promise<Notification | undefined>;
-  
+
   // Bid methods for conversation
   getBidsForConversation(conversationId: number): Promise<Bid[]>;
-  
+
   // AI Settings methods
   getAISettings(): Promise<AISettings | undefined>;
   updateAISettings(settings: Partial<InsertAISettings>): Promise<AISettings | undefined>;
-  
+
   // Cart methods
   getCartItems(userId: number): Promise<CartItem[]>;
   getCartItem(userId: number, productId: number): Promise<CartItem | undefined>;
@@ -148,7 +137,7 @@ export interface IStorage {
   removeFromCart(userId: number, productId: number): Promise<boolean>;
   clearCart(userId: number): Promise<boolean>;
   getCartWithProducts(userId: number): Promise<any[]>;
-  
+
   // Review methods
   getReviewsForVendor(vendorId: number): Promise<Review[]>;
   createReview(review: InsertReview): Promise<Review>;
@@ -166,7 +155,7 @@ export class DatabaseStorage implements IStorage {
       createTableIfMissing: true
     });
   }
-  
+
   // Payment methods
   async getPayment(id: number): Promise<Payment | undefined> {
     const [payment] = await db.select().from(payments).where(eq(payments.id, id));
@@ -193,7 +182,7 @@ export class DatabaseStorage implements IStorage {
     const [payment] = await db.select().from(payments).where(eq(payments.paymentKey, paymentKey));
     return payment;
   }
-  
+
   // 별칭 - portone-v2-routes.ts에서 사용
   async getPaymentByKey(paymentKey: string): Promise<Payment | undefined> {
     return this.getPaymentByPaymentKey(paymentKey);
@@ -206,12 +195,12 @@ export class DatabaseStorage implements IStorage {
   async getPaymentsForBid(bidId: number): Promise<Payment[]> {
     return db.select().from(payments).where(eq(payments.bidId, bidId)).orderBy(desc(payments.createdAt));
   }
-  
+
   // 모든 결제 정보 조회
   async getAllPayments(): Promise<any[]> {
     try {
       console.log('모든 결제 정보 조회 시작 (Updated Logic)');
-      
+
       const paymentsData = await db
         .select({
           id: payments.id,
@@ -258,21 +247,21 @@ export class DatabaseStorage implements IStorage {
         const productsList = await db.select({ id: products.id, name: products.name })
           .from(products)
           .where(inArray(products.id, Array.from(productIds)));
-        
+
         productsList.forEach(p => productsMap.set(p.id, p.name));
       }
-      
+
       // 데이터 조합
       const enrichedPayments = paymentsData.map(payment => {
         let productName = payment.categoryName || "알 수 없는 상품"; // 기본값
-        
+
         const orderPid = Number(payment.orderProductId);
         const bidPid = Number(payment.bidSelectedProductId);
-        
+
         // 1. 주문 정보 우선 (가장 정확)
         if (payment.orderProductId && productsMap.has(orderPid)) {
           productName = productsMap.get(orderPid) || productName;
-        } 
+        }
         // 2. 입찰 정보 차선
         else if (payment.bidSelectedProductId && productsMap.has(bidPid)) {
           productName = productsMap.get(bidPid) || productName;
@@ -287,21 +276,21 @@ export class DatabaseStorage implements IStorage {
           orderDate: payment.createdAt
         };
       });
-      
+
       console.log(`모든 결제 정보 조회 완료: ${enrichedPayments.length}개`);
       // 디버깅: 최신 3개 결제 건의 해석된 상품명 로그 출력
       if (enrichedPayments.length > 0) {
         console.log("최신 결제 상품명 예시:");
         enrichedPayments.slice(0, 3).forEach(p => console.log(`- ID ${p.id}: ${p.productName}`));
       }
-      
+
       return enrichedPayments;
     } catch (error) {
       console.error('모든 결제 정보 조회 오류:', error);
       return [];
     }
   }
-  
+
   /**
    * 판매자 ID와 대화 ID를 기반으로 입찰 정보를 찾는 메서드 (상세 로깅 버전)
    * 결제 정보와 올바른 판매자를 연결하기 위해 사용됩니다.
@@ -312,7 +301,7 @@ export class DatabaseStorage implements IStorage {
   async getBidByVendorAndConversationDetailed(vendorId: number, conversationId: number): Promise<Bid | undefined> {
     try {
       console.log(`판매자 ${vendorId}와 대화 ${conversationId}에 대한 입찰 검색 중...`);
-      
+
       // 판매자 ID와 대화 ID를 모두 만족하는 입찰 찾기
       const [bid] = await db
         .select()
@@ -325,13 +314,13 @@ export class DatabaseStorage implements IStorage {
         )
         .orderBy(desc(bids.createdAt))
         .limit(1);
-      
+
       if (bid) {
         console.log(`✅ 판매자 ${vendorId}와 대화 ${conversationId}에 대한 입찰 찾음: ID=${bid.id}`);
       } else {
         console.log(`⚠️ 판매자 ${vendorId}와 대화 ${conversationId}에 대한 입찰을 찾지 못함`);
       }
-      
+
       return bid;
     } catch (error) {
       console.error(`판매자 ${vendorId}와 대화 ${conversationId}에 대한 입찰 검색 중 오류:`, error);
@@ -342,28 +331,28 @@ export class DatabaseStorage implements IStorage {
   async getPaymentsForVendor(vendorId: number): Promise<Payment[]> {
     // 더 명확한 디버그 정보 출력
     console.log(`[DEBUG] ====== 판매자 ${vendorId}의 결제 내역 조회 시작 ======`);
-    
+
     try {
       // 먼저 이 판매자와 동일한 사용자 ID를 가진 모든 판매자 ID 목록 조회
       const relatedVendor = await db.select().from(vendors).where(eq(vendors.id, vendorId)).limit(1);
-      
+
       if (relatedVendor.length === 0) {
         console.log(`[DEBUG] 판매자 ID ${vendorId}에 해당하는 판매자 정보를 찾을 수 없습니다.`);
         return [];
       }
-      
+
       const userId = relatedVendor[0].userId;
       console.log(`[DEBUG] 판매자 ID ${vendorId}의 사용자 ID: ${userId}`);
-      
+
       // 동일한 사용자 ID를 가진 모든 판매자 ID 목록 조회
       const allVendorIds = await db
         .select({ id: vendors.id, storeName: vendors.storeName })
         .from(vendors)
         .where(userId === null ? isNull(vendors.userId) : eq(vendors.userId, userId as number));
-      
+
       const vendorIds = allVendorIds.map(v => v.id);
       console.log(`[DEBUG] 사용자 ID ${userId}에 연결된 모든 판매자 ID: ${vendorIds.join(', ')}`);
-      
+
       // 모든 판매자 ID에 대한 주문 조회
       const vendorOrders = await db
         .select({ orderId: orders.orderId })
@@ -376,26 +365,26 @@ export class DatabaseStorage implements IStorage {
             eq(orders.status, 'cancelled')
           )
         ));
-      
+
       const vendorOrderIds = vendorOrders.map(order => order.orderId);
       console.log(`[DEBUG] 모든 연결된 판매자의 결제 가능한 주문 ID 목록: ${vendorOrderIds.length}개`);
       console.log(`[DEBUG] 주문 ID 목록: ${vendorOrderIds.join(', ')}`);
-      
+
       // 주문이 없으면 빈 배열 반환
       if (vendorOrderIds.length === 0) {
         console.log(`[DEBUG] 연결된 판매자의 결제 가능한 주문이 없습니다. 빈 결제 내역 반환.`);
         return [];
       }
-      
+
       // 이 주문 ID로 payments 테이블 필터링 - 모든 결제 상태 포함
       const vendorPayments = await db
         .select()
         .from(payments)
         .where(inArray(payments.orderId, vendorOrderIds))
         .orderBy(desc(payments.createdAt));
-      
+
       console.log(`[DEBUG] 모든 연결된 판매자의 결제 내역: ${vendorPayments.length}개 조회됨`);
-      
+
       // 결제 내역의 첫 번째와 마지막 항목 로깅 (디버깅용)
       if (vendorPayments.length > 0) {
         console.log(`[DEBUG] 최근 결제: ${vendorPayments[0].orderId}, 금액: ${vendorPayments[0].amount}, 상태: ${vendorPayments[0].status}`);
@@ -404,7 +393,7 @@ export class DatabaseStorage implements IStorage {
           console.log(`[DEBUG] 가장 오래된 결제: ${lastPayment.orderId}, 금액: ${lastPayment.amount}, 상태: ${lastPayment.status}`);
         }
       }
-      
+
       console.log(`[DEBUG] ====== 판매자 ${vendorId}의 결제 내역 조회 완료 ======`);
       return vendorPayments;
     } catch (error) {
@@ -419,13 +408,13 @@ export class DatabaseStorage implements IStorage {
       // 이미 pay_ 형식이고 26자인 경우 그대로 사용
       if (payment.paymentKey.startsWith('pay_') && payment.paymentKey.length === 26) {
         console.log(`결제 키가 이미 올바른 포트원 V2 API 형식임: ${payment.paymentKey}`);
-      } 
+      }
       // UUID 또는 다른 형식인 경우 변환
       else {
         try {
           // convertToV2PaymentId 함수 호출을 위한 import
-          const { convertToV2PaymentId, generatePortonePaymentId } = require('./portone-v2-client');
-          
+          const { convertToV2PaymentId, generatePortonePaymentId } = await import('./portone-v2-client.js');
+
           // UUID 형식인 경우
           if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(payment.paymentKey)) {
             const originalKey = payment.paymentKey;
@@ -445,11 +434,11 @@ export class DatabaseStorage implements IStorage {
         }
       }
     }
-    
+
     // 최종 검증: paymentKey가 없거나 올바른 형식이 아닌 경우 생성
     if (!payment.paymentKey || !payment.paymentKey.startsWith('pay_') || payment.paymentKey.length !== 26) {
       try {
-        const { generatePortonePaymentId } = require('./portone-v2-client');
+        const { generatePortonePaymentId } = await import('./portone-v2-client.js');
         payment.paymentKey = generatePortonePaymentId();
         console.log(`최종 검증에서 결제 ID 재생성: ${payment.paymentKey}`);
       } catch (error) {
@@ -460,7 +449,7 @@ export class DatabaseStorage implements IStorage {
         console.log(`최종 기본 결제 ID 생성: ${payment.paymentKey}`);
       }
     }
-    
+
     // 데이터베이스에 저장
     const [newPayment] = await db.insert(payments).values(payment).returning();
     return newPayment;
@@ -473,18 +462,18 @@ export class DatabaseStorage implements IStorage {
         ...paymentData,
         updatedAt: new Date()
       };
-      
+
       // receipt가 객체인 경우 JSON으로 변환
       if (updateData.receipt && typeof updateData.receipt === 'object') {
         updateData.receipt = JSON.stringify(updateData.receipt);
       }
-      
+
       const [updatedPayment] = await db
         .update(payments)
         .set(updateData)
         .where(eq(payments.id, id))
         .returning();
-      
+
       // receipt가 JSON 문자열인 경우 객체로 파싱
       if (updatedPayment.receipt && typeof updatedPayment.receipt === 'string') {
         try {
@@ -494,14 +483,14 @@ export class DatabaseStorage implements IStorage {
           (updatedPayment as any).receipt = {};
         }
       }
-      
+
       return updatedPayment;
     } catch (error) {
       console.error("결제 정보 업데이트 오류:", error);
       return undefined;
     }
   }
-  
+
   async updatePaymentStatus(id: number, status: string, paymentKey?: string): Promise<Payment | undefined> {
     try {
       // 업데이트할 데이터 준비
@@ -509,19 +498,19 @@ export class DatabaseStorage implements IStorage {
         status,
         updatedAt: new Date()
       };
-      
+
       // paymentKey가 제공된 경우 추가
       if (paymentKey) {
         updateData.paymentKey = paymentKey;
       }
-      
+
       // 결제 상태 업데이트
       const [updatedPayment] = await db
         .update(payments)
         .set(updateData)
         .where(eq(payments.id, id))
         .returning();
-      
+
       console.log(`결제 ID ${id}의 상태가 '${status}'로 업데이트되었습니다.`);
       return updatedPayment;
     } catch (error) {
@@ -539,19 +528,19 @@ export class DatabaseStorage implements IStorage {
         console.error(`주문 ID ${orderId}에 대한 결제 정보를 찾을 수 없습니다.`);
         return undefined;
       }
-      
+
       // paymentKey 형식 검증 및 변환
       if (paymentData.paymentKey && typeof paymentData.paymentKey === 'string') {
         // pay_ 접두사가 있으면 그대로 사용
         if (paymentData.paymentKey.startsWith('pay_')) {
           console.log(`결제 키가 포트원 형식으로 제공됨: ${paymentData.paymentKey}`);
-        } 
+        }
         // UUID 또는 다른 형식인 경우 변환
         else {
           try {
             // convertToV2PaymentId 함수 호출을 위한 import
-            const { convertToV2PaymentId, generatePortonePaymentId } = require('./portone-v2-client');
-            
+            const { convertToV2PaymentId, generatePortonePaymentId } = await import('./portone-v2-client.js');
+
             // UUID 형식인 경우
             if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(paymentData.paymentKey)) {
               const originalKey = paymentData.paymentKey;
@@ -572,7 +561,7 @@ export class DatabaseStorage implements IStorage {
           }
         }
       }
-      
+
       // 결제 ID로 업데이트 수행
       return this.updatePayment(payment.id, paymentData);
     } catch (error) {
@@ -580,7 +569,7 @@ export class DatabaseStorage implements IStorage {
       return undefined;
     }
   }
-  
+
   /**
    * 결제 데이터의 bid_id를 수정하여 올바른 판매자와 연결
    * 이 메서드는 기존 잘못된 bid_id 참조를 수정하는데 사용됩니다.
@@ -590,48 +579,48 @@ export class DatabaseStorage implements IStorage {
   async fixPaymentBidId(paymentId: number, orderId: string): Promise<Payment | undefined> {
     try {
       console.log(`결제 ID ${paymentId}의 bid_id 수정 시도 (주문 ID: ${orderId})`);
-      
+
       // 1. 결제 정보 조회
       const payment = await this.getPayment(paymentId);
       if (!payment) {
         console.error(`결제 ID ${paymentId}를 찾을 수 없습니다.`);
         return undefined;
       }
-      
+
       // 2. 주문 정보 조회
       const order = await this.getOrderByOrderId(orderId);
       if (!order) {
         console.error(`주문 ID ${orderId}를 찾을 수 없습니다.`);
         return undefined;
       }
-      
+
       // 3. 주문 정보에서 판매자 ID와 대화 ID 가져오기
       const vendorId = order.vendorId;
       const conversationId = order.conversationId;
-      
+
       if (!vendorId || !conversationId) {
         console.error(`주문에 필요한 정보가 없습니다: vendorId=${vendorId}, conversationId=${conversationId}`);
         return undefined;
       }
-      
+
       // 4. 판매자 ID와 대화 ID로 올바른 입찰 ID 찾기
       const correctBid = await this.getBidByVendorAndConversation(vendorId, conversationId);
       if (!correctBid) {
         console.error(`판매자 ID ${vendorId}와 대화 ID ${conversationId}에 해당하는 입찰 정보를 찾을 수 없습니다.`);
         return undefined;
       }
-      
+
       console.log(`올바른 입찰 정보 찾음: ID=${correctBid.id}, 판매자=${vendorId}, 대화=${conversationId}`);
-      
+
       // 5. 결제 정보의 bid_id 필드 업데이트
       const updatedPayment = await this.updatePayment(paymentId, {
         bidId: correctBid.id
       });
-      
+
       if (updatedPayment) {
         console.log(`결제 ID ${paymentId}의 bid_id가 ${payment.bidId}에서 ${correctBid.id}로 수정되었습니다.`);
       }
-      
+
       return updatedPayment;
     } catch (error) {
       console.error('결제 정보 수정 중 오류:', error);
@@ -645,7 +634,7 @@ export class DatabaseStorage implements IStorage {
 
 
 
-  
+
   // User methods
   async getUser(id: number): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
@@ -661,14 +650,14 @@ export class DatabaseStorage implements IStorage {
     const [user] = await db.select().from(users).where(eq(users.email, email));
     return user;
   }
-  
+
   async getUserByPhone(phone: string): Promise<User | undefined> {
     // 전화번호는 다양한 형식으로 저장될 수 있으므로 정규화된 형식만 비교
     // 예: 010-1234-5678, 01012345678, +82 10-1234-5678
     // 숫자만 추출하여 비교
     const normalizedPhone = phone.replace(/[^0-9]/g, '');
     const allUsers = await db.select().from(users);
-    
+
     // 각 사용자의 전화번호에서 숫자만 추출하여 비교
     return allUsers.find(user => {
       if (!user.phone) return false;
@@ -676,13 +665,13 @@ export class DatabaseStorage implements IStorage {
       return userNormalizedPhone === normalizedPhone;
     });
   }
-  
+
   async getUserByBusinessNumber(businessNumber: string): Promise<User | undefined> {
     // 사업자 번호도 다양한 형식으로 저장될 수 있으므로 정규화된 형식만 비교
     // 예: 123-45-67890, 1234567890
     const normalizedBusinessNumber = businessNumber.replace(/[^0-9]/g, '');
     const allUsers = await db.select().from(users);
-    
+
     // 각 사용자의 사업자 번호에서 숫자만 추출하여 비교
     return allUsers.find(user => {
       if (!user.businessNumber) return false;
@@ -695,7 +684,7 @@ export class DatabaseStorage implements IStorage {
     const [user] = await db.insert(users).values(insertUser).returning();
     return user;
   }
-  
+
   async updateUser(id: number, userData: Partial<User>): Promise<User | undefined> {
     try {
       // 업데이트 날짜 추가
@@ -703,14 +692,14 @@ export class DatabaseStorage implements IStorage {
         ...userData,
         updatedAt: new Date()
       };
-      
+
       // 사용자 정보 업데이트
       const [updatedUser] = await db
         .update(users)
         .set(updateData)
         .where(eq(users.id, id))
         .returning();
-      
+
       console.log(`사용자 ID ${id} 정보가 업데이트되었습니다:`, updatedUser);
       return updatedUser;
     } catch (error) {
@@ -718,18 +707,18 @@ export class DatabaseStorage implements IStorage {
       return undefined;
     }
   }
-  
+
   async updateUserPassword(id: number, hashedPassword: string): Promise<User | undefined> {
     try {
       const [updatedUser] = await db
         .update(users)
-        .set({ 
+        .set({
           password: hashedPassword,
           updatedAt: new Date()
         })
         .where(eq(users.id, id))
         .returning();
-      
+
       console.log(`사용자 ID ${id}의 비밀번호가 변경되었습니다`);
       return updatedUser;
     } catch (error) {
@@ -773,7 +762,7 @@ export class DatabaseStorage implements IStorage {
   async getPlant(id: number): Promise<Plant | undefined> {
     const [rawPlant] = await db.select().from(plants).where(eq(plants.id, id));
     if (!rawPlant) return undefined;
-    
+
     // snake_case를 camelCase로 변환하여 반환
     return {
       ...rawPlant,
@@ -798,24 +787,24 @@ export class DatabaseStorage implements IStorage {
   async getAllPlants(): Promise<Plant[]> {
     // 데이터베이스에서 raw 데이터를 가져와서 필드명을 올바르게 매핑
     const rawPlants = await db.select().from(plants);
-    
+
     // 중복 제거: 동일한 이름의 식물이 여러 개 있을 경우 완전한 데이터가 있는 것을 우선 선택
     const plantMap = new Map<string, any>();
-    
+
     rawPlants.forEach(plant => {
       const plantName = plant.name.toLowerCase().trim();
       const existingPlant = plantMap.get(plantName);
-      
+
       // 현재 식물이 더 완전한 데이터를 가지고 있는지 확인
       const hasCompleteData = plant.category || plant.difficulty || plant.light || (plant as any).water_needs;
       const existingHasCompleteData = existingPlant ? (existingPlant.category || existingPlant.difficulty || existingPlant.light || existingPlant.water_needs) : false;
-      
+
       // 기존 데이터가 없거나, 현재 데이터가 더 완전하면 교체
       if (!existingPlant || (hasCompleteData && !existingHasCompleteData)) {
         plantMap.set(plantName, plant);
       }
     });
-    
+
     // Map에서 값들을 배열로 변환하고 snake_case를 camelCase로 변환하여 반환
     return Array.from(plantMap.values()).map(plant => ({
       ...plant,
@@ -840,37 +829,37 @@ export class DatabaseStorage implements IStorage {
   // 식물명으로 검색 (유사 매칭 포함)
   async getPlantByName(plantName: string): Promise<Plant | undefined> {
     const allPlants = await this.getAllPlants();
-    
+
     // 1차: 정확한 매칭
-    let matchingPlant = allPlants.find(p => 
+    let matchingPlant = allPlants.find(p =>
       p.name.toLowerCase() === plantName.toLowerCase()
     );
-    
+
     if (matchingPlant) {
       console.log(`식물명 정확 매칭 성공: "${plantName}" → "${matchingPlant.name}" (ID: ${matchingPlant.id})`);
       return matchingPlant;
     }
-    
+
     // 2차: 부분 매칭 (plantName이 DB 식물명에 포함되는 경우)
-    matchingPlant = allPlants.find(p => 
+    matchingPlant = allPlants.find(p =>
       p.name.toLowerCase().includes(plantName.toLowerCase())
     );
-    
+
     if (matchingPlant) {
       console.log(`식물명 부분 매칭 성공: "${plantName}" → "${matchingPlant.name}" (ID: ${matchingPlant.id})`);
       return matchingPlant;
     }
-    
+
     // 3차: 역 부분 매칭 (DB 식물명이 plantName에 포함되는 경우)
-    matchingPlant = allPlants.find(p => 
+    matchingPlant = allPlants.find(p =>
       plantName.toLowerCase().includes(p.name.toLowerCase())
     );
-    
+
     if (matchingPlant) {
       console.log(`식물명 역 부분 매칭 성공: "${plantName}" → "${matchingPlant.name}" (ID: ${matchingPlant.id})`);
       return matchingPlant;
     }
-    
+
     console.log(`식물명 매칭 실패: "${plantName}"`);
     return undefined;
   }
@@ -902,12 +891,12 @@ export class DatabaseStorage implements IStorage {
     const [vendor] = await db.select().from(vendors).where(eq(vendors.id, id));
     return vendor;
   }
-  
+
   async getVendorById(id: number): Promise<Vendor | undefined> {
     const [vendor] = await db.select().from(vendors).where(eq(vendors.id, id));
     return vendor;
   }
-  
+
   async getVendorByUserId(userId: number): Promise<Vendor | undefined> {
     // 사용자 정보 확인
     const user = await this.getUser(userId);
@@ -915,25 +904,25 @@ export class DatabaseStorage implements IStorage {
       console.log(`[오류] 사용자 ID ${userId}는 판매자가 아닙니다.`);
       return undefined;
     }
-    
+
     // 1. 사용자 ID를 통해 직접 vendors 테이블에서 검색 (새로운 방식)
     console.log(`[검색] 사용자 ID ${userId}로 직접 판매자 정보 조회 중...`);
     const vendorList = await db.select().from(vendors).where(eq(vendors.userId, userId));
-    
+
     if (vendorList.length) {
       console.log(`[성공] 사용자 ID ${userId}에 해당하는 판매자: ID ${vendorList[0].id}, 상호명 ${vendorList[0].storeName}`);
       return vendorList[0];
     }
-    
+
     // 2. 이메일로 대체 검색 (기존 방식 - 폴백)
     console.log(`[대체 검색] 이메일 ${user.email}로 판매자 정보 조회 중...`);
     const emailVendorList = await db.select().from(vendors).where(eq(vendors.email, user.email));
-    
+
     if (emailVendorList.length) {
       console.log(`[성공] 이메일 일치: 사용자 ID ${userId}에 해당하는 판매자: ID ${emailVendorList[0].id}, 상호명 ${emailVendorList[0].storeName}`);
       return emailVendorList[0];
     }
-    
+
     // 3. 로그만 남기고 결과가 없음을 반환
     console.log(`[오류] 사용자 ID ${userId}, 이메일 ${user.email}에 해당하는 판매자 정보를 찾을 수 없습니다.`);
     return undefined;
@@ -945,14 +934,14 @@ export class DatabaseStorage implements IStorage {
         eq(users.role, 'vendor'),
         eq(users.storeName, storeName)
       ));
-    
+
     // 일치하는 사용자 ID 목록 추출
     const vendorIds = vendorUsers.map(user => user.id);
-    
+
     if (vendorIds.length === 0) {
       return [];
     }
-    
+
     // vendors 테이블에서 해당 ID를 가진 판매자 정보 가져오기
     const vendorsList = await Promise.all(
       vendorIds.map(async (id) => {
@@ -960,7 +949,7 @@ export class DatabaseStorage implements IStorage {
         return vendor;
       })
     );
-    
+
     // undefined 필터링
     return vendorsList.filter(Boolean);
   }
@@ -984,11 +973,11 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getVendorWithProducts(id: number): Promise<{vendor: Vendor, products: Product[]} | undefined> {
+  async getVendorWithProducts(id: number): Promise<{ vendor: Vendor, products: Product[] } | undefined> {
     try {
       const vendor = await this.getVendor(id);
       if (!vendor) return undefined;
-      
+
       // vendor의 userId가 있으면 그것으로 products 조회, 없으면 빈 배열 반환
       let vendorProducts: Product[] = [];
       if (vendor.userId) {
@@ -998,7 +987,7 @@ export class DatabaseStorage implements IStorage {
             eq(products.onlineStoreVisible, true)
           ));
       }
-      
+
       return { vendor, products: vendorProducts };
     } catch (error) {
       console.error('판매자 및 제품 정보 조회 오류:', error);
@@ -1020,15 +1009,15 @@ export class DatabaseStorage implements IStorage {
         category: products.category,
       }).from(products)
         .where(eq(products.onlineStoreVisible, true));
-      
+
       const enrichedProducts = await Promise.all(allProducts.map(async (product) => {
         const [user] = await db.select({
           storeName: users.storeName,
           address: users.address,
         }).from(users).where(eq(users.id, product.userId));
-        
+
         const vendorInfo = await this.getVendorByUserId(product.userId);
-        
+
         return {
           ...product,
           vendorName: user?.storeName || vendorInfo?.storeName || '판매자',
@@ -1036,14 +1025,14 @@ export class DatabaseStorage implements IStorage {
           vendorId: vendorInfo?.id,
         };
       }));
-      
+
       if (region && region !== '내 지역') {
         return enrichedProducts.filter(product => {
           const address = product.vendorAddress || '';
           return address.includes(region);
         });
       }
-      
+
       return enrichedProducts;
     } catch (error) {
       console.error('온라인 제품 조회 오류:', error);
@@ -1056,7 +1045,7 @@ export class DatabaseStorage implements IStorage {
     const [bid] = await db.select().from(bids).where(eq(bids.id, id));
     return bid;
   }
-  
+
   // Alias for getBid for compatibility
   async getBidById(id: number): Promise<Bid | undefined> {
     return this.getBid(id);
@@ -1081,7 +1070,7 @@ export class DatabaseStorage implements IStorage {
       }
     });
   }
-  
+
   async getAllVendors(): Promise<Vendor[]> {
     try {
       console.log('모든 판매자 정보 조회 시작');
@@ -1130,20 +1119,20 @@ export class DatabaseStorage implements IStorage {
       const updateData: any = {
         ...bidData
       };
-      
+
       // referenceImages가 배열인 경우 JSON으로 변환
       if (Array.isArray(updateData.referenceImages)) {
         updateData.referenceImages = JSON.stringify(updateData.referenceImages);
       }
-      
+
       console.log("입찰 업데이트 데이터:", updateData);
-      
+
       const [updatedBid] = await db
         .update(bids)
         .set(updateData)
         .where(eq(bids.id, id))
         .returning();
-      
+
       // 반환 시 JSON 문자열을 배열로 복원
       if (updatedBid.referenceImages && typeof updatedBid.referenceImages === 'string') {
         try {
@@ -1153,7 +1142,7 @@ export class DatabaseStorage implements IStorage {
           (updatedBid as any).referenceImages = [];
         }
       }
-      
+
       return updatedBid;
     } catch (error) {
       console.error("입찰 업데이트 오류:", error);
@@ -1184,21 +1173,21 @@ export class DatabaseStorage implements IStorage {
       const conversationData: any = {
         ...conversation
       };
-      
+
       // messages가 배열인 경우 JSON 문자열로 변환
       if (Array.isArray(conversationData.messages)) {
         conversationData.messages = JSON.stringify(conversationData.messages);
       }
-      
+
       // plantRecommendations가 배열인 경우 JSON 문자열로 변환
       if (Array.isArray(conversationData.plantRecommendations)) {
         conversationData.plantRecommendations = JSON.stringify(conversationData.plantRecommendations);
       }
-      
+
       const [newConversation] = await db.insert(conversations)
         .values(conversationData)
         .returning();
-      
+
       return newConversation;
     } catch (error) {
       console.error("대화 생성 오류:", error);
@@ -1217,12 +1206,12 @@ export class DatabaseStorage implements IStorage {
 
       // 기존 메시지와 새 메시지를 합침
       let allMessages: any[] = [];
-      
+
       // 기존 메시지가 있으면 합침
       if (existingConversation.messages && Array.isArray(existingConversation.messages)) {
         allMessages = [...existingConversation.messages];
       }
-      
+
       // 새 메시지가 있으면 추가 (기존 메시지를 유지하면서 중복 제거)
       if (messages && messages.length > 0) {
         // 더 정확한 중복 감지를 위한 필터링
@@ -1231,52 +1220,52 @@ export class DatabaseStorage implements IStorage {
           if (newMsg.id && allMessages.some(existingMsg => existingMsg.id === newMsg.id)) {
             return false;
           }
-          
+
           // 2. 내용과 역할 기반 중복 검사 (동일한 내용 + 같은 역할 + 비슷한 시간)
           const isDuplicate = allMessages.some(existingMsg => {
             // 동일한 역할과 내용을 가진 메시지가 이미 있는지 확인
-            const sameRoleAndContent = 
-              existingMsg.role === newMsg.role && 
+            const sameRoleAndContent =
+              existingMsg.role === newMsg.role &&
               existingMsg.content === newMsg.content;
-            
+
             // 중복으로 판단
             return sameRoleAndContent;
           });
-          
+
           return !isDuplicate;
         });
-        
+
         // 새 메시지 추가
         allMessages = [...allMessages, ...newUniqueMessages];
-        
+
         console.log(`[대화 업데이트] ID ${id} - 기존 메시지 ${existingConversation.messages.length}개, 새 메시지 ${newUniqueMessages.length}개, 총 ${allMessages.length}개`);
       }
-      
+
       // 시간순 정렬 (중복 대화 해결을 위한 추가 단계)
       allMessages.sort((a, b) => {
         const timeA = new Date(a.timestamp || 0).getTime();
         const timeB = new Date(b.timestamp || 0).getTime();
         return timeA - timeB;
       });
-      
+
       // JSON 형식으로 메시지를 직접 설정
-      const updateData: any = { 
+      const updateData: any = {
         updatedAt: new Date()
       };
-      
+
       // 결합된 메시지를 JSON으로 저장
       updateData.messages = JSON.stringify(allMessages);
-      
+
       if (recommendations) {
         updateData.plantRecommendations = JSON.stringify(recommendations);
       }
-      
+
       const [updatedConversation] = await db
         .update(conversations)
         .set(updateData)
         .where(eq(conversations.id, id))
         .returning();
-        
+
       return updatedConversation;
     } catch (error) {
       console.error("대화 업데이트 오류:", error);
@@ -1297,14 +1286,14 @@ export class DatabaseStorage implements IStorage {
         .set(updateData)
         .where(eq(conversations.id, id))
         .returning();
-        
+
       return updatedConversation;
     } catch (error) {
       console.error("대화 데이터 업데이트 오류:", error);
       return undefined;
     }
   }
-  
+
   /**
    * 대화에 메시지 추가
    * @param conversationId 대화 ID
@@ -1318,7 +1307,7 @@ export class DatabaseStorage implements IStorage {
         console.error(`대화 ID ${conversationId}를 찾을 수 없습니다.`);
         return false;
       }
-      
+
       // 메시지 파싱
       let messages = [];
       try {
@@ -1332,47 +1321,47 @@ export class DatabaseStorage implements IStorage {
         console.error("메시지 파싱 오류:", parseError);
         messages = [];
       }
-      
+
       // 🚫 중복 입찰 검토 메시지 방지 로직
-      if (message.role === 'vendor' && message.bidStatus === 'sent' && 
-          message.content === '입찰내용을 검토중입니다') {
-        
+      if (message.role === 'vendor' && message.bidStatus === 'sent' &&
+        message.content === '입찰내용을 검토중입니다') {
+
         // 같은 판매자의 기존 "검토중" 메시지가 있는지 확인
-        const existingReviewMessage = messages.find((msg: any) => 
-          msg.role === 'vendor' && 
-          msg.vendorId === message.vendorId && 
-          msg.bidStatus === 'sent' && 
+        const existingReviewMessage = messages.find((msg: any) =>
+          msg.role === 'vendor' &&
+          msg.vendorId === message.vendorId &&
+          msg.bidStatus === 'sent' &&
           msg.content === '입찰내용을 검토중입니다'
         );
-        
+
         if (existingReviewMessage) {
           console.log(`[중복 방지] 판매자 ${message.vendorId}의 중복 "검토중" 메시지 차단됨`);
           return true; // 성공으로 처리하되 실제로는 추가하지 않음
         }
       }
-      
+
       // 새 메시지 추가
       messages.push(message);
-      
+
       // 대화 업데이트
       const updatedConversation = await this.updateConversation(conversationId, messages);
-      
+
       return !!updatedConversation;
     } catch (error) {
       console.error(`대화 ${conversationId}에 메시지 추가 중 오류:`, error);
       return false;
     }
   }
-  
+
   // 모든 대화의 메시지를 가져오는 함수
   async getAllMessages(): Promise<any[]> {
     try {
       // 모든 대화 조회
       const allConversations = await db.select().from(conversations);
-      
+
       // 각 대화에서 메시지 추출하여 하나의 배열로 합치기
       let allMessages: any[] = [];
-      
+
       for (const conversation of allConversations) {
         if (conversation.messages) {
           // 문자열로 저장된 메시지를 객체로 파싱
@@ -1387,7 +1376,7 @@ export class DatabaseStorage implements IStorage {
             console.error(`대화 ID ${conversation.id}의 메시지 파싱 오류:`, e);
             continue;
           }
-          
+
           if (Array.isArray(messages) && messages.length > 0) {
             // 각 메시지에 대화 ID 추가
             const messagesWithContext = messages.map(msg => ({
@@ -1398,7 +1387,7 @@ export class DatabaseStorage implements IStorage {
           }
         }
       }
-      
+
       console.log(`모든 대화에서 총 ${allMessages.length}개의 메시지를 가져왔습니다.`);
       return allMessages;
     } catch (error) {
@@ -1412,7 +1401,7 @@ export class DatabaseStorage implements IStorage {
     const [product] = await db.select().from(products).where(eq(products.id, id));
     return product;
   }
-  
+
   async getAllProducts(): Promise<Product[]> {
     try {
       const allProducts = await db.select().from(products);
@@ -1440,13 +1429,13 @@ export class DatabaseStorage implements IStorage {
       ...product,
       updatedAt: new Date()
     };
-    
+
     const [updatedProduct] = await db
       .update(products)
       .set(updateData)
       .where(eq(products.id, id))
       .returning();
-    
+
     return updatedProduct;
   }
 
@@ -1455,7 +1444,7 @@ export class DatabaseStorage implements IStorage {
       .delete(products)
       .where(eq(products.id, id))
       .returning();
-    
+
     return result.length > 0;
   }
 
@@ -1470,14 +1459,14 @@ export class DatabaseStorage implements IStorage {
       .where(eq(storeLocations.userId, userId))
       .orderBy(desc(storeLocations.updatedAt))
       .limit(1);
-    
+
     return location;
   }
 
   async createStoreLocation(location: InsertStoreLocation): Promise<StoreLocation> {
     // 기존 위치 정보가 있는지 확인 (한 사용자는 하나의 위치만 가질 수 있음)
     const existingLocation = await this.getStoreLocationForUser(location.userId);
-    
+
     if (existingLocation) {
       // 기존 위치 정보가 있으면 업데이트
       return this.updateStoreLocation(existingLocation.id, location) as Promise<StoreLocation>;
@@ -1493,13 +1482,13 @@ export class DatabaseStorage implements IStorage {
       ...location,
       updatedAt: new Date()
     };
-    
+
     const [updatedLocation] = await db
       .update(storeLocations)
       .set(updateData)
       .where(eq(storeLocations.id, id))
       .returning();
-    
+
     return updatedLocation;
   }
 
@@ -1513,7 +1502,7 @@ export class DatabaseStorage implements IStorage {
     const [order] = await db.select().from(orders).where(eq(orders.orderId, orderId));
     return order;
   }
-  
+
 
 
   async getOrdersForUser(userId: number): Promise<Order[]> {
@@ -1523,7 +1512,7 @@ export class DatabaseStorage implements IStorage {
   async getOrdersForVendor(vendorId: number): Promise<Order[]> {
     return db.select().from(orders).where(eq(orders.vendorId, vendorId)).orderBy(desc(orders.createdAt));
   }
-  
+
   // 모든 주문 정보 조회
   async getAllOrders(): Promise<Order[]> {
     try {
@@ -1545,15 +1534,15 @@ export class DatabaseStorage implements IStorage {
   async updateOrderStatus(id: number, status: string): Promise<Order | undefined> {
     try {
       console.log(`[DB] 주문 상태 업데이트 시작 - ID: ${id}, 상태: ${status}`);
-      
+
       // 업데이트 전 주문 상태 확인
       const [currentOrder] = await db
         .select()
         .from(orders)
         .where(eq(orders.id, id));
-      
+
       console.log(`[DB] 현재 주문 상태: ${currentOrder ? currentOrder.status : '없음'}`);
-      
+
       // 주문 상태 업데이트
       const [updatedOrder] = await db
         .update(orders)
@@ -1563,25 +1552,25 @@ export class DatabaseStorage implements IStorage {
         })
         .where(eq(orders.id, id))
         .returning();
-      
+
       console.log(`[DB] 주문 ID ${id}의 상태가 '${currentOrder?.status || "알 수 없음"}'에서 '${updatedOrder?.status || status}'로 업데이트되었습니다.`);
       console.log(`[DB] 업데이트된 주문 정보:`, JSON.stringify(updatedOrder));
-      
+
       // 다시 DB에서 확인
       const [verifiedOrder] = await db
         .select()
         .from(orders)
         .where(eq(orders.id, id));
-      
+
       console.log(`[DB] 저장 후 검증 - 주문 ID ${id}의 현재 상태: ${verifiedOrder ? verifiedOrder.status : '없음'}`);
-      
+
       return updatedOrder;
     } catch (error) {
       console.error(`[DB] 주문 상태 업데이트 오류 (ID: ${id}, 상태: ${status}):`, error);
       return undefined;
     }
   }
-  
+
   // 주문 ID로 주문 상태 업데이트
   async updateOrderStatusByOrderId(orderId: string, status: string): Promise<Order | undefined> {
     try {
@@ -1591,19 +1580,19 @@ export class DatabaseStorage implements IStorage {
         console.error(`주문 ID ${orderId}에 대한 주문 정보를 찾을 수 없습니다.`);
         return undefined;
       }
-      
+
       console.log(`주문 상태 업데이트 시작: ID=${order.id}, orderId=${orderId}, 현재 상태=${order.status}, 새 상태=${status}`);
-      
+
       // 주문 ID로 업데이트 수행
       const updatedOrder = await this.updateOrderStatus(order.id, status);
-      
+
       // 업데이트 후 확인
       if (updatedOrder) {
         console.log(`주문 상태 업데이트 성공: ID=${order.id}, 이전=${order.status}, 현재=${updatedOrder.status}`);
       } else {
         console.error(`주문 상태 업데이트 실패: ID=${order.id}, 요청 상태=${status}`);
       }
-      
+
       return updatedOrder;
     } catch (error) {
       console.error(`주문 ID ${orderId}로 주문 상태 업데이트 오류 (상태: ${status}):`, error);
@@ -1618,30 +1607,30 @@ export class DatabaseStorage implements IStorage {
         ...orderData,
         updatedAt: new Date()
       };
-      
+
       // JSON 필드 처리
       if (updateData.buyerInfo && typeof updateData.buyerInfo === 'object') {
         updateData.buyerInfo = JSON.stringify(updateData.buyerInfo);
       }
-      
+
       if (updateData.recipientInfo && typeof updateData.recipientInfo === 'object') {
         updateData.recipientInfo = JSON.stringify(updateData.recipientInfo);
       }
-      
+
       if (updateData.paymentInfo && typeof updateData.paymentInfo === 'object') {
         updateData.paymentInfo = JSON.stringify(updateData.paymentInfo);
       }
-      
+
       if (updateData.trackingInfo && typeof updateData.trackingInfo === 'object') {
         updateData.trackingInfo = JSON.stringify(updateData.trackingInfo);
       }
-      
+
       const [updatedOrder] = await db
         .update(orders)
         .set(updateData)
         .where(eq(orders.id, id))
         .returning();
-      
+
       // JSON 문자열을 객체로 파싱
       const parseJsonField = (field: any) => {
         if (field && typeof field === 'string') {
@@ -1654,19 +1643,19 @@ export class DatabaseStorage implements IStorage {
         }
         return field;
       };
-      
+
       updatedOrder.buyerInfo = parseJsonField(updatedOrder.buyerInfo);
       updatedOrder.recipientInfo = parseJsonField(updatedOrder.recipientInfo);
       updatedOrder.paymentInfo = parseJsonField(updatedOrder.paymentInfo);
       updatedOrder.trackingInfo = parseJsonField(updatedOrder.trackingInfo);
-      
+
       return updatedOrder;
     } catch (error) {
       console.error("주문 업데이트 오류:", error);
       return undefined;
     }
   }
-  
+
   // Notification methods
   async getNotification(id: number): Promise<Notification | undefined> {
     const [notification] = await db.select().from(notifications).where(eq(notifications.id, id));
@@ -1689,7 +1678,7 @@ export class DatabaseStorage implements IStorage {
         .set(notificationData)
         .where(eq(notifications.id, id))
         .returning();
-      
+
       return updatedNotification;
     } catch (error) {
       console.error("알림 업데이트 오류:", error);
@@ -1707,14 +1696,14 @@ export class DatabaseStorage implements IStorage {
         })
         .where(eq(notifications.id, id))
         .returning();
-      
+
       return updatedNotification;
     } catch (error) {
       console.error("알림 읽음 표시 오류:", error);
       return undefined;
     }
   }
-  
+
   // Bid methods for conversation
   async getBidsForConversation(conversationId: number): Promise<Bid[]> {
     return db.select().from(bids).where(eq(bids.conversationId, conversationId)).orderBy(desc(bids.createdAt));
@@ -1736,14 +1725,14 @@ export class DatabaseStorage implements IStorage {
     try {
       // 기존 설정이 있는지 확인
       const existing = await db.select().from(siteSettings).limit(1);
-      
+
       if (existing.length > 0) {
         // 기존 설정 업데이트
         await db.update(siteSettings)
-          .set({ 
-            homePage: typeof settings.homePage === 'string' 
-              ? JSON.parse(settings.homePage) 
-              : settings.homePage 
+          .set({
+            homePage: typeof settings.homePage === 'string'
+              ? JSON.parse(settings.homePage)
+              : settings.homePage
           })
           .where(eq(siteSettings.id, existing[0].id));
       } else {
@@ -1781,7 +1770,7 @@ export class DatabaseStorage implements IStorage {
   async getAISettings(): Promise<AISettings | undefined> {
     try {
       const [settings] = await db.select().from(aiSettings).limit(1);
-      
+
       // 설정이 없으면 기본 설정 생성
       if (!settings) {
         console.log('AI 설정이 없어서 기본 설정을 생성합니다');
@@ -1799,7 +1788,7 @@ export class DatabaseStorage implements IStorage {
           .returning();
         return newSettings;
       }
-      
+
       return settings;
     } catch (error) {
       console.error('AI 설정 조회 오류:', error);
@@ -1810,10 +1799,10 @@ export class DatabaseStorage implements IStorage {
   async updateAISettings(settings: Partial<InsertAISettings>): Promise<AISettings | undefined> {
     try {
       console.log('AI 설정 업데이트:', settings);
-      
+
       // 기존 설정 확인
       const existingSettings = await this.getAISettings();
-      
+
       if (existingSettings) {
         // 기존 설정 업데이트
         const [updatedSettings] = await db.update(aiSettings)
@@ -1823,7 +1812,7 @@ export class DatabaseStorage implements IStorage {
           })
           .where(eq(aiSettings.id, existingSettings.id))
           .returning();
-        
+
         console.log('AI 설정 업데이트 완료:', updatedSettings.id);
         return updatedSettings;
       } else {
@@ -1831,7 +1820,7 @@ export class DatabaseStorage implements IStorage {
         const [newSettings] = await db.insert(aiSettings)
           .values(settings)
           .returning();
-        
+
         console.log('새 AI 설정 생성 완료:', newSettings.id);
         return newSettings;
       }
@@ -1842,7 +1831,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // 수수료 관리 관련 메서드들
-  
+
   // 결제 완료된 주문 목록 조회 (매출 통계와 동일한 로직 사용)
   async getCompletedOrders(): Promise<any[]> {
     try {
@@ -1891,12 +1880,12 @@ export class DatabaseStorage implements IStorage {
     try {
       await db
         .update(payments)
-        .set({ 
+        .set({
           taxInvoiceIssued: true,
           updatedAt: new Date()
         })
         .where(eq(payments.orderId, orderId));
-      
+
       console.log(`주문 ${orderId}의 세금계산서 발행 표시 완료`);
     } catch (error) {
       console.error('세금계산서 발행 표시 오류:', error);
@@ -1909,12 +1898,12 @@ export class DatabaseStorage implements IStorage {
     try {
       await db
         .update(payments)
-        .set({ 
+        .set({
           transferCompleted: true,
           updatedAt: new Date()
         })
         .where(eq(payments.orderId, orderId));
-      
+
       console.log(`주문 ${orderId}의 송금 완료 표시 완료`);
     } catch (error) {
       console.error('송금 완료 표시 오류:', error);
@@ -1927,12 +1916,12 @@ export class DatabaseStorage implements IStorage {
     try {
       await db
         .update(payments)
-        .set({ 
+        .set({
           taxInvoiceIssued: true,
           updatedAt: new Date()
         })
         .where(inArray(payments.orderId, orderIds));
-      
+
       console.log(`${orderIds.length}건의 세금계산서 발행 표시 완료`);
     } catch (error) {
       console.error('일괄 세금계산서 발행 표시 오류:', error);
@@ -1945,12 +1934,12 @@ export class DatabaseStorage implements IStorage {
     try {
       await db
         .update(payments)
-        .set({ 
+        .set({
           transferCompleted: true,
           updatedAt: new Date()
         })
         .where(inArray(payments.orderId, orderIds));
-      
+
       console.log(`${orderIds.length}건의 송금 완료 표시 완료`);
     } catch (error) {
       console.error('일괄 송금 완료 표시 오류:', error);
@@ -2078,7 +2067,7 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(products, eq(cartItems.productId, products.id))
       .where(eq(cartItems.userId, userId))
       .orderBy(desc(cartItems.createdAt));
-    
+
     const itemsWithVendor = await Promise.all(items.map(async (item) => {
       const vendor = await this.getVendorByUserId(item.vendorUserId);
       return {
@@ -2087,7 +2076,7 @@ export class DatabaseStorage implements IStorage {
         vendorName: vendor?.storeName || vendor?.name
       };
     }));
-    
+
     return itemsWithVendor;
   }
 

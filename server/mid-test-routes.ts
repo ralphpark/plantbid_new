@@ -2,8 +2,8 @@
  * 포트원 MID 테스트를 위한 라우트
  */
 import { Express, Request, Response } from 'express';
-import { IStorage } from './storage';
-import portOneV2Client, { PORTONE_STORE_ID, PORTONE_CHANNEL_KEY, PORTONE_CHANNEL_NAME, generatePortonePaymentId } from './portone-v2-client';
+import { IStorage } from './storage.js';
+import portOneV2Client, { PORTONE_STORE_ID, PORTONE_CHANNEL_KEY, PORTONE_CHANNEL_NAME, generatePortonePaymentId } from './portone-v2-client.js';
 
 /**
  * MID 테스트 라우트 설정
@@ -18,20 +18,20 @@ export function setupMidTestRoutes(app: Express, storage: IStorage) {
       // 명시적으로 Content-Type을 JSON으로 설정
       res.setHeader('Content-Type', 'application/json');
       res.setHeader('X-Content-Type-Options', 'nosniff');
-      
+
       console.log('MID 테스트용 결제 생성 요청:', req.body);
-      
+
       // 요청 데이터 추출
-      const { 
-        paymentId = generatePortonePaymentId(), 
+      const {
+        paymentId = generatePortonePaymentId(),
         amount = 1000,
         productName = 'MID 테스트 상품',
         customerName = '테스터',
         merchantId = 'MOI3204387' // 기본값으로 고정된 MID 사용
       } = req.body;
-      
+
       console.log(`결제 테스트 시작 - ID: ${paymentId}, MID: ${merchantId}, 금액: ${amount}원`);
-      
+
       // 결제 생성 요청
       const response = await portOneV2Client.createPayment({
         orderId: paymentId,
@@ -51,17 +51,17 @@ export function setupMidTestRoutes(app: Express, storage: IStorage) {
           failUrl: `${req.protocol}://${req.get('host')}/payment-fail`
         }
       });
-      
+
       // URL 파라미터에 MID 추가
       if (response.checkoutUrl) {
         const url = new URL(response.checkoutUrl);
         url.searchParams.set('mid', merchantId);
         response.checkoutUrl = url.toString();
-        
+
         console.log('생성된 결제 URL:', response.checkoutUrl);
         console.log('MID 파라미터 추가됨:', merchantId);
       }
-      
+
       // 명시적으로 JSON 응답 반환
       return res.status(200).json({
         success: true,

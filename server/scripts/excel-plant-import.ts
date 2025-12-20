@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import { db } from '../db/index.js';
+import { db } from '../db.js';
 import { plants } from '../../shared/schema.js';
 
 /**
@@ -35,20 +35,20 @@ interface PlantExcelRow {
 export async function importPlantsFromExcel(filePath: string) {
   try {
     console.log(`엑셀 파일 읽기 시작: ${filePath}`);
-    
+
     // 엑셀 파일 읽기
     const workbook = XLSX.readFile(filePath);
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
-    
+
     // JSON으로 변환
     const jsonData: PlantExcelRow[] = XLSX.utils.sheet_to_json(worksheet);
-    
+
     console.log(`${jsonData.length}개의 식물 데이터를 찾았습니다.`);
-    
+
     let successCount = 0;
     let errorCount = 0;
-    
+
     for (const row of jsonData) {
       try {
         // 필수 필드 검증
@@ -57,54 +57,54 @@ export async function importPlantsFromExcel(filePath: string) {
           errorCount++;
           continue;
         }
-        
+
         // 데이터베이스 삽입
         await db.insert(plants).values({
           name: row['식물명'],
-          scientific_name: row['학명'] || null,
+          scientificName: row['학명'] || null,
           description: row['설명'],
-          care_instructions: row['관리방법'] || null,
+          careInstructions: row['관리방법'] || null,
           light: row['광조건'] || null,
-          water_needs: row['물요구량'] || null,
+          waterNeeds: row['물요구량'] || null,
           humidity: row['습도'] || null,
           temperature: row['온도'] || null,
-          winter_temperature: row['겨울온도'] || null,
-          color_feature: row['색상특징'] || null,
-          plant_type: row['식물타입'] || null,
-          has_thorns: row['가시유무'] === '있음' || row['가시유무'] === 'true',
-          leaf_shape1: row['잎모양1'] || null,
-          leaf_shape2: row['잎모양2'] || null,
-          leaf_shape3: row['잎모양3'] || null,
-          leaf_shape4: row['잎모양4'] || null,
+          winterTemperature: row['겨울온도'] || null,
+          colorFeature: row['색상특징'] || null,
+          plantType: row['식물타입'] || null,
+          hasThorns: row['가시유무'] === '있음' || row['가시유무'] === 'true',
+          leafShape1: row['잎모양1'] || null,
+          leafShape2: row['잎모양2'] || null,
+          leafShape3: row['잎모양3'] || null,
+          leafShape4: row['잎모양4'] || null,
           difficulty: row['난이도'] || null,
-          experience_level: row['경험수준'] || null,
-          pet_safety: row['반려동물안전성'] || null,
+          experienceLevel: row['경험수준'] || null,
+          petSafety: row['반려동물안전성'] || null,
           size: row['크기'] || null,
           category: row['카테고리'] || null,
-          price_range: row['가격대'] || null,
-          image_url: row['이미지URL'] || null
+          priceRange: row['가격대'] || null,
+          imageUrl: row['이미지URL'] || null
         });
-        
+
         successCount++;
         console.log(`✅ 추가 완료: ${row['식물명']}`);
-        
+
       } catch (error) {
         console.error(`❌ 오류 발생 (${row['식물명']}):`, error);
         errorCount++;
       }
     }
-    
+
     console.log(`\n=== 가져오기 완료 ===`);
     console.log(`성공: ${successCount}개`);
     console.log(`실패: ${errorCount}개`);
     console.log(`전체: ${jsonData.length}개`);
-    
+
     return {
       success: successCount,
       error: errorCount,
       total: jsonData.length
     };
-    
+
   } catch (error) {
     console.error('엑셀 파일 처리 중 오류:', error);
     throw error;
@@ -139,14 +139,14 @@ export function createExcelTemplate() {
       '이미지URL': 'https://example.com/image.jpg'
     }
   ];
-  
+
   const worksheet = XLSX.utils.json_to_sheet(templateData);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, '식물 데이터');
-  
+
   const filePath = './plant-template.xlsx';
   XLSX.writeFile(workbook, filePath);
-  
+
   console.log(`엑셀 템플릿이 생성되었습니다: ${filePath}`);
   return filePath;
 }
@@ -154,7 +154,7 @@ export function createExcelTemplate() {
 // 직접 실행 시
 if (require.main === module) {
   const action = process.argv[2];
-  
+
   if (action === 'template') {
     createExcelTemplate();
   } else if (action === 'import') {

@@ -1,5 +1,5 @@
 import { Express } from "express";
-import { IStorage } from "./storage";
+import { IStorage } from "./storage.js";
 import multer from 'multer';
 import * as XLSX from 'xlsx';
 import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from "@google/generative-ai";
@@ -26,7 +26,7 @@ const safetySettings = [
 ];
 
 // Multer 설정 (메모리 저장)
-const upload = multer({ 
+const upload = multer({
   storage: multer.memoryStorage(),
   fileFilter: (req, file, cb) => {
     const allowedTypes = [
@@ -50,10 +50,10 @@ export function setupPlantRoutes(app: Express, storage: IStorage) {
     if (!req.isAuthenticated() || req.user?.role !== 'admin') {
       return res.status(403).json({ error: "관리자 권한이 필요합니다" });
     }
-    
+
     try {
       const plants = await storage.getAllPlants();
-      
+
       res.json({
         plants: plants || [],
         totalCount: plants?.length || 0
@@ -69,7 +69,7 @@ export function setupPlantRoutes(app: Express, storage: IStorage) {
     if (!req.isAuthenticated() || req.user?.role !== 'admin') {
       return res.status(403).json({ error: "관리자 권한이 필요합니다" });
     }
-    
+
     try {
       const plantData = req.body;
       const newPlant = await storage.addPlant(plantData);
@@ -85,7 +85,7 @@ export function setupPlantRoutes(app: Express, storage: IStorage) {
     if (!req.isAuthenticated() || req.user?.role !== 'admin') {
       return res.status(403).json({ error: "관리자 권한이 필요합니다" });
     }
-    
+
     try {
       const plantId = parseInt(req.params.id);
       const plantData = req.body;
@@ -102,7 +102,7 @@ export function setupPlantRoutes(app: Express, storage: IStorage) {
     if (!req.isAuthenticated() || req.user?.role !== 'admin') {
       return res.status(403).json({ error: "관리자 권한이 필요합니다" });
     }
-    
+
     try {
       const plantId = parseInt(req.params.id);
       await storage.deletePlant(plantId);
@@ -122,16 +122,16 @@ export function setupPlantRoutes(app: Express, storage: IStorage) {
       hasFile: !!req.file,
       bodySize: req.body ? Object.keys(req.body).length : 0
     });
-    
+
     // JSON 응답 헤더 명시적 설정
     res.setHeader('Content-Type', 'application/json');
-    
+
     console.log('🔍 권한 체크:', {
       isAuthenticated: req.isAuthenticated ? req.isAuthenticated() : false,
       userRole: req.user?.role,
       hasUser: !!req.user
     });
-    
+
     // 임시로 권한 체크 비활성화
     // if (!req.isAuthenticated() || req.user?.role !== 'admin') {
     //   return res.status(403).json({ error: "관리자 권한이 필요합니다" });
@@ -139,7 +139,7 @@ export function setupPlantRoutes(app: Express, storage: IStorage) {
 
     try {
       console.log('🔄 엑셀 업로드 처리 시작');
-      
+
       if (!req.file) {
         console.log('❌ 파일이 업로드되지 않음');
         return res.status(400).json({ error: '파일이 업로드되지 않았습니다.' });
@@ -165,7 +165,7 @@ export function setupPlantRoutes(app: Express, storage: IStorage) {
       // 강력한 엑셀 데이터 분석 시스템
       console.log('🚀 === 엑셀 데이터 완전 분석 시작 ===');
       console.log('📊 전체 데이터 개수:', jsonData.length);
-      
+
       if (jsonData.length > 0) {
         const firstRow = jsonData[0] as Record<string, any>;
         console.log('🔍 첫 번째 행의 모든 키들:', Object.keys(firstRow));
@@ -173,11 +173,11 @@ export function setupPlantRoutes(app: Express, storage: IStorage) {
         console.log('🔍 값이 있는 필드들:', Object.entries(firstRow).filter(([k, v]) => v && v !== ''));
         console.log('🔍 빈 필드들:', Object.entries(firstRow).filter(([k, v]) => !v || v === ''));
       }
-      
+
       console.log('🚀 === 엑셀 데이터 분석 완료 ===');
 
       // 강화된 스마트 필드 매핑 함수
-      const getFieldValue = (fieldNames: string[], row: any): string => {
+      const getFieldValue = (fieldNames: string[], row: any): string | null => {
         for (const name of fieldNames) {
           if (row[name] && row[name] !== '') {
             return row[name];
@@ -188,7 +188,8 @@ export function setupPlantRoutes(app: Express, storage: IStorage) {
 
       for (let i = 0; i < jsonData.length; i++) {
         const row = jsonData[i] as any;
-        
+        let plantData: any;
+
         try {
           // 각 행에 대한 상세 매핑 분석 (첫 3개 행만)
           if (i < 3) {
@@ -202,7 +203,7 @@ export function setupPlantRoutes(app: Express, storage: IStorage) {
           // 스마트 필드 매핑으로 데이터 추출
           const name = getFieldValue(['name', '식물 이름', '이름', '식물명'], row);
           const description = getFieldValue(['description', '설명', 'desc'], row);
-          
+
           // 필수 필드 검증
           if (!name || !description) {
             console.log(`❌ 행 ${i + 1} 필수 필드 누락:`, { name, description });
@@ -211,7 +212,7 @@ export function setupPlantRoutes(app: Express, storage: IStorage) {
           }
 
           // 식물 데이터 준비 (스마트 매핑 사용)
-          const plantData = {
+          plantData = {
             name: name,
             scientificName: getFieldValue(['scientificName', '학명', 'scientific_name'], row),
             description: description,
@@ -254,13 +255,13 @@ export function setupPlantRoutes(app: Express, storage: IStorage) {
 
     } catch (error) {
       console.error('💥 엑셀 업로드 처리 중 치명적 오류:', error);
-      console.error('오류 메시지:', error.message);
-      console.error('오류 스택:', error.stack);
-      res.status(500).json({ 
+      console.error('오류 메시지:', (error as any).message);
+      console.error('오류 스택:', (error as any).stack);
+      res.status(500).json({
         error: '엑셀 파일 처리 중 오류가 발생했습니다.',
-        details: error.message,
+        details: (error as any).message,
         success: 0,
-        error: 0,
+        errorCount: 0,
         total: 0
       });
     }
@@ -325,36 +326,36 @@ export function setupPlantRoutes(app: Express, storage: IStorage) {
 
     try {
       console.log('🔥 중복 정리 API 호출됨');
-      
+
       // 모든 식물 조회
       const allPlants = await storage.getAllPlants();
       console.log(`📊 전체 식물 개수: ${allPlants.length}`);
-      
+
       // 식물명별로 그룹화하고 가장 완전한 정보를 가진 레코드만 선택
       const plantGroups = new Map();
-      
+
       for (const plant of allPlants) {
         if (!plantGroups.has(plant.name)) {
           plantGroups.set(plant.name, []);
         }
         plantGroups.get(plant.name).push(plant);
       }
-      
+
       console.log(`📊 고유 식물명 개수: ${plantGroups.size}`);
-      
+
       // 각 그룹에서 가장 완전한 레코드 선택
       const bestRecords = [];
       let removedCount = 0;
-      
-      for (const [name, plants] of plantGroups) {
+
+      for (const [name, plants] of Array.from(plantGroups)) {
         if (plants.length === 1) {
           bestRecords.push(plants[0]);
         } else {
           // 가장 완전한 정보를 가진 레코드 찾기
-          const bestPlant = plants.reduce((best, current) => {
+          const bestPlant = plants.reduce((best: any, current: any) => {
             const bestScore = calculateCompletenessScore(best);
             const currentScore = calculateCompletenessScore(current);
-            
+
             if (currentScore > bestScore) {
               return current;
             } else if (currentScore === bestScore) {
@@ -363,29 +364,29 @@ export function setupPlantRoutes(app: Express, storage: IStorage) {
             }
             return best;
           });
-          
+
           bestRecords.push(bestPlant);
           removedCount += plants.length - 1;
         }
       }
-      
+
       console.log(`📊 정리 후 식물 개수: ${bestRecords.length}`);
       console.log(`🗑️ 제거된 중복 식물: ${removedCount}개`);
-      
+
       // 기존 데이터 모두 삭제하고 최적화된 데이터 삽입
       await storage.removeAllPlants();
       await storage.insertMultiplePlants(bestRecords);
-      
+
       res.json({
         success: true,
         message: `중복 정리 완료! ${allPlants.length}개에서 ${bestRecords.length}개로 정리됨 (${removedCount}개 제거)`
       });
-      
+
     } catch (error) {
       console.error('중복 정리 오류:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         success: false,
-        error: '중복 정리 중 오류가 발생했습니다.' 
+        error: '중복 정리 중 오류가 발생했습니다.'
       });
     }
   });
@@ -394,18 +395,18 @@ export function setupPlantRoutes(app: Express, storage: IStorage) {
   function calculateCompletenessScore(plant: any): number {
     let score = 0;
     const fields = [
-      'scientificName', 'description', 'careInstructions', 'category', 
-      'difficulty', 'priceRange', 'light', 'waterNeeds', 'humidity', 
-      'temperature', 'colorFeature', 'plantType', 'petSafety', 
+      'scientificName', 'description', 'careInstructions', 'category',
+      'difficulty', 'priceRange', 'light', 'waterNeeds', 'humidity',
+      'temperature', 'colorFeature', 'plantType', 'petSafety',
       'experienceLevel', 'size'
     ];
-    
+
     for (const field of fields) {
       if (plant[field] && plant[field] !== '' && plant[field] !== null) {
         score++;
       }
     }
-    
+
     return score;
   }
 
@@ -477,11 +478,11 @@ export function setupPlantRoutes(app: Express, storage: IStorage) {
           if (response.ok) {
             const data = await response.json();
             const content = data.choices[0]?.message?.content || '';
-            
+
             try {
               const cleanedContent = content.replace(/```json\n?|\n?```/g, '').trim();
               const plantInfo = JSON.parse(cleanedContent);
-              
+
               // null이 아닌 값들만 필터링
               const filteredUpdates = Object.fromEntries(
                 Object.entries(plantInfo).filter(([_, value]) => value !== null && value !== undefined && value !== '')
@@ -520,12 +521,12 @@ export function setupPlantRoutes(app: Express, storage: IStorage) {
       const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
       const now = Date.now();
       const rateData = rateLimitMap.get(clientIp);
-      
+
       if (rateData) {
         if (now > rateData.resetTime) {
           rateLimitMap.set(clientIp, { count: 1, resetTime: now + RATE_WINDOW });
         } else if (rateData.count >= RATE_LIMIT) {
-          return res.status(429).json({ 
+          return res.status(429).json({
             error: '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.',
             retryAfter: Math.ceil((rateData.resetTime - now) / 1000)
           });
@@ -554,9 +555,9 @@ export function setupPlantRoutes(app: Express, storage: IStorage) {
       }
 
       // Gemini AI 모델 설정
-      const model = genAI.getGenerativeModel({ 
+      const model = genAI.getGenerativeModel({
         model: "gemini-2.5-flash",
-        safetySettings 
+        safetySettings
       });
 
       // 식물 정보를 포함한 프롬프트 생성
@@ -587,7 +588,7 @@ export function setupPlantRoutes(app: Express, storage: IStorage) {
 
       // 이전 대화 기록 포함
       let conversationHistory = plantContext + "\n\n";
-      
+
       if (chatHistory && Array.isArray(chatHistory)) {
         chatHistory.forEach((msg: { role: string; content: string }) => {
           if (msg.role === 'user') {
@@ -597,7 +598,7 @@ export function setupPlantRoutes(app: Express, storage: IStorage) {
           }
         });
       }
-      
+
       conversationHistory += `사용자: ${question}\n전문가:`;
 
       // AI 응답 생성
@@ -605,29 +606,29 @@ export function setupPlantRoutes(app: Express, storage: IStorage) {
       const response = await result.response;
       const answer = response.text();
 
-      res.json({ 
+      res.json({
         answer,
         plantName: plant.name
       });
 
     } catch (error: any) {
       console.error('식물 Q&A 오류:', error);
-      
+
       // Gemini API 할당량 초과 에러 처리
       if (error?.status === 429 || error?.message?.includes('quota')) {
-        return res.status(429).json({ 
+        return res.status(429).json({
           error: 'AI 서비스 일일 할당량이 초과되었습니다. 내일 다시 시도해주세요.',
           retryAfter: error?.errorDetails?.[2]?.retryDelay
         });
       }
-      
+
       // 기타 네트워크 에러
       if (error?.status >= 500) {
-        return res.status(503).json({ 
-          error: 'AI 서비스가 일시적으로 이용 불가능합니다. 잠시 후 다시 시도해주세요.' 
+        return res.status(503).json({
+          error: 'AI 서비스가 일시적으로 이용 불가능합니다. 잠시 후 다시 시도해주세요.'
         });
       }
-      
+
       res.status(500).json({ error: '답변 생성 중 오류가 발생했습니다. 다시 시도해주세요.' });
     }
   });

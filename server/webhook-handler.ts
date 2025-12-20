@@ -4,8 +4,8 @@
  */
 import { Request, Response, Router } from 'express';
 import crypto from 'crypto';
-import { storage } from './storage';
-import { generatePortonePaymentId, convertToV2PaymentId, generateInicisOrderNumber, MERCHANT_ID } from './portone-v2-client';
+import { storage } from './storage.js';
+import { generatePortonePaymentId, convertToV2PaymentId, generateInicisOrderNumber, MERCHANT_ID } from './portone-v2-client.js';
 
 const router = Router();
 
@@ -60,10 +60,10 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
   try {
     console.log('[웹훅] 포트원 웹훅 이벤트 수신');
     console.log('[웹훅] 요청 본문:', JSON.stringify(req.body, null, 2));
-    
+
     // 요청 본문을 문자열로 변환 (이미 파싱된 경우에는 원본 문자열을 저장해 두어야 함)
     const rawBody = JSON.stringify(req.body);
-    
+
     // 요청 형식 확인
     let status: string;
     let paymentKey: string;
@@ -78,11 +78,11 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
     // V2 웹훅 형식인지 확인 (eventType과 data 필드가 있는지)
     if (req.body.eventType && req.body.data) {
       console.log('[웹훅] V2 형식 웹훅 감지');
-      
+
       // 1. 웹훅 헤더 검증 (V2에서만 사용)
       const signature = req.headers['portone-signature'] as string;
       const timestamp = req.headers['portone-timestamp'] as string;
-      
+
       if (signature && timestamp) {
         // 서명 검증
         if (!verifyWebhookSignature(signature, timestamp, rawBody)) {
@@ -95,11 +95,11 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
       } else {
         console.warn('[웹훅] 서명 관련 헤더 누락됨 (개발 환경에서 계속 진행)');
       }
-      
+
       // V2 웹훅 이벤트 처리
       const v2Data = req.body;
       eventType = v2Data.eventType;
-      
+
       if (v2Data.data && v2Data.data.payment) {
         const payment = v2Data.data.payment;
         // 상태 값은 V2에서 'PAID', 'CANCELED', 'FAILED' 등으로 전달됨
@@ -127,44 +127,44 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
       } else {
         // 필수 필드가 없는 경우 오류
         console.error('[웹훅] V2 형식이지만 payment 정보가 없음');
-        return res.status(200).json({ 
-          message: 'V2 웹훅 형식이지만 payment 정보가 없어 처리할 수 없습니다.' 
+        return res.status(200).json({
+          message: 'V2 웹훅 형식이지만 payment 정보가 없어 처리할 수 없습니다.'
         });
       }
     }
     // V1 웹훅 형식 처리 (tx_id, payment_id, status 등의 필드가 있는지)
     else if (req.body.tx_id && req.body.payment_id && req.body.status) {
       console.log('[웹훅] V1 형식 웹훅 감지');
-      
+
       // V1 웹훅 이벤트 처리
       const v1Data = req.body;
       paymentKey = v1Data.tx_id;
       orderId = v1Data.payment_id;
       status = v1Data.status === 'Ready' ? 'READY' :
-               v1Data.status === 'Paid' ? 'COMPLETED' :
-               v1Data.status === 'Failed' ? 'FAILED' :
-               v1Data.status === 'Cancelled' ? 'CANCELED' : 'UNKNOWN';
-      
+        v1Data.status === 'Paid' ? 'COMPLETED' :
+          v1Data.status === 'Failed' ? 'FAILED' :
+            v1Data.status === 'Cancelled' ? 'CANCELED' : 'UNKNOWN';
+
       // V1 형식은 amount 정보가 없을 수 있음, 이 경우 DB에서 조회
       amount = v1Data.amount || "0";
-      
+
       // V1 이벤트 타입 변환
       eventType = "PAYMENT_STATUS_CHANGED";
     }
     // 알 수 없는 형식
     else {
       console.error('[웹훅] 알 수 없는 웹훅 형식:', req.body);
-      return res.status(200).json({ 
-        message: '알 수 없는 웹훅 형식이지만 200 OK 응답' 
+      return res.status(200).json({
+        message: '알 수 없는 웹훅 형식이지만 200 OK 응답'
       });
     }
-    
+
     console.log('[웹훅] 이벤트 타입:', eventType);
     console.log('[웹훅] 결제 상태:', status);
     console.log('[웹훅] 결제 키:', paymentKey);
     console.log('[웹훅] 주문 ID:', orderId);
     console.log('[웹훅] 결제 금액:', amount);
-    
+
     // 5. 결제 상태에 따른 처리
     switch (eventType) {
       // V2 웹훅: 결제 취소 이벤트 처리
@@ -209,13 +209,13 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
             console.log('[웹훅] 결제 준비 상태 (READY)');
             // 주문이 이미 존재하는지 확인
             const existingPayment = await storage.getPaymentByOrderId(orderId);
-            
+
             if (!existingPayment) {
               console.log('[웹훅] 신규 결제 정보 생성 시도');
-              
+
               // 주문 정보 먼저 조회
               const order = await storage.getOrderByOrderId(orderId);
-              
+
               if (order) {
                 console.log('[웹훅] 주문 정보 발견:', order.id);
                 // 결제 키 유효성 검증 및 보정 (포트원 V2 API를 위한 형식)
@@ -224,18 +224,18 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
                 // 포트원 V2 API에서는 결제 ID가 'pay_'로 시작하는 26자 문자열이어야 함
                 // V2 API 규격 검증 완료 로그
                 console.log(`[웹훅] V2 API 규격의 결제 ID 검증 완료: ${formattedPaymentKey} (${formattedPaymentKey.length}자)`);
-                
+
                 // 최종 확인 - 만약을 위한 안전장치
                 if (!formattedPaymentKey.startsWith('pay_') || formattedPaymentKey.length !== 26) {
                   console.warn(`[웹훅] ID 형식이 여전히 맞지 않음. 신규 생성: ${formattedPaymentKey}`);
                   formattedPaymentKey = generatePortonePaymentId();
                   console.log(`[웹훅] 신규 결제 ID로 대체: ${formattedPaymentKey}`);
                 }
-                
+
                 // 이니시스 상점 식별자(MID) - 고정된 값 사용
                 const merchantId = MERCHANT_ID;
                 console.log(`[웹훅] 이니시스 상점 식별자(MID): ${merchantId}`);
-                
+
                 // 주문이 존재하면 해당 주문의 정보를 사용하여 결제 생성
                 // !!핵심 수정!! - 일관된 pay_ 형식의 결제 ID 사용
                 // V2 API 규격에 맞는 형식(pay_ + 22자)으로 변환된 결제 ID 사용
@@ -245,7 +245,7 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
                 if (order.vendorId && order.conversationId) {
                   console.log(`[웹훅] 주문 정보에서 판매자 ID ${order.vendorId}와 대화 ID ${order.conversationId}를 사용하여 올바른 입찰 검색`);
                   const correctBid = await storage.getBidByVendorAndConversation(order.vendorId, order.conversationId);
-                  
+
                   if (correctBid) {
                     bidId = correctBid.id;
                     console.log(`[웹훅] ✅ 올바른 입찰 ID를 찾았습니다: ${bidId} (판매자 ${order.vendorId}의 입찰)`);
@@ -253,7 +253,7 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
                     console.warn(`[웹훅] ⚠️ 판매자 ${order.vendorId}와 대화 ${order.conversationId}에 대한 입찰을 찾지 못했습니다.`);
                   }
                 }
-                
+
                 // 입찰 ID가 없는 경우를 위한 안전 장치
                 if (!bidId) {
                   console.warn(`[웹훅] ⚠️ 올바른 입찰 ID를 찾지 못했습니다. 판매자 ID로 최신 입찰 검색을 시도합니다.`);
@@ -287,20 +287,20 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
               }
             } else {
               console.log('[웹훅] 기존 결제 정보 업데이트 (READY)');
-              
+
               // 결제 키 유효성 검증 및 보정 (포트원 V2 API를 위한 형식)
               let formattedPaymentKey = convertToV2PaymentId(paymentKey || generatePortonePaymentId());
-              
+
               // V2 API 규격 검증 완료 로그
               console.log(`[웹훅] V2 API 규격의 결제 ID 검증 완료: ${formattedPaymentKey} (${formattedPaymentKey.length}자)`);
-              
+
               // 최종 확인 - 만약을 위한 안전장치
               if (!formattedPaymentKey.startsWith('pay_') || formattedPaymentKey.length !== 26) {
                 console.warn(`[웹훅] ID 형식이 여전히 맞지 않음. 신규 생성: ${formattedPaymentKey}`);
                 formattedPaymentKey = generatePortonePaymentId();
                 console.log(`[웹훅] 신규 결제 ID로 대체: ${formattedPaymentKey}`);
               }
-              
+
               // 기존 결제 정보 업데이트
               await storage.updatePayment(existingPayment.id, {
                 paymentKey: formattedPaymentKey, // 포맷된 결제 ID 사용
@@ -310,12 +310,12 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
             }
             break;
           }
-          
+
           case 'COMPLETED': {
             // 결제 완료 상태
             console.log('[웹훅] 결제 완료 상태 (COMPLETED)');
             const existingPayment = await storage.getPaymentByOrderId(orderId);
-            
+
             if (existingPayment) {
               console.log('[웹훅] 결제 정보 업데이트 (COMPLETED)');
               // 기존 결제 정보 업데이트
@@ -324,12 +324,12 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
                 approvedAt: approvedAt ? new Date(approvedAt) : new Date(),
                 updatedAt: new Date()
               });
-              
+
               // 주문 상태도 업데이트
               const order = await storage.getOrderByOrderId(orderId);
               if (order) {
                 await storage.updateOrderStatus(order.id, 'paid');
-                
+
                 // 결제 완료 메시지를 대화에 추가
                 if (order.conversationId) {
                   try {
@@ -342,7 +342,7 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
                         content: `🎉 결제가 완료되었습니다! 주문 정보가 판매자에게 전달되었습니다.`,
                         timestamp: new Date().toISOString()
                       };
-                      
+
                       // 판매자에게 배송지 정보 전달 메시지
                       const deliveryInfoMessage = {
                         role: "assistant",
@@ -355,18 +355,18 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
 ▪️ 주소: ${(order.buyerInfo as any)?.address || '주소 정보 없음'}\n📱 연락처: ${(order.buyerInfo as any)?.phone || '연락처 정보 없음'}\n✉️ 이메일: ${(order.buyerInfo as any)?.email || '이메일 정보 없음'}`,
                         timestamp: new Date(new Date().getTime() + 1000).toISOString()
                       };
-                      
+
                       // 대화에 두 메시지 추가
                       await storage.addMessageToConversation(
                         order.conversationId,
                         paymentCompleteMessage
                       );
-                      
+
                       await storage.addMessageToConversation(
                         order.conversationId,
                         deliveryInfoMessage
                       );
-                      
+
                       console.log('[웹훅] 결제 완료 메시지를 대화에 추가했습니다:', order.conversationId);
                     }
                   } catch (err) {
@@ -376,34 +376,34 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
               }
             } else {
               console.log('[웹훅] 신규 결제 정보 생성 시도 (COMPLETED)');
-              
+
               // 주문 정보 조회
               const order = await storage.getOrderByOrderId(orderId);
-              
+
               if (order) {
                 console.log('[웹훅] 주문 정보 발견:', order.id);
                 // 결제 키 유효성 검증 및 보정 (포트원 V2 API를 위한 형식)
                 let formattedPaymentKey = convertToV2PaymentId(paymentKey || generatePortonePaymentId());
                 // V2 API 규격 검증 완료 로그
                 console.log(`[웹훅] V2 API 규격의 결제 ID 검증 완료: ${formattedPaymentKey} (${formattedPaymentKey.length}자)`);
-                
+
                 // 최종 확인 - 만약을 위한 안전장치
                 if (!formattedPaymentKey.startsWith('pay_') || formattedPaymentKey.length !== 26) {
                   console.warn(`[웹훅] ID 형식이 여전히 맞지 않음. 신규 생성: ${formattedPaymentKey}`);
                   formattedPaymentKey = generatePortonePaymentId();
                   console.log(`[웹훅] 신규 결제 ID로 대체: ${formattedPaymentKey}`);
                 }
-                
+
                 // 결제 정보 신규 생성 (V2 API 규격에 맞는 결제 ID 사용)
                 // !!핵심 수정!! - 포맷된 V2 API 규격의 결제 ID 사용
                 console.log(`[웹훅] V2 API 규격의 결제 ID로 저장 (COMPLETED): ${formattedPaymentKey}`);
-                
+
                 // 주문 정보로부터 올바른 bid ID 찾기
                 let bidId = null;
                 if (order.vendorId && order.conversationId) {
                   console.log(`[웹훅] 주문 정보에서 판매자 ID ${order.vendorId}와 대화 ID ${order.conversationId}를 사용하여 올바른 입찰 검색`);
                   const correctBid = await storage.getBidByVendorAndConversation(order.vendorId, order.conversationId);
-                  
+
                   if (correctBid) {
                     bidId = correctBid.id;
                     console.log(`[웹훅] ✅ 올바른 입찰 ID를 찾았습니다: ${bidId} (판매자 ${order.vendorId}의 입찰)`);
@@ -411,7 +411,7 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
                     console.warn(`[웹훅] ⚠️ 판매자 ${order.vendorId}와 대화 ${order.conversationId}에 대한 입찰을 찾지 못했습니다.`);
                   }
                 }
-                
+
                 // 입찰 ID가 없는 경우를 위한 안전 장치
                 if (!bidId) {
                   console.warn(`[웹훅] ⚠️ 올바른 입찰 ID를 찾지 못했습니다. 판매자 ID로 최신 입찰 검색을 시도합니다.`);
@@ -425,7 +425,7 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
                     bidId = 1; // 완전한 장애 방지를 위한 기본값
                   }
                 }
-                
+
                 await storage.createPayment({
                   userId: order.userId,
                   bidId: bidId, // 주문과 연관된 실제 입찰 ID 사용
@@ -439,10 +439,10 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
                   approvedAt: approvedAt ? new Date(approvedAt) : new Date()
                 });
                 console.log('[웹훅] 결제 정보 생성 성공 (COMPLETED)');
-                
+
                 // 주문 상태도 업데이트
                 await storage.updateOrderStatus(order.id, 'paid');
-                
+
                 // 결제 완료 메시지를 대화에 추가
                 if (order.conversationId) {
                   try {
@@ -455,25 +455,25 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
                         content: `🎉 결제가 완료되었습니다! 주문 정보가 판매자에게 전달되었습니다.`,
                         timestamp: new Date().toISOString()
                       };
-                      
+
                       // 판매자에게 배송지 정보 전달 메시지
                       const deliveryInfoMessage = {
                         role: "assistant",
                         content: `📦 배송 정보: ${(order.buyerInfo as any)?.address || '주소 정보 없음'}\n📱 연락처: ${(order.buyerInfo as any)?.phone || '연락처 정보 없음'}\n✉️ 이메일: ${(order.buyerInfo as any)?.email || '이메일 정보 없음'}`,
                         timestamp: new Date(new Date().getTime() + 1000).toISOString()
                       };
-                      
+
                       // 대화에 두 메시지 추가
                       await storage.addMessageToConversation(
                         order.conversationId,
                         paymentCompleteMessage
                       );
-                      
+
                       await storage.addMessageToConversation(
                         order.conversationId,
                         deliveryInfoMessage
                       );
-                      
+
                       console.log('[웹훅] 결제 완료 메시지를 대화에 추가했습니다:', order.conversationId);
                     }
                   } catch (err) {
@@ -486,12 +486,12 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
             }
             break;
           }
-          
+
           case 'CANCELED': {
             // 결제 취소 상태
             console.log('[웹훅] 결제 취소 상태 (CANCELED)');
             const existingPayment = await storage.getPaymentByOrderId(orderId);
-            
+
             if (existingPayment) {
               console.log('[웹훅] 결제 정보 업데이트 (CANCELED)');
               // 취소 사유 추출
@@ -499,22 +499,22 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
               if (cancellations && cancellations.length > 0) {
                 cancelReason = cancellations[0].reason || '사용자 요청';
               }
-              
+
               // 결제 키 유효성 검증 및 보정 (포트원 V2 API를 위한 형식)
               // 결제 키가 없을 경우를 대비한 안전한 기본값 설정
               const safePaymentKey = (paymentKey || existingPayment.paymentKey || generatePortonePaymentId());
               let formattedPaymentKey = convertToV2PaymentId(safePaymentKey);
-              
+
               // V2 API 규격 검증 완료 로그
               console.log(`[웹훅] V2 API 규격의 결제 ID 검증 완료: ${formattedPaymentKey} (${formattedPaymentKey.length}자)`);
-              
+
               // 최종 확인 - 만약을 위한 안전장치
               if (!formattedPaymentKey.startsWith('pay_') || formattedPaymentKey.length !== 26) {
                 console.warn(`[웹훅] ID 형식이 여전히 맞지 않음. 신규 생성: ${formattedPaymentKey}`);
                 formattedPaymentKey = generatePortonePaymentId();
                 console.log(`[웹훅] 신규 결제 ID로 대체: ${formattedPaymentKey}`);
               }
-              
+
               // 기존 결제 정보 업데이트
               await storage.updatePayment(existingPayment.id, {
                 paymentKey: formattedPaymentKey, // 포맷된 V2 API 규격의 결제 ID 사용
@@ -523,7 +523,7 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
                 cancelledAt: new Date(),
                 updatedAt: new Date()
               });
-              
+
               // 주문 상태도 업데이트
               const order = await storage.getOrderByOrderId(orderId);
               if (order) {
@@ -531,37 +531,37 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
               }
             } else {
               console.log('[웹훅] 취소된 결제 정보 생성 시도');
-              
+
               // 주문 정보 조회
               const order = await storage.getOrderByOrderId(orderId);
-              
+
               if (order) {
                 console.log('[웹훅] 주문 정보 발견:', order.id);
                 // 결제 키 유효성 검증 및 보정 (포트원 V2 API를 위한 형식)
                 let formattedPaymentKey = convertToV2PaymentId(paymentKey || generatePortonePaymentId());
                 // V2 API 규격 검증 완료 로그
                 console.log(`[웹훅] V2 API 규격의 결제 ID 검증 완료: ${formattedPaymentKey} (${formattedPaymentKey.length}자)`);
-                
+
                 // 최종 확인 - 만약을 위한 안전장치
                 if (!formattedPaymentKey.startsWith('pay_') || formattedPaymentKey.length !== 26) {
                   console.warn(`[웹훅] ID 형식이 여전히 맞지 않음. 신규 생성: ${formattedPaymentKey}`);
                   formattedPaymentKey = generatePortonePaymentId();
                   console.log(`[웹훅] 신규 결제 ID로 대체: ${formattedPaymentKey}`);
                 }
-                
+
                 // 결제 정보 생성
                 let cancelReason = '알 수 없음';
                 if (cancellations && cancellations.length > 0) {
                   cancelReason = cancellations[0].reason || '사용자 요청';
                 }
-                
+
                 console.log(`[웹훅] V2 API 규격의 결제 ID로 저장 (CANCELLED): ${formattedPaymentKey}`);
                 // 주문 정보로부터 올바른 bid ID 찾기
                 let bidId = null;
                 if (order.vendorId && order.conversationId) {
                   console.log(`[웹훅] 주문 정보에서 판매자 ID ${order.vendorId}와 대화 ID ${order.conversationId}를 사용하여 올바른 입찰 검색`);
                   const correctBid = await storage.getBidByVendorAndConversation(order.vendorId, order.conversationId);
-                  
+
                   if (correctBid) {
                     bidId = correctBid.id;
                     console.log(`[웹훅] ✅ 올바른 입찰 ID를 찾았습니다: ${bidId} (판매자 ${order.vendorId}의 입찰)`);
@@ -569,7 +569,7 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
                     console.warn(`[웹훅] ⚠️ 판매자 ${order.vendorId}와 대화 ${order.conversationId}에 대한 입찰을 찾지 못했습니다.`);
                   }
                 }
-                
+
                 // 입찰 ID가 없는 경우를 위한 안전 장치
                 if (!bidId) {
                   console.warn(`[웹훅] ⚠️ 올바른 입찰 ID를 찾지 못했습니다. 판매자 ID로 최신 입찰 검색을 시도합니다.`);
@@ -598,7 +598,7 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
                   cancelledAt: new Date()
                 });
                 console.log('[웹훅] 취소된 결제 정보 생성 성공');
-                
+
                 // 주문 상태도 업데이트
                 await storage.updateOrderStatus(order.id, 'cancelled');
               } else {
@@ -607,30 +607,30 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
             }
             break;
           }
-          
+
           case 'FAILED': {
             // 결제 실패 상태
             console.log('[웹훅] 결제 실패 상태 (FAILED)');
             const existingPayment = await storage.getPaymentByOrderId(orderId);
-            
+
             if (existingPayment) {
               console.log('[웹훅] 결제 정보 업데이트 (FAILED)');
-              
+
               // 결제 키 유효성 검증 및 보정 (포트원 V2 API를 위한 형식)
               // 결제 키가 없을 경우를 대비한 안전한 기본값 설정
               const safePaymentKey = (paymentKey || existingPayment.paymentKey || generatePortonePaymentId());
               let formattedPaymentKey = convertToV2PaymentId(safePaymentKey);
-              
+
               // V2 API 규격 검증 완료 로그
               console.log(`[웹훅] V2 API 규격의 결제 ID 검증 완료: ${formattedPaymentKey} (${formattedPaymentKey.length}자)`);
-              
+
               // 최종 확인 - 만약을 위한 안전장치
               if (!formattedPaymentKey.startsWith('pay_') || formattedPaymentKey.length !== 26) {
                 console.warn(`[웹훅] ID 형식이 여전히 맞지 않음. 신규 생성: ${formattedPaymentKey}`);
                 formattedPaymentKey = generatePortonePaymentId();
                 console.log(`[웹훅] 신규 결제 ID로 대체: ${formattedPaymentKey}`);
               }
-              
+
               // 기존 결제 정보 업데이트
               await storage.updatePayment(existingPayment.id, {
                 paymentKey: formattedPaymentKey, // 포맷된 V2 API 규격의 결제 ID 사용
@@ -639,24 +639,24 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
               });
             } else {
               console.log('[웹훅] 실패한 결제 정보 생성 시도');
-              
+
               // 주문 정보 조회
               const order = await storage.getOrderByOrderId(orderId);
-              
+
               if (order) {
                 console.log('[웹훅] 주문 정보 발견:', order.id);
                 // 결제 키 유효성 검증 및 보정 (포트원 V2 API를 위한 형식)
                 let formattedPaymentKey = convertToV2PaymentId(paymentKey || generatePortonePaymentId());
                 // V2 API 규격 검증 완료 로그
                 console.log(`[웹훅] V2 API 규격의 결제 ID 검증 완료: ${formattedPaymentKey} (${formattedPaymentKey.length}자)`);
-                
+
                 // 최종 확인 - 만약을 위한 안전장치
                 if (!formattedPaymentKey.startsWith('pay_') || formattedPaymentKey.length !== 26) {
                   console.warn(`[웹훅] ID 형식이 여전히 맞지 않음. 신규 생성: ${formattedPaymentKey}`);
                   formattedPaymentKey = generatePortonePaymentId();
                   console.log(`[웹훅] 신규 결제 ID로 대체: ${formattedPaymentKey}`);
                 }
-                
+
                 // !!핵심 수정!! - 포맷된 V2 API 규격의 결제 ID 사용
                 console.log(`[웹훅] V2 API 규격의 결제 ID로 저장 (FAILED): ${formattedPaymentKey}`);
                 // 주문 정보로부터 올바른 bid ID 찾기
@@ -664,7 +664,7 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
                 if (order.vendorId && order.conversationId) {
                   console.log(`[웹훅] 주문 정보에서 판매자 ID ${order.vendorId}와 대화 ID ${order.conversationId}를 사용하여 올바른 입찰 검색`);
                   const correctBid = await storage.getBidByVendorAndConversation(order.vendorId, order.conversationId);
-                  
+
                   if (correctBid) {
                     bidId = correctBid.id;
                     console.log(`[웹훅] ✅ 올바른 입찰 ID를 찾았습니다: ${bidId} (판매자 ${order.vendorId}의 입찰)`);
@@ -672,7 +672,7 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
                     console.warn(`[웹훅] ⚠️ 판매자 ${order.vendorId}와 대화 ${order.conversationId}에 대한 입찰을 찾지 못했습니다.`);
                   }
                 }
-                
+
                 // 입찰 ID가 없는 경우를 위한 안전 장치
                 if (!bidId) {
                   console.warn(`[웹훅] ⚠️ 올바른 입찰 ID를 찾지 못했습니다. 판매자 ID로 최신 입찰 검색을 시도합니다.`);
@@ -686,7 +686,7 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
                     bidId = 1; // 완전한 장애 방지를 위한 기본값
                   }
                 }
-                
+
                 await storage.createPayment({
                   userId: order.userId,
                   bidId: bidId, // 주문과 연관된 실제 입찰 ID 사용
@@ -706,7 +706,7 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
             }
             break;
           }
-          
+
           default: {
             console.log(`[웹훅] 지원하지 않는 결제 상태: ${status}`);
             break;
@@ -714,21 +714,21 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
         }
         break;
       }
-      
+
       default: {
         console.log(`[웹훅] 지원하지 않는 이벤트 타입: ${eventType}`);
         break;
       }
     }
-    
+
     // 웹훅 처리 완료
     console.log('[웹훅] 성공적으로 웹훅 처리 완료');
     return res.status(200).json({ message: '웹훅 처리 완료' });
-    
+
   } catch (error: any) {
     console.error('[웹훅] 처리 중 오류 발생:', error.message);
     // 웹훅은 항상 200 OK로 응답해야 불필요한 재시도를 방지할 수 있음
-    return res.status(200).json({ 
+    return res.status(200).json({
       message: '웹훅 처리 중 오류가 발생했지만 200 OK 응답',
       error: error.message
     });
@@ -741,15 +741,15 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
  */
 async function addPaymentCompletedMessage(order: any, storage: any) {
   if (!order || !order.conversationId) return;
-  
+
   try {
     // 대화 정보 가져오기
     const conversation = await storage.getConversation(order.conversationId);
     if (!conversation) return;
-    
+
     // 구매자 정보 직접 조회
     const user = await storage.getUser(order.userId);
-    
+
     // buyerInfo가 JSON 문자열인 경우 객체로 파싱
     let buyerInfo: any = {};
     try {
@@ -761,14 +761,14 @@ async function addPaymentCompletedMessage(order: any, storage: any) {
     } catch (err) {
       console.error('[웹훅] buyerInfo 파싱 오류:', err);
     }
-    
+
     // 판매자에게 전달할 메시지 생성
     const paymentCompleteMessage = {
       role: "assistant",
       content: `🎉 결제가 완료되었습니다! 주문 정보가 판매자에게 전달되었습니다.`,
       timestamp: new Date().toISOString()
     };
-    
+
     // 판매자에게 배송지 정보 전달 메시지
     const deliveryInfoMessage = {
       role: "assistant",
@@ -777,18 +777,18 @@ async function addPaymentCompletedMessage(order: any, storage: any) {
 ✉️ 이메일: ${buyerInfo.email || order.customerEmail || user?.email || '이메일 정보 없음'}`,
       timestamp: new Date(new Date().getTime() + 1000).toISOString()
     };
-    
+
     // 대화에 두 메시지 추가
     await storage.addMessageToConversation(
       order.conversationId,
       paymentCompleteMessage
     );
-    
+
     await storage.addMessageToConversation(
       order.conversationId,
       deliveryInfoMessage
     );
-    
+
     console.log('[웹훅] 결제 완료 메시지를 대화에 추가했습니다:', order.conversationId);
     return true;
   } catch (err) {

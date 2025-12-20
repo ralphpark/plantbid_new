@@ -1,6 +1,6 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
-import { vendors, products, users } from '../shared/schema';
+import { vendors, products, users } from '../shared/schema.js';
 
 const connectionString = process.env.SUPABASE_DB_URL!;
 const client = postgres(connectionString);

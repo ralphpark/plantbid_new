@@ -1,4 +1,4 @@
-import { db } from '../db/index.js';
+import { db } from '../db.js';
 import { plants } from '../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 
@@ -98,7 +98,7 @@ class PlantUpdater {
       `;
 
       const response = await this.callPerplexityAPI(prompt);
-      
+
       // JSON 파싱 시도
       try {
         const cleanedResponse = response.replace(/```json\n?|\n?```/g, '').trim();
@@ -116,9 +116,21 @@ class PlantUpdater {
 
   async updatePlantInfo(plantId: number, updates: PlantUpdateInfo): Promise<boolean> {
     try {
+      // Map JSON properties to schema properties
+      const schemaUpdates: any = {};
+      if (updates.scientific_name) schemaUpdates.scientificName = updates.scientific_name;
+      if (updates.care_instructions) schemaUpdates.careInstructions = updates.care_instructions;
+      if (updates.light) schemaUpdates.light = updates.light;
+      if (updates.water_needs) schemaUpdates.waterNeeds = updates.water_needs;
+      if (updates.humidity) schemaUpdates.humidity = updates.humidity;
+      if (updates.temperature) schemaUpdates.temperature = updates.temperature;
+      if (updates.difficulty) schemaUpdates.difficulty = updates.difficulty;
+      if (updates.pet_safety) schemaUpdates.petSafety = updates.pet_safety;
+      if (updates.description) schemaUpdates.description = updates.description;
+
       // null이 아닌 값들만 필터링
       const filteredUpdates = Object.fromEntries(
-        Object.entries(updates).filter(([_, value]) => value !== null && value !== undefined && value !== '')
+        Object.entries(schemaUpdates).filter(([_, value]) => value !== null && value !== undefined && value !== '')
       );
 
       if (Object.keys(filteredUpdates).length === 0) {
@@ -141,7 +153,7 @@ class PlantUpdater {
   async updateAllPlants(): Promise<void> {
     try {
       console.log('=== 식물 정보 자동 업데이트 시작 ===');
-      
+
       // 데이터베이스에서 모든 식물 조회
       const allPlants = await db.select().from(plants);
       console.log(`총 ${allPlants.length}개의 식물을 찾았습니다.`);
@@ -151,13 +163,13 @@ class PlantUpdater {
 
       for (const plant of allPlants) {
         console.log(`\n처리 중: ${plant.name} (ID: ${plant.id})`);
-        
+
         try {
           // API 호출 제한을 위한 지연
           await new Promise(resolve => setTimeout(resolve, 2000));
-          
-          const newInfo = await this.getPlantInfo(plant.name, plant.scientific_name || undefined);
-          
+
+          const newInfo = await this.getPlantInfo(plant.name, plant.scientificName || undefined);
+
           if (newInfo) {
             const success = await this.updatePlantInfo(plant.id, newInfo);
             if (success) {
@@ -177,7 +189,7 @@ class PlantUpdater {
       console.log(`성공: ${updateCount}개`);
       console.log(`실패: ${errorCount}개`);
       console.log(`전체: ${allPlants.length}개`);
-      
+
     } catch (error) {
       console.error('식물 정보 업데이트 중 오류:', error);
       throw error;
@@ -187,7 +199,7 @@ class PlantUpdater {
   async updateSpecificPlant(plantId: number): Promise<void> {
     try {
       const plant = await db.select().from(plants).where(eq(plants.id, plantId));
-      
+
       if (plant.length === 0) {
         throw new Error(`식물을 찾을 수 없습니다 (ID: ${plantId})`);
       }
@@ -195,8 +207,8 @@ class PlantUpdater {
       const plantData = plant[0];
       console.log(`식물 정보 업데이트: ${plantData.name}`);
 
-      const newInfo = await this.getPlantInfo(plantData.name, plantData.scientific_name || undefined);
-      
+      const newInfo = await this.getPlantInfo(plantData.name, plantData.scientificName || undefined);
+
       if (newInfo) {
         const success = await this.updatePlantInfo(plantId, newInfo);
         if (success) {
@@ -218,7 +230,7 @@ class PlantUpdater {
 if (require.main === module) {
   const updater = new PlantUpdater();
   const action = process.argv[2];
-  
+
   if (action === 'all') {
     updater.updateAllPlants()
       .then(() => {
@@ -235,7 +247,7 @@ if (require.main === module) {
       console.error('사용법: npm run update-plants single <식물ID>');
       process.exit(1);
     }
-    
+
     updater.updateSpecificPlant(plantId)
       .then(() => {
         console.log('식물 정보 업데이트 완료');

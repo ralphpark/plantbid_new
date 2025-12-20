@@ -1,8 +1,8 @@
 import 'dotenv/config';
 import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "../server/routes";
-import { syncVendorsTable } from "../server/sync-vendors";
-import directRouter from "../server/direct-router";
+import { registerRoutes } from "../server/routes.js";
+import { syncVendorsTable } from "../server/sync-vendors.js";
+import directRouter from "../server/direct-router.js";
 
 const app = express();
 
@@ -51,7 +51,7 @@ const allowPublicAccess = (req: Request, res: Response, next: NextFunction) => {
     '/api/plants/search',
     '/api/products/available'
   ];
-  
+
   const isPublicRoute = publicRoutes.some(route => {
     if (route.includes(':')) {
       const pattern = route.replace(/:[^/]+/g, '[^/]+');
@@ -59,13 +59,13 @@ const allowPublicAccess = (req: Request, res: Response, next: NextFunction) => {
     }
     return route === req.path;
   });
-  
+
   if (isPublicRoute) {
     console.log(`Public access allowed for ${req.path}`);
     (req as any).isAuthenticated = () => true;
     (req as any).user = { id: 1, username: 'ralphpark', role: 'user', email: 'ralphpark@example.com' };
   }
-  
+
   next();
 };
 
@@ -124,17 +124,17 @@ app.use('/__direct', directRouter);
 let isReady = false;
 async function setup() {
   if (isReady) return;
-  
+
   await registerRoutes(app);
-  
+
   // 에러 미들웨어
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
-    
+
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.type('json');
-    
+
     res.status(status).json({
       errorCode: err.code || 'INTERNAL_ERROR',
       message: message
@@ -147,7 +147,7 @@ async function setup() {
   } catch (error) {
     console.error("판매자 테이블 동기화 실패:", error);
   }
-  
+
   isReady = true;
 }
 

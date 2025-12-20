@@ -1,8 +1,8 @@
 import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from "@google/generative-ai";
 import { Request, Response } from "express";
-import { storage } from "./storage";
-import { db, pool } from "./db";
-import { plants } from "../shared/schema";
+import { storage } from "./storage.js";
+import { db, pool } from "./db.js";
+import { plants } from "../shared/schema.js";
 
 // Gemini AI 설정
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY || "");
@@ -119,13 +119,13 @@ interface ChatMessage {
 async function analyzePlantPreferences(chatHistory: ChatMessage[], userMessage: string): Promise<any> {
   try {
     const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite-preview-02-05" });
-    
+
     // 대화 내역을 기준으로 식물 추천 요청 생성
     console.log("Analyzing plant preferences for recommendation...");
-    
+
     // 최근 10개 메시지만 사용
     const recentHistory = chatHistory.slice(-10);
-    
+
     // 대화 단계 확인 - 5단계가 모두 완료되었는지 정확히 검사
     // **CRITICAL: 5단계 + 최소 10개 메시지 모두 필요**
     const allConversationText = chatHistory.map(msg => msg.content).join('\n').toLowerCase();
@@ -136,7 +136,7 @@ async function analyzePlantPreferences(chatHistory: ChatMessage[], userMessage: 
       stage4: ['난이도', '초보자', '경험자', '쉬운', '어려운', '관리'],
       stage5: ['선호', '추가', '꽃', '잎', '색상', '색', '특별히']
     };
-    
+
     let completedStages = 0;
     for (const stage of Object.keys(stageKeywords)) {
       const keywords = stageKeywords[stage as keyof typeof stageKeywords];
@@ -144,15 +144,15 @@ async function analyzePlantPreferences(chatHistory: ChatMessage[], userMessage: 
         completedStages++;
       }
     }
-    
+
     // **절대 규칙: 5단계 완료 AND 최소 10개 메시지 모두 필요**
     const hasMinimumMessages = recentHistory.length >= 10;
     const hasFiveStagesComplete = completedStages >= 5;
-    
+
     // 5단계 완료 AND 메시지 10개 이상이어야만 추천
     if (!hasFiveStagesComplete || !hasMinimumMessages) {
       console.log(`⚠️ 추천 불가 - 단계: ${completedStages}/5, 메시지: ${recentHistory.length}/10. 다음 질문 진행`);
-      
+
       // 현재 대화 상태를 파악하여 다음 질문 결정
       let nextQuestionPrompt = `
         당신은 식물 추천 전문가입니다. 아래 대화를 분석하고, 다음 단계의 질문을 해주세요.
@@ -176,11 +176,11 @@ async function analyzePlantPreferences(chatHistory: ChatMessage[], userMessage: 
           "recommendations": []
         }
       `;
-      
+
       const nextQuestionResult = await model.generateContent(nextQuestionPrompt);
       const nextQuestionResponse = await nextQuestionResult.response;
       const nextQuestionText = nextQuestionResponse.text();
-      
+
       // 응답에서 JSON 추출
       try {
         const data = extractJsonFromText(nextQuestionText);
@@ -194,15 +194,15 @@ async function analyzePlantPreferences(chatHistory: ChatMessage[], userMessage: 
         };
       }
     }
-    
+
     // 대화가 충분히 진행되었으면 식물 추천 진행
     console.log("충분한 대화 단계 진행됨 - 식물 추천 진행");
-    
+
     // 1. 실제 식물 데이터 가져오기
     console.log("실제 식물 목록을 가져오는 중...");
     const availablePlants = await getAllPlantNames();
     console.log(`총 ${availablePlants.length}개의 식물을 데이터베이스에서 가져왔습니다.`);
-    
+
     // 2. 사용자 메시지 분석 및 추천
     let prompt = `
       당신은 한국어로 소통하는 식물 전문가입니다. 사용자의 메시지를 분석하여 식물 선호도와 환경 조건을 파악하세요.
@@ -242,22 +242,22 @@ async function analyzePlantPreferences(chatHistory: ChatMessage[], userMessage: 
       
       사용자 메시지: ${userMessage}
     `;
-    
+
     // 응답 생성
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = response.text();
     console.log("Plant preferences analysis - Raw AI response:", text);
-    
+
     // 응답에서 JSON 추출
     const data = extractJsonFromText(text);
-    
+
     // 식물 이미지 추가
     if (data.recommendations && data.recommendations.length > 0) {
       const enrichedRecommendations = await enrichRecommendationsWithImages(data.recommendations);
       data.recommendations = enrichedRecommendations;
     }
-    
+
     return data;
   } catch (error) {
     console.error("Error analyzing plant preferences:", error);
@@ -272,17 +272,17 @@ async function analyzePlantPreferences(chatHistory: ChatMessage[], userMessage: 
 async function getAllPlantNames(): Promise<string[]> {
   try {
     const allPlantNames = new Set<string>();
-    
+
     // 1. 내부 식물 데이터베이스에서 가져오기
     const internalResult = await pool.query(`SELECT name FROM plants ORDER BY name`);
     internalResult.rows.forEach((row: any) => {
       if (row.name) allPlantNames.add(row.name.trim());
     });
-    
+
     // 2. 공기정화식물 API 데이터 가져오기 (64종)
     const port = process.env.PORT || 5000;
     const baseUrl = `http://localhost:${port}`;
-    
+
     try {
       const airResponse = await fetch(`${baseUrl}/api/admin/external-plants/air-purifying-new-64`);
       if (airResponse.ok) {
@@ -295,7 +295,7 @@ async function getAllPlantNames(): Promise<string[]> {
     } catch (error) {
       console.error('공기정화식물 데이터 가져오기 오류:', error);
     }
-    
+
     // 3. 건조에 강한 식물 API 데이터 가져오기 (97종)
     try {
       const dryResponse = await fetch(`${baseUrl}/api/admin/external-plants/dry-garden`);
@@ -309,7 +309,7 @@ async function getAllPlantNames(): Promise<string[]> {
     } catch (error) {
       console.error('건조에 강한 식물 데이터 가져오기 오류:', error);
     }
-    
+
     // 4. 실내정원용 식물 API 데이터 가져오기 (217종)
     try {
       const indoorResponse = await fetch(`${baseUrl}/api/admin/external-plants/indoor-garden`);
@@ -323,7 +323,7 @@ async function getAllPlantNames(): Promise<string[]> {
     } catch (error) {
       console.error('실내정원용 식물 데이터 가져오기 오류:', error);
     }
-    
+
     console.log(`총 ${allPlantNames.size}개의 식물 이름을 수집했습니다.`);
     return Array.from(allPlantNames).sort();
   } catch (error) {
@@ -339,7 +339,7 @@ function parseAirPurifyingXML(xmlString: string): any[] {
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(xmlString, 'text/xml');
     const results = xmlDoc.getElementsByTagName('result');
-    
+
     const plants = [];
     for (let i = 0; i < results.length; i++) {
       const result = results[i];
@@ -361,7 +361,7 @@ function parseDryGardenXML(xmlString: string): any[] {
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(xmlString, 'text/xml');
     const items = xmlDoc.getElementsByTagName('item');
-    
+
     const plants = [];
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
@@ -383,7 +383,7 @@ function parseIndoorGardenXML(xmlString: string): any[] {
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(xmlString, 'text/xml');
     const items = xmlDoc.getElementsByTagName('item');
-    
+
     const plants = [];
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
@@ -403,11 +403,11 @@ function parseIndoorGardenXML(xmlString: string): any[] {
 async function getPlantImageUrl(plantName: string): Promise<string> {
   try {
     const result = await pool.query('SELECT image_url FROM plants WHERE name = $1', [plantName]);
-    
+
     if (result.rows.length > 0 && result.rows[0].image_url) {
       return result.rows[0].image_url;
     }
-    
+
     // 기본 이미지 반환
     return '/assets/plants/default-plant.png';
   } catch (error) {
@@ -421,14 +421,14 @@ async function enrichRecommendationsWithImages(recommendations: any[]): Promise<
   if (!recommendations || recommendations.length === 0) {
     return [];
   }
-  
+
   console.log(`AI 추천 식물 개수: ${recommendations.length}`);
-  
+
   // 각 추천 항목에 구글 검색 URL 추가 (데이터베이스 대신 직접 구글 검색 사용)
   const enrichedRecommendations = recommendations.map(recommendation => {
     // 구글 이미지 검색 URL 구성
     const googleSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(recommendation.name)}+식물&tbm=isch`;
-    
+
     // 완전히 데이터베이스와 분리된 추천 구성
     return {
       name: recommendation.name,
@@ -439,47 +439,47 @@ async function enrichRecommendationsWithImages(recommendations: any[]): Promise<
       searchTerm: recommendation.name
     };
   });
-  
+
   return enrichedRecommendations;
 }
 
 export async function handleChatMessage(req: Request, res: Response) {
   try {
     const { message, conversationId, userId, imageUrl, mode } = req.body;
-    
+
     // 사용자 검증
     if (!userId && !req.isAuthenticated()) {
       return res.status(401).json({ error: "Authentication required" });
     }
-    
+
     // 클라이언트에서 전달된 모드 로깅 - 디버깅 및 상태 파악용
     console.log(`AI 채팅 모드: ${mode || 'default'}, 메시지: ${message.substring(0, 30)}...`);
-    
+
     // 결제 완료 상태에서 관리법 문의일 경우만 특별 대응
-    const isManagementQuery = message.includes('관리') || 
-                              message.includes('돌보') || 
-                              message.includes('키우') || 
-                              message.includes('방법') ||
-                              message.includes('알려줘');
-                              
+    const isManagementQuery = message.includes('관리') ||
+      message.includes('돌보') ||
+      message.includes('키우') ||
+      message.includes('방법') ||
+      message.includes('알려줘');
+
     const isPurchaseComplete = mode === 'payment-complete';
-    
+
     // 특별 응답이 필요한 경우 (결제 완료 상태에서 관리법 문의 등)
     const needsSpecialResponse = isPurchaseComplete && isManagementQuery;
-    
+
     // 디버깅
     console.log(`상태 정보 - 모드: ${mode}, 관리 문의: ${isManagementQuery}, 특별 응답 필요: ${needsSpecialResponse}`);
-    
-    
+
+
     const model = genAI.getGenerativeModel({
       model: "gemini-2.0-flash-lite-preview-02-05",
       safetySettings,
     });
-    
+
     // 기존 대화 조회 또는 새 대화 생성
     let conversation;
     let chatHistory: ChatMessage[] = [];
-    
+
     if (conversationId) {
       conversation = await storage.getConversation(conversationId);
       if (conversation && conversation.messages) {
@@ -493,15 +493,15 @@ export async function handleChatMessage(req: Request, res: Response) {
         }));
       }
     }
-    
+
     // 대화 형식에 맞게 변환하여 Gemini에 전달
     // 최근에는 system 역할도 지원하기 시작함
     // 첫 번째 메시지는 항상 시스템 프롬프트로 전달
     console.log("Current chat history length:", chatHistory.length);
-    
+
     // 기본 시스템 프롬프트 설정
     let modifiedSystemPrompt = SYSTEM_PROMPT;
-    
+
     // 특별 응답이 필요한 경우 (결제 완료 상태에서 관리법 문의 등)
     if (needsSpecialResponse) {
       console.log("결제 완료 후 식물 관리 문의 감지 - 특별 프롬프트 추가");
@@ -509,22 +509,22 @@ export async function handleChatMessage(req: Request, res: Response) {
       사용자가 식물 관리 방법에 대해 물어보고 있으니 상세한 관리 방법을 친절하게 안내해주세요.
       구매를 축하하고, 식물 관리에 대한 기본적인 조언과 함께 상세한 관리법을 설명해주세요.`;
     }
-    
+
     // 지역 상점 모드일 때도 특별 프롬프트 적용
     if (mode === 'region-store' && isManagementQuery) {
       console.log("지역 상점 모드에서 식물 관리 문의 감지 - 상태 유지하면서 응답");
       modifiedSystemPrompt += `\n\n사용자가 지역 상점을 살펴보는 중이지만 식물 관리에 대해 문의하고 있습니다.
       상점 정보를 계속 표시하면서 친절하게 식물 관리 방법을 안내해주세요.`;
     }
-    
+
     const chatMessages = [
       { role: "user", parts: [{ text: modifiedSystemPrompt }] }
     ];
-    
+
     // 최근 대화 이력 추가 (최대 20개 메시지만 사용)
     // 너무 많은 메시지는 context window 한계로 문제 발생 가능성 있음
     const recentHistory = chatHistory.slice(-20);
-    
+
     // 각 메시지를 Gemini API 형식으로 변환하여 추가 (빈 메시지 필터링)
     recentHistory.forEach(msg => {
       // 컨텐츠가 있고 비어있지 않은 메시지만 추가
@@ -535,9 +535,9 @@ export async function handleChatMessage(req: Request, res: Response) {
         });
       }
     });
-    
+
     console.log("Prepared chat messages for Gemini:", chatMessages.length);
-    
+
     // Gemini API 호출
     const chat = model.startChat({
       history: chatMessages,
@@ -547,13 +547,13 @@ export async function handleChatMessage(req: Request, res: Response) {
         topK: 40,
       },
     });
-    
+
     // 빈 메시지 검사 및 기본값 설정
     const messageText = message && message.trim() ? message : "안녕하세요. 계속해서 도와드릴게요.";
     const result = await chat.sendMessage([{ text: messageText }]);
     const response = await result.response;
     const responseText = response.text();
-    
+
     let parsedResponse;
     try {
       // JSON 응답 파싱 시도
@@ -565,46 +565,46 @@ export async function handleChatMessage(req: Request, res: Response) {
         recommendations: []
       };
     }
-    
+
     // 사용자 메시지에서 식물 선호도 분석하여 추천 목록 가져오기
     let recommendationData = await analyzePlantPreferences(chatHistory, message);
-    
+
     // 만약 preferences에서 받은 데이터가 유효하고 추천이 있으면 해당 데이터로 대체
-    if (recommendationData && recommendationData.recommendations && 
-        recommendationData.recommendations.length > 0 && 
-        Array.isArray(recommendationData.recommendations)) {
+    if (recommendationData && recommendationData.recommendations &&
+      recommendationData.recommendations.length > 0 &&
+      Array.isArray(recommendationData.recommendations)) {
       // parsedResponse를 분석된 추천 데이터로 대체
       parsedResponse = recommendationData;
     }
-    
+
     // 사용자가 충분한 정보를 제공했다면 추천 시작
     // 대화 맥락을 분석하여 추천이 필요한 시점인지 판단
     // 최소 5개의 메시지 교환(질문/답변) 후에만 추천 시작, 또는 사용자가 명시적으로 요청한 경우
     const messageCount = chatHistory.length;
-    const hasExplicitRequest = message.includes('추천') || 
-                               message.includes('보여줘') || 
-                               message.includes('알려줘') ||
-                               message.includes('식물') || 
-                               message.includes('뭐가 좋을까') ||
-                               message.includes('찾고 있') ||
-                               message.includes('알려주') ||
-                               message.includes('보여주');
-                                
+    const hasExplicitRequest = message.includes('추천') ||
+      message.includes('보여줘') ||
+      message.includes('알려줘') ||
+      message.includes('식물') ||
+      message.includes('뭐가 좋을까') ||
+      message.includes('찾고 있') ||
+      message.includes('알려주') ||
+      message.includes('보여주');
+
     // AI가 사용자와의 대화에서 충분한 정보를 수집했는지 판단
-    
+
     // 이전에 이미 추천 내용이 있었는지 확인
-    const hasExistingRecommendations = chatHistory.some(msg => 
+    const hasExistingRecommendations = chatHistory.some(msg =>
       msg.recommendations && msg.recommendations.length > 0
     );
-    
+
     // 충분한 대화 교환이 이루어졌는지 확인 (최소 5번의 질문-응답 교환 후 추천)
     const hasEnoughConversation = messageCount >= 10; // 사용자와 AI 메시지를 합쳐 최소 10개 이상
-    
+
     // 사용자가 강하게 요청했는지 확인 (추천해줘, 보여줘 등 직접적인 요청)
-    const hasStrongRequest = message.includes('추천해') || 
-                            message.includes('보여줘') || 
-                            message.includes('알려줘');
-    
+    const hasStrongRequest = message.includes('추천해') ||
+      message.includes('보여줘') ||
+      message.includes('알려줘');
+
     // 대화 내용에서 각 단계 키워드 검색 (AI 질문과 사용자 응답 모두 검색)
     // 더 간단하고 확실한 방식으로 구현
     const stageKeywords = [
@@ -614,47 +614,47 @@ export async function handleChatMessage(req: Request, res: Response) {
       ["난이도", "관리", "초보", "키우기", "경험", "쉬운", "어려운", "물"], // 4단계: 난이도/관리
       ["선호", "색상", "종류", "스타일", "마음에", "특별히", "꽃", "잎", "생김새"] // 5단계: 선호/스타일
     ];
-    
+
     // 각 단계별로 키워드가 대화에 포함되어 있는지 확인
     let stageCount = 0;
-    
+
     // 전체 대화 내용에서 단계별로 키워드 검색
     const allMessages = recentHistory.map(msg => msg.content.toLowerCase());
     const allContent = allMessages.join(' ');
-    
+
     // 각 단계별 키워드 검색
     for (const stageKeywordList of stageKeywords) {
       // 해당 단계의 키워드가 하나라도 있는지 확인
-      const hasKeyword = stageKeywordList.some(keyword => 
+      const hasKeyword = stageKeywordList.some(keyword =>
         allContent.includes(keyword)
       );
-      
+
       if (hasKeyword) {
         stageCount++;
       }
     }
-    
+
     // 디버깅 정보
     console.log("단계별 키워드 검색 결과: ", stageCount);
-    
+
     console.log("대화 단계 진행 상태:", stageCount, "/ 5");
-    
+
     // 더 엄격한 5단계 완료 확인: 반드시 5단계를 모두 완료해야 함
     const has5StepsCompleted = stageCount >= 5;
-    
+
     // 사용자의 명시적인 요청이 있어도 5단계가 완료되지 않았으면 추천하지 않음
     console.log("엄격한 5단계 완료 확인 - 완료된 단계:", stageCount, "추천 가능:", has5StepsCompleted);
-    
+
     console.log("메시지 개수:", messageCount, "5단계 완료 여부:", has5StepsCompleted);
-    
+
     // **추천 조건: 5단계 완료 AND 메시지 10개 이상 모두 필요**
-    const shouldRecommend = 
+    const shouldRecommend =
       hasExistingRecommendations || // 이미 추천이 있었다면 계속 추천
       (has5StepsCompleted && messageCount >= 10); // 5단계 완료 AND 메시지 10개 이상
-    
+
     // 데이터베이스의 실제 식물 이름 목록 가져오기
     const plantNames = await getAllPlantNames();
-    
+
     // 제거된 recommendPlantsFromDatabase 함수 대신 새로운 로직으로 추천
     if (shouldRecommend) {
       // Gemini가 추천한 식물들을 사용
@@ -665,26 +665,25 @@ export async function handleChatMessage(req: Request, res: Response) {
         // 추천이 필요하지만 AI가 추천을 하지 않은 경우 (드문 경우)
         // 랜덤으로 3개 식물 선택
         const randomPlants = await pool.query(`SELECT name, image_url FROM plants ORDER BY RANDOM() LIMIT 3`);
-        
+
         if (randomPlants.rows.length > 0) {
           parsedResponse.recommendations = randomPlants.rows.map((plant: any) => {
             return {
               name: plant.name,
-              description: `${plant.name}은(는) 특별한 실내식물입니다. ${
-                Math.random() > 0.5 ? 
-                "뛰어난 공기정화 능력이 있으며 집안의 분위기를 산뜻하게 만들어줍니다." : 
-                "아름다운 잎 모양과 독특한 생김새로 인테리어 효과가 탁월합니다."
-              } 🌱`,
+              description: `${plant.name}은(는) 특별한 실내식물입니다. ${Math.random() > 0.5 ?
+                  "뛰어난 공기정화 능력이 있으며 집안의 분위기를 산뜻하게 만들어줍니다." :
+                  "아름다운 잎 모양과 독특한 생김새로 인테리어 효과가 탁월합니다."
+                } 🌱`,
               careInstructions: plant.name.includes("선인장") || plant.name.includes("다육식물") ?
                 "건조한 환경을 선호하며 과습에 주의하세요. 한 달에 한 번 정도 물을 주는 것이 좋습니다." :
                 plant.name.includes("야자") || plant.name.includes("고사리") ?
-                "습한 환경을 좋아하며 일주일에 한 번 정도 물을 주고, 잎에 분무를 해주면 좋습니다." :
-                "적당한 밝기의 간접광을 좋아하며 흙이 마르면 충분히 물을 주세요. 과습과 과건조에 주의하세요.",
+                  "습한 환경을 좋아하며 일주일에 한 번 정도 물을 주고, 잎에 분무를 해주면 좋습니다." :
+                  "적당한 밝기의 간접광을 좋아하며 흙이 마르면 충분히 물을 주세요. 과습과 과건조에 주의하세요.",
               priceRange: "15,000원~30,000원",
               imageUrl: plant.image_url || '/assets/plants/default-plant.png'
             };
           });
-          
+
           parsedResponse.content += "\n\n아래 식물들도 추천해 드릴게요! 마음에 드는 식물이 있으면 선택해주세요. 🌿";
         }
       }
@@ -692,7 +691,7 @@ export async function handleChatMessage(req: Request, res: Response) {
       // 아직 추천 단계가 아니라면 빈 배열로 설정
       parsedResponse.recommendations = [];
     }
-    
+
     // 새 메시지 생성
     const userMessage: ChatMessage = {
       role: "user",
@@ -700,14 +699,14 @@ export async function handleChatMessage(req: Request, res: Response) {
       timestamp: new Date(),
       imageUrl: imageUrl // 이미지 URL 추가
     };
-    
+
     const assistantMessage: ChatMessage = {
       role: "assistant",
       content: parsedResponse.content,
       timestamp: new Date(),
       recommendations: parsedResponse.recommendations || []
     };
-    
+
     // 대화 저장 또는 업데이트
     let newConversationId = conversationId;
     if (!conversation) {
@@ -730,7 +729,7 @@ export async function handleChatMessage(req: Request, res: Response) {
       }));
       await storage.updateConversation(conversationId, updatedMessages, parsedResponse.recommendations || []);
     }
-    
+
     // 클라이언트에 응답
     res.status(200).json({
       conversationId: newConversationId,
@@ -751,38 +750,38 @@ function extractJsonFromText(text: string) {
     return JSON.parse(text);
   } catch (e) {
     // 코드 블록 내부의 JSON 또는 전체 텍스트가 JSON인 경우 찾기
-    const jsonMatch = text.match(/```(?:json)?\n([\s\S]*?)\n```/) || 
-                      text.match(/```([\s\S]*?)```/) ||
-                      text.match(/{[\s\S]*"recommendations"[\s\S]*?}/);
-    
+    const jsonMatch = text.match(/```(?:json)?\n([\s\S]*?)\n```/) ||
+      text.match(/```([\s\S]*?)```/) ||
+      text.match(/{[\s\S]*"recommendations"[\s\S]*?}/);
+
     if (jsonMatch) {
       try {
         const jsonContent = jsonMatch[1] || jsonMatch[0];
-        
+
         // 더 강력한 JSON 형식 정리
         let cleanedJson = jsonContent;
-        
+
         // 1. 따옴표 표준화 (키와 문자열 값 모두에 대해)
         cleanedJson = cleanedJson
           .replace(/(['"])?([a-zA-Z0-9_]+)(['"])?:/g, '"$2":')  // 키를 쌍따옴표로 감싸기
           .replace(/'/g, '"');  // 작은따옴표를 큰따옴표로 변경
-          
+
         // 2. 따옴표 누락 수정 시도 (JSON 값 주변의 따옴표 확인)
         cleanedJson = cleanedJson
           .replace(/:\s*([a-zA-Z][a-zA-Z0-9_]*)\s*([,}])/g, ':"$1"$2'); // 따옴표 없는 문자열 값 수정
-          
+
         // 3. 후행 쉼표 제거 (JSON에서 오류 발생 가능)
         cleanedJson = cleanedJson
           .replace(/,\s*}/g, '}')
           .replace(/,\s*\]/g, ']');
-        
+
         // 디버깅을 위한 로그
         console.log("원본 JSON 텍스트:", jsonContent.substring(0, 100) + "...");
         console.log("정리된 JSON 텍스트:", cleanedJson.substring(0, 100) + "...");
-          
+
         // JSON 파싱
         const parsed = JSON.parse(cleanedJson);
-        
+
         console.log("Successfully parsed JSON from AI response");
         return parsed;
       } catch (innerError) {
@@ -790,7 +789,7 @@ function extractJsonFromText(text: string) {
         console.error("Attempted to parse:", jsonMatch[1] || jsonMatch[0]);
       }
     }
-    
+
     // JSON이 없거나 파싱에 실패한 경우 기본 형식 반환
     return {
       content: text,

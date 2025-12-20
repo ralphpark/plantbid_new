@@ -4,10 +4,10 @@ import { Express } from "express";
 import session from "express-session";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
-import { storage } from "./storage";
+import { storage } from "./storage.js";
 import { User, InsertUser } from "@shared/schema";
 import connectPg from "connect-pg-simple";
-import { pool } from "./db";
+import { pool } from "./db.js";
 
 const PostgresSessionStore = connectPg(session);
 
@@ -32,7 +32,7 @@ async function hashPassword(password: string) {
 
 async function comparePasswords(supplied: string, stored: string) {
   console.log(`비밀번호 검증 시도: 입력된 비밀번호 길이 ${supplied.length}, 저장된 해시: ${stored.substring(0, 20)}...`);
-  
+
   // BCrypt 형식 처리 (기존 하드코딩된 비밀번호)
   if (stored.startsWith('$2')) {
     try {
@@ -44,7 +44,7 @@ async function comparePasswords(supplied: string, stored: string) {
       return false;
     }
   }
-  
+
   // scrypt 방식 처리 (새로 설정된 비밀번호 포함)
   try {
     const [hashed, salt] = stored.split(".");
@@ -52,13 +52,13 @@ async function comparePasswords(supplied: string, stored: string) {
       console.error("잘못된 비밀번호 형식:", stored);
       return false;
     }
-    
+
     console.log(`scrypt 검증 시도: salt=${salt.substring(0, 8)}..., hashed=${hashed.substring(0, 20)}...`);
-    
+
     const hashedBuf = Buffer.from(hashed, "hex");
     const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
     const isMatch = timingSafeEqual(hashedBuf, suppliedBuf);
-    
+
     console.log(`scrypt 비밀번호 검증 결과: ${isMatch}`);
     return isMatch;
   } catch (err) {
@@ -97,12 +97,12 @@ export function setupAuth(app: Express) {
         if (!user) {
           return done(null, false, { message: "Incorrect username or password" });
         }
-        
+
         const passwordMatch = await comparePasswords(password, user.password);
         if (!passwordMatch) {
           return done(null, false, { message: "Incorrect username or password" });
         }
-        
+
         return done(null, user);
       } catch (err) {
         return done(err);
@@ -138,7 +138,7 @@ export function setupAuth(app: Express) {
   app.post("/api/register", async (req, res, next) => {
     try {
       const { username, email, password, role } = req.body;
-      
+
       // Validate role
       if (!["user", "vendor", "admin"].includes(role)) {
         return res.status(400).json({ error: "Invalid role" });
@@ -147,11 +147,11 @@ export function setupAuth(app: Express) {
       // Check if username or email exists
       const existingUser = await storage.getUserByUsername(username);
       const existingEmail = await storage.getUserByEmail(email);
-      
+
       if (existingUser) {
         return res.status(400).json({ error: "Username already exists" });
       }
-      
+
       if (existingEmail) {
         return res.status(400).json({ error: "Email already exists" });
       }
@@ -186,9 +186,9 @@ export function setupAuth(app: Express) {
             address: req.body.address ? (req.body.zipCode ? `${req.body.address} (${req.body.zipCode})` : req.body.address) : "주소 정보 없음",
             description: req.body.description || "식물을 위한 작업실 심다"
           });
-          
+
           console.log(`판매자 정보가 vendors 테이블에 추가되었습니다: ID ${vendor.id}`);
-          
+
           // 판매자 주소가 있다면 매장 위치 정보도 추가
           if (req.body.address && req.body.lat && req.body.lng) {
             try {
@@ -213,7 +213,7 @@ export function setupAuth(app: Express) {
       req.login(user, (err) => {
         if (err) return next(err);
         return res.status(201).json({
-          id: user.id, 
+          id: user.id,
           username: user.username,
           email: user.email,
           role: user.role
@@ -231,28 +231,28 @@ export function setupAuth(app: Express) {
         console.error("Authentication error:", err);
         return next(err);
       }
-      
+
       if (!user) {
         console.log("Login failed: User not found or invalid credentials");
         return res.status(401).json({ error: info?.message || "Login failed" });
       }
-      
+
       // Log successful authentication
       console.log(`User ${user.username} (ID: ${user.id}) authenticated successfully`);
-      
+
       req.login(user, (loginErr) => {
         if (loginErr) {
           console.error("Login error after authentication:", loginErr);
           return next(loginErr);
         }
-        
+
         // Ensure session is saved before responding
         req.session.save((saveErr) => {
           if (saveErr) {
             console.error("Failed to save session:", saveErr);
             return next(saveErr);
           }
-          
+
           console.log(`Session saved for user ${user.username} (ID: ${user.id})`);
           return res.status(200).json({
             id: user.id,
@@ -271,23 +271,23 @@ export function setupAuth(app: Express) {
       console.log("Logout request received but user is not authenticated");
       return res.status(200).json({ message: "Already logged out" });
     }
-    
+
     const username = req.user?.username || 'unknown';
     const userId = req.user?.id || 'unknown';
-    
+
     req.logout((err) => {
       if (err) {
         console.error("Logout error:", err);
         return next(err);
       }
-      
+
       // Destroy the session to ensure complete logout
       req.session.destroy((destroyErr) => {
         if (destroyErr) {
           console.error("Session destruction error:", destroyErr);
           return next(destroyErr);
         }
-        
+
         console.log(`User ${username} (ID: ${userId}) logged out successfully`);
         res.clearCookie('connect.sid');
         return res.status(200).json({ message: "Logged out successfully" });
@@ -301,14 +301,14 @@ export function setupAuth(app: Express) {
         console.log("User request received but not authenticated");
         return res.status(401).json({ error: "Not authenticated" });
       }
-      
+
       const user = req.user;
-      
+
       if (!user.id || !user.username || !user.email || !user.role) {
         console.error("Authenticated user has incomplete data:", user);
         return res.status(500).json({ error: "Incomplete user data" });
       }
-      
+
       console.log(`User data requested for ${user.username} (ID: ${user.id})`);
       res.json({
         id: user.id,
@@ -367,7 +367,7 @@ export function setupAuth(app: Express) {
 
   // 비밀번호 재설정 요청 제한 (간단한 in-memory rate limiting)
   const resetRequestTracker = new Map<string, { count: number; resetAt: number }>();
-  
+
   app.post("/api/request-password-reset", async (req, res) => {
     try {
       const { email, username } = req.body;
@@ -380,12 +380,12 @@ export function setupAuth(app: Express) {
       const clientIp = req.ip || "unknown";
       const now = Date.now();
       const tracker = resetRequestTracker.get(clientIp);
-      
+
       if (tracker) {
         if (now < tracker.resetAt) {
           if (tracker.count >= 3) {
-            return res.status(429).json({ 
-              error: "요청이 너무 많습니다. 잠시 후 다시 시도해주세요." 
+            return res.status(429).json({
+              error: "요청이 너무 많습니다. 잠시 후 다시 시도해주세요."
             });
           }
           tracker.count++;
@@ -406,12 +406,12 @@ export function setupAuth(app: Express) {
 
       // 이메일과 사용자명을 모두 확인
       const user = await storage.getUserByEmail(email);
-      
+
       // 사용자가 존재하고 사용자명이 일치할 때만 토큰 생성
       if (user && user.username === username) {
         // 토큰 생성 (32바이트 랜덤 문자열)
         token = randomBytes(32).toString("hex");
-        
+
         // 토큰 만료 시간 설정 (1시간)
         const expiresAt = new Date();
         expiresAt.setHours(expiresAt.getHours() + 1);
@@ -440,7 +440,7 @@ export function setupAuth(app: Express) {
       }
 
       // 항상 동일한 응답 반환 (보안: 타이밍 공격 방지)
-      return res.status(200).json({ 
+      return res.status(200).json({
         message: "입력하신 정보가 일치하면 비밀번호 재설정 링크가 생성됩니다",
         resetUrl,
         token

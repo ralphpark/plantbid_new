@@ -1,5 +1,5 @@
 import { Express, Request, Response } from 'express';
-import { IStorage } from './storage';
+import { IStorage } from './storage.js';
 
 /**
  * 포트원(PortOne) 결제 취소 개선 API 입니다.
@@ -8,7 +8,7 @@ import { IStorage } from './storage';
  * - 포트원 API 콜 성공 여부 확인
  */
 export async function cancelPaymentWithRetry(
-  payment: any, 
+  payment: any,
   orderId: string,
   reason: string,
   storage: IStorage,
@@ -20,7 +20,7 @@ export async function cancelPaymentWithRetry(
     // 포트원 V2 클라이언트 가져오기
     const portoneV2Client = await import('./portone-v2-client');
     const portoneClient = portoneV2Client.default;
-    
+
     if (!payment.paymentKey) {
       throw new Error('취소할 결제 키가 없습니다.');
     }
@@ -32,24 +32,24 @@ export async function cancelPaymentWithRetry(
     console.log('- 주문 ID:', orderId);
     console.log('- API 시크릿 키 길이:', portoneClient.apiSecret ? portoneClient.apiSecret.length : 0);
     console.log('- 취소 사유:', reason || '고객 요청에 의한 취소');
-    
+
     // 재시도 관련 변수
     let portoneCallSuccess = false;
     let response: any = null;
     let attempts = 0;
     const maxAttempts = 3;
     const retryDelay = 1000; // 재시도 지연 시간(ms)
-    
+
     // 유효한 포트원 결제 ID 검색 시도
     let portonePaymentId = payment.paymentKey;
-    
+
     try {
       console.log('[결제 취소 API] 주문 ID로 유효한 포트원 결제 ID 검색 시도...');
       // 주문 ID로 결제 검색하여 올바른 ID 형식 찾기
-      const searchResult = await portoneClient.searchPayments({ 
-        orderId: orderId 
+      const searchResult = await portoneClient.searchPayments({
+        orderId: orderId
       });
-      
+
       if (searchResult && searchResult.payments && searchResult.payments.length > 0) {
         const foundPayment = searchResult.payments[0];
         if (foundPayment.payment_id) {
@@ -70,34 +70,34 @@ export async function cancelPaymentWithRetry(
       console.error('[결제 취소 API] 결제 검색 오류:', searchError);
       console.log('[결제 취소 API] 원래 결제 ID 사용 계속');
     }
-    
+
     // 최종 결제 ID를 V2 규격(pay_ + 22자)으로 보정
     if (!portonePaymentId.startsWith('pay_') || portonePaymentId.length !== 26) {
       console.log('[결제 취소 API] 최종 결제 ID 형식 보정 필요, 변환 수행');
       portonePaymentId = convertToV2PaymentId(portonePaymentId);
       console.log('[결제 취소 API] 변환된 최종 결제 ID:', portonePaymentId);
     }
-    
+
     // 재시도 로직 추가
     while (attempts < maxAttempts && !portoneCallSuccess) {
       attempts++;
       console.log(`[결제 취소 API] 시도 ${attempts}/${maxAttempts}`);
       console.log(`[결제 취소 API] 사용할 결제 ID: ${portonePaymentId}`);
-      
+
       try {
         // 포트원 API 호출 - 반드시 pay_ 형식의 결제 ID 사용
         response = await portoneClient.cancelPayment({
           paymentId: portonePaymentId,
           reason: reason || '고객 요청에 의한 취소'
         });
-        
+
         // 성공 플래그 설정
         portoneCallSuccess = true;
         console.log(`[결제 취소 API] 시도 ${attempts} - 포트원 결제 취소 성공. 응답:`, JSON.stringify(response, null, 2));
         break;
       } catch (retryError: any) {
         console.error(`[결제 취소 API] 시도 ${attempts} - 실패:`, retryError?.message || retryError);
-        
+
         // 마지막 시도가 아니면 재시도
         if (attempts < maxAttempts) {
           console.log(`[결제 취소 API] ${retryDelay}ms 후 재시도...`);
@@ -105,7 +105,7 @@ export async function cancelPaymentWithRetry(
         }
       }
     }
-    
+
     // 최종 대안: 스마트 취소 유틸 사용 시도
     if (!portoneCallSuccess) {
       console.log('[결제 취소 API] 모든 재시도 실패. 스마트 취소 유틸을 사용하여 최종 시도 진행');
@@ -122,7 +122,7 @@ export async function cancelPaymentWithRetry(
         console.error('[결제 취소 API] 스마트 취소 유틸 시도 중 오류:', smartError?.message || smartError);
       }
     }
-    
+
     // 성공 시에만 DB 업데이트
     if (portoneCallSuccess) {
       const updatedPayment = await storage.updatePayment(payment.id, {
@@ -131,14 +131,14 @@ export async function cancelPaymentWithRetry(
         cancelReason: reason || '고객 요청에 의한 취소',
         cancelledAt: new Date()
       });
-      
+
       const updatedOrder = await storage.updateOrderStatusByOrderId(orderId, 'cancelled');
       if (!updatedOrder) {
         console.error(`주문 ID ${orderId}의 상태를 변경하지 못했습니다.`);
       } else {
         console.log(`결제 취소 완료 - 주문 ID: ${orderId}, 결제 ID: ${payment.id}`);
       }
-      
+
       const refreshedPayment = await storage.getPaymentByOrderId(orderId);
       return res.json({
         success: true,
@@ -163,7 +163,7 @@ export async function cancelPaymentWithRetry(
     }
   } catch (portoneError: any) {
     console.error('포트원 API 취소 오류:', portoneError?.message || portoneError);
-    
+
     // 오류 객체 상세 출력
     if (portoneError.response) {
       console.error('포트원 API 오류 응답 상태:', portoneError.response.status);
@@ -171,10 +171,10 @@ export async function cancelPaymentWithRetry(
     } else if (portoneError.request) {
       console.error('포트원 API 요청은 전송되었으나 응답이 없음:', portoneError.request);
     }
-    
+
     // DB에만 취소로 처리
     console.log('포트원 API 오류에도 불구하고 DB에는 취소 처리함');
-    
+
     // 결제 정보 업데이트
     const updatedPayment = await storage.updatePayment(payment.id, {
       status: 'CANCELLED',
@@ -182,17 +182,17 @@ export async function cancelPaymentWithRetry(
       cancelReason: reason || '고객 요청에 의한 취소 (API 오류)',
       cancelledAt: new Date()
     });
-    
+
     // 주문 상태 업데이트
     const updatedOrder = await storage.updateOrderStatusByOrderId(orderId, 'cancelled');
-    
+
     // 업데이트된 결제 정보 다시 가져오기
     const refreshedPayment = await storage.getPaymentByOrderId(orderId);
-    
+
     // API 오류 정보 추출
     let errorType = 'UNKNOWN_ERROR';
     let errorDetails = null;
-    
+
     if (portoneError?.response?.data) {
       try {
         const errorData = portoneError.response.data;
@@ -213,10 +213,10 @@ export async function cancelPaymentWithRetry(
         console.error('오류 데이터 파싱 실패:', e);
       }
     }
-    
+
     // 테스트 환경 여부 확인
     const isTestEnvironment = process.env.NODE_ENV !== 'production' || !process.env.PORTONE_API_KEY;
-    
+
     // 오류 응답 - 포트원 API 오류 응답 설정
     return res.json({
       success: true,
