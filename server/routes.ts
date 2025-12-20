@@ -968,17 +968,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(popularPlants.length > 0 ? popularPlants : allPlants.slice(0, 10));
     } catch (error) {
       console.error("Error fetching popular plants:", error);
-      res.status(500).json({ error: "Failed to fetch popular plants" });
+      if (error instanceof Error) {
+        console.error("Stack trace:", error.stack);
+      }
+      res.status(500).json({ error: "Failed to fetch popular plants", details: error instanceof Error ? error.message : String(error) });
     }
   });
 
   // 인기 판매자 API - 위치 기반 필터링 지원 (지역 내 모든 판매자, 판매 실적 우선 정렬)
   app.get("/api/vendors/popular", async (req, res) => {
     try {
+      console.log('Entering /api/vendors/popular');
       const { lat, lng, radius } = req.query;
+
+      console.log('Fetching all orders...');
       const allOrders = await db.select().from(orders);
+      console.log(`Fetched ${allOrders.length} orders.`);
+
+      console.log('Fetching all reviews...');
       const allReviews = await db.select().from(reviews);
+      console.log(`Fetched ${allReviews.length} reviews.`);
+
+      console.log('Fetching all vendors via storage...');
       const allVendors = await storage.getAllVendors();
+      console.log(`Fetched ${allVendors.length} vendors.`);
 
       let vendorsToShow = allVendors;
 
@@ -987,6 +1000,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const centerLat = parseFloat(lat as string);
         const centerLng = parseFloat(lng as string);
         const radiusKm = parseFloat(radius as string);
+
 
         console.log(`[판매자 필터링] 중심: (${centerLat}, ${centerLng}), 반경: ${radiusKm}km`);
 
@@ -1063,7 +1077,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(popularVendors);
     } catch (error) {
       console.error("Error fetching popular vendors:", error);
-      res.status(500).json({ error: "Failed to fetch popular vendors" });
+      if (error instanceof Error) {
+        console.error("Stack trace:", error.stack);
+      }
+      res.status(500).json({ error: "Failed to fetch popular vendors", details: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -1170,7 +1187,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(availableProducts.slice(0, 20));
     } catch (error) {
       console.error("Error fetching available products:", error);
-      res.status(500).json({ error: "Failed to fetch available products" });
+      if (error instanceof Error) {
+        console.error("Stack trace:", error.stack);
+      }
+      res.status(500).json({ error: "Failed to fetch available products", details: error instanceof Error ? error.message : String(error) });
     }
   });
 
