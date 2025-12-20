@@ -27,7 +27,7 @@ export default function AvailableProductsPage() {
     document.title = "바로 구매 가능 상품 - PlantBid";
     window.scrollTo(0, 0);
     
-    const saved = localStorage.getItem('selectedLocation');
+    const saved = localStorage.getItem('searchLocation');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -52,7 +52,7 @@ export default function AvailableProductsPage() {
   const { data: products, isLoading } = useQuery<Product[]>({
     queryKey: ["/api/products/available", userLocation],
     queryFn: async () => {
-      const saved = localStorage.getItem('selectedLocation');
+      const saved = localStorage.getItem('searchLocation');
       let query = '';
       
       if (saved && saved.startsWith('{')) {

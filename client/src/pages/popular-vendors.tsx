@@ -28,7 +28,7 @@ export default function PopularVendorsPage() {
     document.title = "지역 인기 판매자 - PlantBid";
     window.scrollTo(0, 0);
     
-    const saved = localStorage.getItem('selectedLocation');
+    const saved = localStorage.getItem('searchLocation');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -53,7 +53,7 @@ export default function PopularVendorsPage() {
   const { data: vendors, isLoading } = useQuery<Vendor[]>({
     queryKey: ["/api/vendors/popular", userLocation],
     queryFn: async () => {
-      const saved = localStorage.getItem('selectedLocation');
+      const saved = localStorage.getItem('searchLocation');
       let query = '';
       
       if (saved && saved.startsWith('{')) {

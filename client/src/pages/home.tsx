@@ -93,27 +93,37 @@ export default function Home() {
   useEffect(() => {
     document.title = "PlantBid - 식물 마켓플레이스 | AI 추천 & 지역 판매자 연결";
     window.scrollTo(0, 0);
-    
-    // 홈 페이지 로드 시 항상 이전 위치 정보 삭제 (새로 감지하도록 강제)
-    localStorage.removeItem('selectedLocation');
-    
-    // 홈페이지에서는 항상 GPS로 현재 위치 감지
+
+    // 기존 저장된 위치 정보가 있으면 먼저 사용 (뒤로가기 시 즉시 표시)
+    const savedLocation = localStorage.getItem('searchLocation');
+    if (savedLocation && savedLocation.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(savedLocation);
+        if (parsed.address) {
+          setUserLocation(parsed.address);
+        }
+      } catch {
+        // 파싱 실패 시 무시
+      }
+    }
+
+    // GPS로 현재 위치 감지 (기존 위치가 있어도 새로 감지하여 업데이트)
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         async (position) => {
           try {
             const lat = position.coords.latitude;
             const lng = position.coords.longitude;
-            
+
             // 백엔드 API를 통해 역지오코딩 수행
             const response = await fetch(`/api/map/address-by-coords?lat=${lat}&lng=${lng}`);
             const data = await response.json();
-            
+
             if (data.success && data.results && data.results.length > 0) {
               const address = data.results[0].formatted_address;
               setUserLocation(address);
-              // 현재 위치를 localStorage에 저장
-              localStorage.setItem('selectedLocation', JSON.stringify({ address, lat, lng }));
+              // 현재 위치를 localStorage에 저장 (searchLocation 키 사용으로 통일)
+              localStorage.setItem('searchLocation', JSON.stringify({ address, lat, lng }));
             } else {
               setUserLocation("내 지역");
             }
@@ -124,8 +134,10 @@ export default function Home() {
         },
         (error) => {
           console.error('GPS 감지 오류:', error);
-          setUserLocation("내 지역");
-          localStorage.removeItem('selectedLocation');
+          // GPS 실패해도 기존 위치 정보 유지
+          if (!savedLocation) {
+            setUserLocation("내 지역");
+          }
         }
       );
     }

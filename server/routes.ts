@@ -1036,7 +1036,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 상품 정보 상세 출력
       console.log(`\n[전체 상품 목록]`);
       allProducts.forEach(p => {
-        console.log(`  - "${p.name}" (products.id: ${p.id}, userId: ${p.userId}, 재고: ${p.stock})`);
+        console.log(`  - "${p.name}" (products.id: ${p.id}, userId: ${p.userId}, 재고: ${p.stock}, 온라인노출: ${p.onlineStoreVisible})`);
       });
 
       let filteredVendors = allVendors;
@@ -1086,13 +1086,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`[필터링된 판매자 users.id 목록] ${filteredVendorUserIds.join(', ')}`);
 
       // 필터링된 판매자들의 상품만 수집 (products.userId와 vendors.userId로 매칭)
+      // onlineStoreVisible이 true인 상품만 표시 (판매자가 노출 설정한 상품만)
       const availableProducts = [];
       for (const product of allProducts) {
         const productUserId = product.userId;
-        // vendors 테이블의 userId로 매칭
-        if (filteredVendorUserIds.includes(productUserId)) {
+        // vendors 테이블의 userId로 매칭 + onlineStoreVisible 필터 적용
+        if (filteredVendorUserIds.includes(productUserId) && product.onlineStoreVisible === true) {
           const vendor = filteredVendors.find(v => v.userId === productUserId);
-          console.log(`  [상품 매칭 성공] "${product.name}" (ID: ${product.id}) - 판매자: ${vendor?.storeName} (vendors.id: ${vendor?.id}, users.id: ${productUserId}), 재고: ${product.stock}`);
+          console.log(`  [상품 매칭 성공] "${product.name}" (ID: ${product.id}) - 판매자: ${vendor?.storeName} (vendors.id: ${vendor?.id}, users.id: ${productUserId}), 재고: ${product.stock}, 온라인노출: ${product.onlineStoreVisible}`);
 
           availableProducts.push({
             id: product.id,
