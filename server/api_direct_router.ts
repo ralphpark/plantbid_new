@@ -104,6 +104,32 @@ export function setupApiDirectRouter(app: express.Express, storage: IStorage): R
     }
   });
 
+  // 식물 상세 정보 직접 조회 API
+  router.get('/plants/:id', async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const plantId = parseInt(id);
+
+      if (isNaN(plantId)) {
+        return res.status(StatusCodes.BAD_REQUEST).json({ error: '유효하지 않은 식물 ID입니다' });
+      }
+
+      console.log(`[Direct Router] 식물 상세 정보 조회 요청, ID: ${plantId}`);
+      const plant = await storage.getPlant(plantId);
+
+      if (!plant) {
+        console.warn(`[Direct Router] 식물을 찾을 수 없음, ID: ${plantId}`);
+        return res.status(StatusCodes.NOT_FOUND).json({ error: '식물을 찾을 수 없습니다' });
+      }
+
+      console.log(`[Direct Router] 식물 정보 반환 성공: ${plant.name}`);
+      return res.json(plant);
+    } catch (error) {
+      console.error(`[Direct Router] 식물 정보 조회 중 오류:`, error);
+      return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: '식물 정보를 가져오는데 실패했습니다', details: String(error) });
+    }
+  });
+
   // 라우터 반환
   return router;
 }
