@@ -1,9 +1,17 @@
 {
   "version": 2,
+  "functions": {
+    "api/index.ts": {
+      "includeFiles": "server/**/*"
+    }
+  },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index.ts" },
     { "source": "/api_direct/(.*)", "destination": "/api/index.ts" },
     { "source": "/__direct/(.*)", "destination": "/api/index.ts" },
+    { "source": "/mcp/supabase/postgrest", "destination": "/api/index.ts" },
+    { "source": "/mcp/supabase/admin", "destination": "/api/index.ts" },
+    { "source": "/mcp/vercel", "destination": "/api/index.ts" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

@@ -75,6 +75,20 @@
 *   **유효성 검사:** 런타임 유효성 검사에 Zod가 사용되며, 종종 Drizzle 스키마(`drizzle-zod`)에서 직접 파생됩니다.
 *   **스타일링:** Tailwind CSS가 주요 스타일링 솔루션이며, 컴포넌트 전반에 걸쳐 유틸리티 클래스가 사용됩니다.
 
+## MCP (Model-Context-Protocol) 서버 통합
+
+이 프로젝트에는 Vercel 및 Supabase와 상호 작용하기 위한 MCP 서버가 포함되어 있습니다. 이를 통해 AI 기반 개발 도구를 사용하여 배포를 관리하고 데이터베이스와 상호 작용할 수 있습니다.
+
+### MCP 환경 변수
+
+MCP 서버를 활성화하려면 다음 환경 변수를 `.env` 파일에 추가해야 합니다.
+
+*   `SUPABASE_URL`: Supabase 프로젝트의 URL입니다.
+*   `SUPABASE_SERVICE_KEY`: Supabase 프로젝트의 서비스 역할 키입니다. 관리자 수준 권한을 가집니다.
+*   `SUPABASE_ANON_KEY`: Supabase 프로젝트의 익명 키입니다. 클라이언트 측에서 안전하게 사용할 수 있습니다.
+*   `SUPABASE_SCHEMA`: (선택 사항) 사용할 데이터베이스 스키마입니다. 기본값은 `public`입니다.
+*   `VERCEL_TOKEN`: Vercel 프로젝트에 접근하기 위한 Vercel API 토큰입니다.
+
 ## 디렉토리 구조 (Directory Structure)
 
 ```

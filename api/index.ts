@@ -42,7 +42,14 @@ const allowPublicAccess = (req: Request, res: Response, next: NextFunction) => {
     '/api_direct/payments/cancel',
     '/api/site-settings',
     '/api/plants/remove-duplicates',
-    '/api/plants/upload-excel'
+    '/api/plants/upload-excel',
+    '/api/map/config',
+    '/api/map/nearby-vendors',
+    '/api/map/search-address',
+    '/api/vendors/popular',
+    '/api/plants/popular',
+    '/api/plants/search',
+    '/api/products/available'
   ];
   
   const isPublicRoute = publicRoutes.some(route => {
