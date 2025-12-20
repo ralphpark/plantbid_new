@@ -555,6 +555,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // API 직접 라우터 설정 (미들웨어 간섭 없이 API 처리)
   const apiDirectRouter = setupApiDirectRouter(app, storage);
   app.use('/api_direct', apiDirectRouter);
+  app.use('/direct', apiDirectRouter); // 프론트엔드 요청 경로(/direct) 지원 추가
 
   // 추가 공개 테스트 엔드포인트 - API_TEST로 시작하는 경로는 HTML 처리에서 확실히 피해가기 위함
   app.get('/API_TEST/payments/test-connection', (req, res) => {
