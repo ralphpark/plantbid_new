@@ -6,7 +6,7 @@ import { Express, Request, Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { IStorage } from './storage.js';
 import portoneV2Client, { PORTONE_STORE_ID } from './portone-v2-client.js';
-import { insertPaymentSchema } from '@shared/schema';
+import { insertPaymentSchema } from '../shared/schema.js';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import fs from 'fs';

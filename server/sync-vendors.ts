@@ -3,7 +3,7 @@
 
 import { db } from './db.js';
 import { eq, isNull } from 'drizzle-orm';
-import { users, vendors } from '@shared/schema';
+import { users, vendors } from '../shared/schema.js';
 import { generateRandomColor } from './utils/color-generator.js';
 
 export async function syncVendorsTable() {

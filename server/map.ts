@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { Request, Response } from 'express';
 import { db } from './db.js';
-import { storeLocations, users, products, vendors as vendorsTable } from '@shared/schema.js';
+import { storeLocations, users, products, vendors as vendorsTable } from '../shared/schema.js';
 import { eq, sql, and } from 'drizzle-orm';
 import { PORTONE_STORE_ID, PORTONE_CHANNEL_KEY } from './portone-v2-client.js';
 
