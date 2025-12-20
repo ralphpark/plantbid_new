@@ -1,6 +1,6 @@
 import { Express, Request, Response } from 'express';
 import { IStorage } from './storage.js';
-import { isNumber, isString } from 'util';
+// import { isNumber, isString } from 'util';
 import { StatusCodes } from 'http-status-codes';
 import { PortOneV2Client } from './portone-v2-client.js';
 import { preparePaymentSimple } from './portone-simple-client.js';
@@ -322,14 +322,14 @@ export function setupPortOneRoutes(app: Express, storage: IStorage) {
     // V1 API에서는 imp_uid(결제 고유번호)와 merchant_uid(주문번호)를 사용
     const { imp_uid, merchant_uid, amount } = req.query;
 
-    if (!isString(imp_uid) || !isString(merchant_uid)) {
+    if (typeof imp_uid !== 'string' || typeof merchant_uid !== 'string') {
       return res.status(StatusCodes.BAD_REQUEST).json({
         error: '필수 파라미터가 올바르지 않습니다.'
       });
     }
 
     // amount가 없으면 결제 정보에서 조회
-    const paymentAmount = isString(amount) ? amount : undefined;
+    const paymentAmount = typeof amount === 'string' ? amount : undefined;
 
     try {
       // 결제 정보 검증 (V1 API 사용)
