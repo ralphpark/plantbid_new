@@ -6,13 +6,22 @@ import { v4 as uuidv4 } from 'uuid';
 import { createClient } from '@supabase/supabase-js';
 
 // Supabase 클라이언트 설정
-const supabaseUrl = process.env.SUPABASE_URL || process.env.SUPABASE_DB_URL?.split('@')[1]?.split('/')[0] ? `https://${process.env.SUPABASE_DB_URL?.split('@')[1]?.split('/')[0]}` : '';
-// 환경변수에서 URL이 없으면 예외 처리가 필요할 수 있으나, 일단 기존 .env를 신뢰
 // 주의: SUPABASE_URL과 SUPABASE_SERVICE_KEY가 .env에 있어야 합니다.
-// 없는 경우 실행 시 에러가 나지 않도록 체크
+// 없는 경우 실행 시 에러가 나지 않도록 체크 (Lazy Initialization / Safe Fail)
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || '';
+const supabaseUrl = process.env.SUPABASE_URL || (process.env.SUPABASE_DB_URL?.split('@')[1]?.split('/')[0] ? `https://${process.env.SUPABASE_DB_URL?.split('@')[1]?.split('/')[0]}` : '');
 
-const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
+let supabase: ReturnType<typeof createClient> | null = null;
+
+if (supabaseUrl && supabaseServiceKey) {
+  try {
+    supabase = createClient(supabaseUrl, supabaseServiceKey);
+  } catch (error) {
+    console.warn('Supabase Client 초기화 실패:', error);
+  }
+} else {
+  console.warn('Supabase 환경 변수가 설정되지 않아 스토리지 기능을 사용할 수 없습니다.');
+}
 
 const BUCKET_NAME = 'uploads';
 
@@ -56,6 +65,10 @@ export async function uploadImage(req: Request, res: Response) {
       }
 
       try {
+        if (!supabase) {
+          throw new Error('Supabase client is not initialized. Check environment variables.');
+        }
+
         // Supabase Storage에 업로드
         const uploadPromises = (req.files as Express.Multer.File[]).map(async (file) => {
           const fileExt = path.extname(file.originalname);
