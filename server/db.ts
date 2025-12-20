@@ -15,6 +15,9 @@ if (!connectionString) {
 
 export const pool = new Pool({
   connectionString: connectionString || "postgres://dummy:dummy@localhost:5432/dummy",
+  max: 1, // Vercel 서버리스 환경에서 연결 수 제한 (MaxClientsInSessionMode 에러 방지)
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
   ssl: {
     rejectUnauthorized: false
   }
