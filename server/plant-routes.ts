@@ -632,4 +632,30 @@ export function setupPlantRoutes(app: Express, storage: IStorage) {
       res.status(500).json({ error: '답변 생성 중 오류가 발생했습니다. 다시 시도해주세요.' });
     }
   });
+
+  // 개별 식물 조회 API (공개)
+  app.get("/api/plants/:id", async (req, res, next) => {
+    try {
+      // "ask", "search", "popular" 등 고정 경로는 제외
+      const idStr = req.params.id;
+      if (['ask', 'search', 'popular', 'remove-duplicates', 'upload-excel', 'fill-missing-info', 'translate-all-fields'].includes(idStr)) {
+        return next();
+      }
+
+      const id = parseInt(idStr);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "유효하지 않은 식물 ID입니다" });
+      }
+
+      const plant = await storage.getPlant(id);
+      if (!plant) {
+        return res.status(404).json({ error: "식물을 찾을 수 없습니다" });
+      }
+
+      res.json(plant);
+    } catch (error) {
+      console.error("식물 조회 오류:", error);
+      res.status(500).json({ error: "식물 조회 중 오류가 발생했습니다" });
+    }
+  });
 }
