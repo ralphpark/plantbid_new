@@ -15,10 +15,10 @@ export async function cancelPaymentWithRetry(
   res: Response
 ) {
   try {
-    const { convertToV2PaymentId } = await import('./portone-v2-client');
-    const { smartCancelPayment } = await import('./portone-payment-finder');
+    const { convertToV2PaymentId } = await import('./portone-v2-client.js');
+    const { smartCancelPayment } = await import('./portone-payment-finder.js');
     // 포트원 V2 클라이언트 가져오기
-    const portoneV2Client = await import('./portone-v2-client');
+    const portoneV2Client = await import('./portone-v2-client.js');
     const portoneClient = portoneV2Client.default;
 
     if (!payment.paymentKey) {
