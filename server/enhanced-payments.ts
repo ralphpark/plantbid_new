@@ -108,8 +108,14 @@ export async function cancelPaymentWithRetry(
         console.log(`[결제 취소 API] 시도 ${attempts} - 포트원 결제 취소 성공. 응답:`, JSON.stringify(response, null, 2));
         break;
       } catch (retryError: any) {
-        lastError = retryError; // 오류 캡처
+        lastError = retryError; // 오류 캡처 (덮어쓰지 않고 보존)
         console.error(`[결제 취소 API] 시도 ${attempts} - 실패:`, retryError?.message || retryError);
+
+        // 401 Unauthorized 에러면 즉시 중단 (키가 틀린 것이므로 재시도 불필요)
+        if (retryError?.response?.status === 401) {
+          console.error('[결제 취소 API] 401 인증 오류 감지. 재시도 중단.');
+          break;
+        }
 
         // 마지막 시도가 아니면 재시도
         if (attempts < maxAttempts) {
@@ -119,8 +125,10 @@ export async function cancelPaymentWithRetry(
       }
     }
 
-    // 최종 대안: 스마트 취소 유틸 사용 시도
-    if (!portoneCallSuccess) {
+    // 1차 시도가 실패했고, 401 에러가 아니라면 스마트 취소 유틸 시도
+    let smartCancelError: any = null;
+
+    if (!portoneCallSuccess && lastError?.response?.status !== 401) {
       console.log('[결제 취소 API] 모든 재시도 실패. 스마트 취소 유틸을 사용하여 최종 시도 진행');
       try {
         const smartResult = await smartCancelPayment(portonePaymentId, reason || '고객 요청에 의한 취소');
@@ -129,10 +137,11 @@ export async function cancelPaymentWithRetry(
           response = smartResult.data;
           console.log('[결제 취소 API] 스마트 취소 유틸을 통한 취소 성공');
         } else {
-          lastError = smartResult.error ? { message: smartResult.error } : lastError;
+          smartCancelError = smartResult.error; // 스마트 취소 에러 별도 저장
           console.error('[결제 취소 API] 스마트 취소 유틸 실패:', smartResult.error);
         }
       } catch (smartError: any) {
+        smartCancelError = smartError?.message || smartError;
         console.error('[결제 취소 API] 스마트 취소 유틸 시도 중 오류:', smartError?.message || smartError);
       }
     }
@@ -165,14 +174,31 @@ export async function cancelPaymentWithRetry(
     } else {
       // 실패 시 상태 변경 없이 오류 반환
       console.warn('[결제 취소 API] 모든 취소 시도 실패. 데이터베이스 상태는 변경하지 않습니다.');
+      console.warn('[결제 취소 API] 최종 오류 상태:', {
+        initialError: lastError?.message,
+        smartCancelError: smartCancelError
+      });
 
-      // 상세 오류 정보 구성
-      const errorDetails = lastError?.response?.data || lastError?.message || '알 수 없는 오류';
+      // 상세 오류 정보 구성 (두 가지 에러 모두 포함)
+      const errorDetails = {
+        initialAttempt: {
+          message: lastError?.message,
+          status: lastError?.response?.status,
+          data: lastError?.response?.data
+        },
+        smartCancelAttempt: {
+          error: smartCancelError
+        }
+      };
+
       const statusCode = lastError?.response?.status || 502;
+      const finalMessage = lastError?.response?.status === 401
+        ? '포트원 API 인증에 실패했습니다. API 키를 확인해주세요.'
+        : '포트원 결제 취소 요청이 실패했습니다.';
 
       return res.status(statusCode).json({
         success: false,
-        message: '포트원 결제 취소 요청이 실패했습니다.',
+        message: finalMessage,
         portoneCallSuccess: false,
         error: lastError?.message || '포트원 API 취소 실패',
         details: errorDetails,
