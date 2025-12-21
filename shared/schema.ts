@@ -191,7 +191,7 @@ export const storeLocations = pgTable("store_locations", {
 export const payments = pgTable("payments", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull().references(() => users.id), // 사용자 ID
-  bidId: integer("bid_id").notNull().references(() => bids.id), // 입찰 ID
+  bidId: integer("bid_id").references(() => bids.id), // 입찰 ID (바로구매 시 null 가능)
   amount: numeric("amount", { precision: 10, scale: 2 }).notNull(), // 결제 금액
   status: text("status").notNull().default("ready"), // 'ready', 'pending', 'success', 'fail', 'cancel', 'CANCELLED'
   paymentKey: text("payment_key"), // 결제 키 (UUID 형식)

@@ -277,11 +277,14 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
         receipt: response.data
       });
 
-      // 입찰 상태 업데이트
-      const bid = await storage.updateBid(payment.bidId, {
-        status: 'completed', // 상태 코드 일관성 유지
-        paymentId: payment.id
-      });
+      // 입찰 상태 업데이트 (바로구매가 아닌 경우에만)
+      let bid;
+      if (payment.bidId) {
+        bid = await storage.updateBid(payment.bidId, {
+          status: 'completed', // 상태 코드 일관성 유지
+          paymentId: payment.id
+        });
+      }
 
       // 응답
       res.json({
@@ -1324,16 +1327,18 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
         receipt: req.body
       });
 
-      // 입찰 상태 업데이트 (결제 성공 시)
-      if (status === 'DONE') {
-        await storage.updateBid(payment.bidId, {
-          status: 'paid',
-          paymentId: payment.id
-        });
-      } else if (status === 'CANCELED') {
-        await storage.updateBid(payment.bidId, {
-          status: 'bidded' // 입찰 상태로 복귀
-        });
+      // 입찰 상태 업데이트 (결제 성공 시, 바로구매가 아닌 경우에만)
+      if (payment.bidId) {
+        if (status === 'DONE') {
+          await storage.updateBid(payment.bidId, {
+            status: 'paid',
+            paymentId: payment.id
+          });
+        } else if (status === 'CANCELED') {
+          await storage.updateBid(payment.bidId, {
+            status: 'bidded' // 입찰 상태로 복귀
+          });
+        }
       }
 
       // 응답
