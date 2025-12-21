@@ -18,8 +18,20 @@ export async function cancelPaymentWithRetry(
     const { convertToV2PaymentId } = await import('./portone-v2-client.js');
     const { smartCancelPayment } = await import('./portone-payment-finder.js');
     // 포트원 V2 클라이언트 가져오기
-    const portoneV2Client = await import('./portone-v2-client.js');
-    const portoneClient = portoneV2Client.default;
+    // 포트원 V2 클라이언트 가져오기
+    const portoneV2Module = await import('./portone-v2-client.js');
+    const PortOneV2Client = portoneV2Module.PortOneV2Client;
+
+    // 환경 변수에서 시크릿 키 직접 조회 (함수 실행 시점의 최신 값 사용)
+    const apiSecret = process.env.PORTONE_SECRET_KEY || process.env.PORTONE_API_SECRET || process.env.PORTONE_V2_API_SECRET;
+
+    if (!apiSecret) {
+      console.error('[결제 취소 API] 치명적 오류: 포트원 API Secret Key가 설정되지 않았습니다.');
+      throw new Error('서버 설정 오류: 포트원 API Secret Key가 누락되었습니다.');
+    }
+
+    // 새 인스턴스 생성 (명시적 시크릿 사용)
+    const portoneClient = new PortOneV2Client(apiSecret);
 
     if (!payment.paymentKey) {
       throw new Error('취소할 결제 키가 없습니다.');
