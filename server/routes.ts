@@ -60,7 +60,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       '/api/vendors/popular',
       '/api/plants/popular',
       '/api/plants/search',
-      '/api/products/available'
+      '/api/products/available',
+      '/api/google-images'
     ];
 
     const isPublicRoute = publicRoutes.some(route => {

@@ -30,7 +30,7 @@ export async function handleGoogleImageSearch(req: Request, res: Response) {
 
     // 검색어 가져오기 - 문자열로 타입 캐스팅
     const query = req.query.query as string;
-    
+
     if (!query) {
       return res.status(400).json({ error: ERROR_MISSING_QUERY });
     }
@@ -40,7 +40,7 @@ export async function handleGoogleImageSearch(req: Request, res: Response) {
     const decodedQuery = decodeURIComponent(query);
     const searchQuery = `${decodedQuery} 식물`; // 식물 키워드 추가
     console.log(`구글 이미지 검색 실행: "${searchQuery}"`);
-    
+
     // 구글 커스텀 검색 API 호출
     // 참고: Custom Search API는 Google 웹 검색과 다른 결과를 반환할 수 있음
     // - 웹 검색: 개인화, 실시간 트렌드, 사용자 히스토리 반영
@@ -57,16 +57,24 @@ export async function handleGoogleImageSearch(req: Request, res: Response) {
       hl: 'ko' // 한국어 인터페이스
     };
 
-    console.log('구글 API 요청 URL:', `https://www.googleapis.com/customsearch/v1?key=${GOOGLE_API_KEY.substring(0, 5)}...&cx=${GOOGLE_CSE_ID.substring(0, 5)}...&q=${encodeURIComponent(searchQuery)}&searchType=image&num=8`);
-    
-    const response = await axios.get('https://www.googleapis.com/customsearch/v1', { params: searchParams });
-    
+    console.log('구글 API 요청 URL:', `https://www.googleapis.com/customsearch/v1?key=${GOOGLE_API_KEY.substring(0, 5)}...&cx=${GOOGLE_CSE_ID.substring(0, 5)}...&q=${encodeURIComponent(searchQuery)}&searchType=image&num=10`);
+
+    // API 키에 리퍼러 제한이 걸려있을 경우를 대비해 헤더 설정
+    const referer = req.protocol + '://' + req.get('host');
+
+    const response = await axios.get('https://www.googleapis.com/customsearch/v1', {
+      params: searchParams,
+      headers: {
+        'Referer': referer
+      }
+    });
+
     // 검색 결과가 없는 경우 처리
     if (!response.data.items || response.data.items.length === 0) {
       console.log('구글 검색 결과가 없습니다:', searchQuery);
-      return res.json({ 
+      return res.json({
         query: searchQuery,
-        images: [] 
+        images: []
       });
     }
 
@@ -80,13 +88,13 @@ export async function handleGoogleImageSearch(req: Request, res: Response) {
     }));
 
     console.log(`구글 이미지 검색 결과: ${imageResults.length}개 발견`);
-    
+
     // 결과 반환
     res.json({
       query: searchQuery,
       images: imageResults
     });
-    
+
   } catch (error: any) {
     console.error('구글 이미지 검색 오류:', error.message);
     // 상세 오류 정보 기록
@@ -96,8 +104,8 @@ export async function handleGoogleImageSearch(req: Request, res: Response) {
         data: error.response.data
       });
     }
-    
-    res.status(500).json({ 
+
+    res.status(500).json({
       error: '이미지 검색 중 오류가 발생했습니다.',
       details: error.message
     });
