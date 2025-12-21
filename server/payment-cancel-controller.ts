@@ -1,10 +1,5 @@
-/**
- * 결제 취소 컨트롤러
- * 포트원 V2 API를 사용한 결제 취소 처리 로직
- */
 import { Request, Response } from 'express';
 import { storage } from './storage.js';
-import { smartCancelPayment } from './portone-payment-finder.js';
 
 /**
  * 결제 취소 요청 처리
@@ -22,9 +17,8 @@ export async function handleCancelPayment(req: Request, res: Response) {
   }
 
   try {
-    console.log(`\n===== 결제 취소 요청 처리 =====`);
+    console.log(`\n===== 결제 취소 요청 처리 (Enhanced Controller) =====`);
     console.log(`주문 ID: ${orderId}`);
-    console.log(`취소 사유: ${reason || '고객 요청에 의한 취소'}`);
 
     // 1. 주문 ID로 결제 정보 조회
     const payment = await storage.getPaymentByOrderId(orderId);
@@ -55,113 +49,21 @@ export async function handleCancelPayment(req: Request, res: Response) {
       });
     }
 
-    // 3. 스마트 결제 취소 함수 사용 - 다양한 ID 형식 시도
-    console.log(`[결제 취소] 스마트 결제 취소 시도:`);
-    console.log(`- 결제 키: ${payment.paymentKey}`);
-    console.log(`- 주문 ID: ${payment.orderId}`);
-    console.log(`- 상점 ID: ${payment.merchantId || 'MOI3204387'}`);
+    // 3. 개선된 결제 취소 함수 호출 (재시도 및 상세 에러 처리 포함)
+    // 동적 import로 순환 의존성 방지 및 최신 모듈 사용
+    const { cancelPaymentWithRetry } = await import('./enhanced-payments.js');
 
-    // 3.1 paymentKey로 시도
-    console.log(`[결제 취소] paymentKey로 취소 시도: ${payment.paymentKey}`);
-    const cancelResultByKey = await smartCancelPayment(
-      payment.paymentKey,
-      reason || '고객 요청에 의한 취소'
-    );
+    // cancelPaymentWithRetry가 응답 처리까지 담당함
+    return cancelPaymentWithRetry(payment, orderId, reason, storage, res);
 
-    // 3.2 성공했으면 결과 반환
-    if (cancelResultByKey.success) {
-      console.log(`[결제 취소] paymentKey로 취소 성공`);
-      const updatedPayment = await storage.updatePayment(payment.id, {
-        status: 'CANCELLED',
-        cancelReason: reason || '고객 요청에 의한 취소',
-        cancelledAt: new Date()
-      });
-
-      // 주문 상태 업데이트
-      const order = await storage.getOrderByOrderId(orderId);
-      if (order) {
-        await storage.updateOrderStatus(order.id, 'cancelled');
-      }
-
-      return res.status(200).json({
-        success: true,
-        message: '결제가 성공적으로 취소되었습니다.',
-        payment: updatedPayment,
-        details: {
-          usedPaymentId: cancelResultByKey.usedPaymentId
-        }
-      });
-    }
-
-    // 3.3 paymentKey로 실패한 경우 orderId로 시도
-    console.log(`[결제 취소] paymentKey 취소 실패, orderId로 시도: ${payment.orderId}`);
-    if (payment.orderId) {
-      const cancelResultByOrder = await smartCancelPayment(
-        payment.orderId,
-        reason || '고객 요청에 의한 취소'
-      );
-
-      if (cancelResultByOrder.success) {
-        console.log(`[결제 취소] orderId로 취소 성공`);
-        const updatedPayment = await storage.updatePayment(payment.id, {
-          status: 'CANCELLED',
-          cancelReason: reason || '고객 요청에 의한 취소',
-          cancelledAt: new Date()
-        });
-
-        // 주문 상태 업데이트
-        const order = await storage.getOrderByOrderId(orderId);
-        if (order) {
-          await storage.updateOrderStatus(order.id, 'cancelled');
-        }
-
-        return res.status(200).json({
-          success: true,
-          message: '결제가 성공적으로 취소되었습니다.',
-          payment: updatedPayment,
-          details: {
-            usedPaymentId: cancelResultByOrder.usedPaymentId
-          }
-        });
-      }
-
-      // 두 방법 모두 실패한 경우 - DB만 업데이트 (fallback)
-      console.warn('[결제 취소] 포트원 API에서 결제를 찾을 수 없음. DB만 업데이트합니다.');
-      console.log('[결제 취소 Fallback] 결제 및 주문 상태를 취소로 변경');
-
-      // DB에서 결제 및 주문 상태만 업데이트
-      const updatedPayment = await storage.updatePaymentStatus(payment.id, 'CANCELLED', '포트원 API에서 결제를 찾을 수 없어 수동 취소');
-
-      const order = await storage.getOrderByOrderId(orderId);
-      if (order) {
-        await storage.updateOrderStatus(order.id, 'cancelled');
-      }
-
-      return res.status(200).json({
-        success: true,
-        message: '결제가 취소 상태로 업데이트되었습니다. (PG 취소는 수동 처리 필요)',
-        apiCallSuccess: false, // PG 취소는 실패했지만 DB는 업데이트됨
-        payment: updatedPayment,
-        warning: '포트원 API에서 결제를 찾을 수 없어 DB만 업데이트되었습니다. PG사에 직접 취소 요청이 필요할 수 있습니다.',
-        details: {
-          keyError: cancelResultByKey.error,
-          orderError: cancelResultByOrder.error
-        }
-      });
-    } else {
-      // orderId가 없는 경우
-      console.error('[결제 취소] 취소 실패:', cancelResultByKey.error);
-      return res.status(500).json({
-        success: false,
-        error: `결제 취소 실패: ${cancelResultByKey.error}`,
-        details: cancelResultByKey.error
-      });
-    }
   } catch (error: any) {
     console.error('[결제 취소] 오류 발생:', error.message || error);
-    return res.status(500).json({
-      success: false,
-      error: `결제 취소 처리 중 오류가 발생했습니다: ${error.message || 'Unknown error'}`
-    });
+    // 이미 응답이 전송되었는지 확인
+    if (!res.headersSent) {
+      return res.status(500).json({
+        success: false,
+        error: `결제 취소 처리 중 오류가 발생했습니다: ${error.message || 'Unknown error'}`
+      });
+    }
   }
 }
