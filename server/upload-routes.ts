@@ -48,16 +48,21 @@ const router = express.Router();
 router.post('/image', (req, res) => {
   upload.array('images', 5)(req, res, (err) => {
     if (err) {
+      console.error("[Upload Error]", err);
       if (err.code === 'LIMIT_FILE_SIZE') {
         return res.status(400).json({ error: '파일 크기는 5MB를 초과할 수 없습니다.' });
       }
       return res.status(400).json({ error: err.message });
     }
-    
+
+    console.log("[Upload Request] Files:", req.files);
+    console.log("[Upload Request] Body:", req.body);
+
     if (!req.files || !Array.isArray(req.files) || req.files.length === 0) {
+      console.error("[Upload Error] No files provided or invalid format");
       return res.status(400).json({ error: '파일이 제공되지 않았습니다.' });
     }
-    
+
     // 모든 파일의 URL 생성
     const fileUrls = req.files.map((file) => {
       return {
@@ -67,7 +72,7 @@ router.post('/image', (req, res) => {
         size: file.size
       };
     });
-    
+
     // 성공 응답
     res.status(200).json({
       success: true,
@@ -81,12 +86,12 @@ router.post('/image', (req, res) => {
 router.get('/:filename', (req, res) => {
   const { filename } = req.params;
   const filePath = path.join(uploadDir, filename);
-  
+
   // 파일 존재 여부 확인
   if (!fs.existsSync(filePath)) {
     return res.status(404).json({ error: '파일을 찾을 수 없습니다.' });
   }
-  
+
   // 파일 전송
   res.sendFile(filePath);
 });

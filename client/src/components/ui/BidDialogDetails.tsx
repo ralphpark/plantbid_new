@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Label } from "@/components/ui/label"; 
+import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from "@/components/ui/select";
@@ -40,16 +40,16 @@ export function BidDetailsSidebar({
   const [selectedProducts, setSelectedProducts] = useState<any[]>(() => {
     // 기존 선택된 상품들 배열
     const existingProducts = bid?.selectedProducts || [];
-    
+
     // bid.selectedProduct가 있고 아직 포함되지 않았다면 추가
-    if (bid?.selectedProduct && 
-        !existingProducts.some((p: any) => p.id === bid.selectedProduct.id)) {
+    if (bid?.selectedProduct &&
+      !existingProducts.some((p: any) => p.id === bid.selectedProduct.id)) {
       return [...existingProducts, bid.selectedProduct];
     }
-    
+
     return existingProducts;
   });
-  
+
   // 선택된 상품 ID (단일)
   const [selectedProduct, setSelectedProduct] = useState<string>(() => {
     // selectedProductId가 있으면 그 값 사용
@@ -74,15 +74,15 @@ export function BidDetailsSidebar({
 
   const handleAddProduct = () => {
     if (!selectedProduct) return;
-    
+
     const product = products.find(p => p.id.toString() === selectedProduct);
     if (!product) return;
-    
+
     // 이미 추가된 제품인지 확인
     const existingProductIndex = selectedProducts.findIndex(
       p => p.id.toString() === selectedProduct
     );
-    
+
     if (existingProductIndex >= 0) {
       // 이미 추가된 제품의 수량 증가
       const updatedProducts = [...selectedProducts];
@@ -100,7 +100,7 @@ export function BidDetailsSidebar({
         }
       ]);
     }
-    
+
     // 총 금액 업데이트
     const newTotal = selectedProducts.reduce(
       (total, item) => total + (Number(item.price) * item.quantity),
@@ -112,10 +112,10 @@ export function BidDetailsSidebar({
   const handleRemoveProduct = (index: number) => {
     const updatedProducts = [...selectedProducts];
     const removedItem = updatedProducts[index];
-    
+
     updatedProducts.splice(index, 1);
     setSelectedProducts(updatedProducts);
-    
+
     // 총 금액 업데이트
     const newTotal = updatedProducts.reduce(
       (total, item) => total + (Number(item.price) * item.quantity),
@@ -126,11 +126,11 @@ export function BidDetailsSidebar({
 
   const handleQuantityChange = (index: number, newQuantity: number) => {
     if (newQuantity < 1) return;
-    
+
     const updatedProducts = [...selectedProducts];
     updatedProducts[index].quantity = newQuantity;
     setSelectedProducts(updatedProducts);
-    
+
     // 총 금액 업데이트
     const newTotal = updatedProducts.reduce(
       (total, item) => total + (Number(item.price) * item.quantity),
@@ -148,17 +148,17 @@ export function BidDetailsSidebar({
       fileInputRef.current.dataset.index = index.toString();
     }
   };
-  
+
   // 이미지 업로드 처리
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    
+
     const indexStr = e.target.dataset.index;
     const index = indexStr ? parseInt(indexStr) : 0;
-    
+
     if (index < 0 || index >= 5) return;
-    
+
     const file = files[0];
     if (!file.type.startsWith('image/')) {
       toast({
@@ -168,34 +168,34 @@ export function BidDetailsSidebar({
       });
       return;
     }
-    
+
     try {
       setUploading(true);
-      
-      // FormData 생성
+
+      // FormData 생성 (서버에서 'images' 필드를 기대함)
       const formData = new FormData();
-      formData.append('image', file);
-      
+      formData.append('images', file);
+
       // 이미지 업로드 API 호출
       const response = await fetch('/api/uploads/image', {
         method: 'POST',
         body: formData
       });
-      
-      if (!response.ok) throw new Error("이미지 업로드에 실패했습니다");
-      
-      const data = await response.json();
-      
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) throw new Error(data.error || "이미지 업로드에 실패했습니다");
+
       // 새 이미지 URL을 상태에 추가
       const newImages = [...referenceImages];
       newImages[index] = data.imageUrl;
       setReferenceImages(newImages);
-      
+
       toast({
         title: "이미지 업로드 성공",
         description: "참조 이미지가 추가되었습니다."
       });
-      
+
     } catch (error) {
       console.error("이미지 업로드 오류:", error);
       toast({
@@ -205,14 +205,14 @@ export function BidDetailsSidebar({
       });
     } finally {
       setUploading(false);
-      
+
       // 파일 입력 초기화 (같은 파일 재선택 가능하도록)
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
     }
   };
-  
+
   // 이미지 삭제 처리
   const handleRemoveImage = (index: number) => {
     const newImages = [...referenceImages];
@@ -242,7 +242,7 @@ export function BidDetailsSidebar({
       referenceImages: cleanedImages,
       status: "bidded"
     });
-    
+
     // 다이얼로그 닫기
     onClose();
   };
@@ -253,7 +253,7 @@ export function BidDetailsSidebar({
   };
 
   const totalPrice = selectedProducts.reduce(
-    (total, item) => total + (Number(item.price) * item.quantity), 
+    (total, item) => total + (Number(item.price) * item.quantity),
     0
   );
 
@@ -282,12 +282,12 @@ export function BidDetailsSidebar({
                   <div className="grid grid-cols-[100px_1fr] gap-x-3 gap-y-2">
                     <div className="text-sm font-medium">이름:</div>
                     <div className="text-sm">{bid.user?.name || "이름 정보 없음"}</div>
-                    
+
                     <div className="text-sm font-medium">연락처:</div>
                     <div className="text-sm">
                       {bid.user?.phone ? formatPhoneNumber(bid.user.phone) : "연락처 정보 없음"}
                     </div>
-                    
+
                     <div className="text-sm font-medium">위치:</div>
                     <div className="text-sm">
                       {bid.customer?.address || "위치 정보 없음"}
@@ -308,10 +308,10 @@ export function BidDetailsSidebar({
                   <div className="grid grid-cols-[100px_1fr] gap-x-3 gap-y-2">
                     <div className="text-sm font-medium">식물:</div>
                     <div className="text-sm">{bid.plant?.name || "식물 정보 없음"}</div>
-                    
+
                     <div className="text-sm font-medium">요청 사항:</div>
                     <div className="text-sm">{bid.vendorMessage || "요청 사항 없음"}</div>
-                    
+
                     <div className="text-sm font-medium">작성일:</div>
                     <div className="text-sm">
                       {bid.createdAt
@@ -331,14 +331,14 @@ export function BidDetailsSidebar({
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ConversationView 
-                    conversationId={bid.conversationId} 
-                    user={{ name: "판매자", role: "vendor" }} 
+                  <ConversationView
+                    conversationId={bid.conversationId}
+                    user={{ name: "판매자", role: "vendor" }}
                     className="h-[200px]"
                   />
                 </CardContent>
               </Card>
-              
+
               {/* 입찰 내용 입력 */}
               <Card className="md:col-span-2">
                 <CardHeader className="pb-2">
@@ -352,8 +352,8 @@ export function BidDetailsSidebar({
                   <div className="space-y-2">
                     <Label htmlFor="product-select">상품 선택</Label>
                     <div className="flex space-x-2">
-                      <Select 
-                        value={selectedProduct} 
+                      <Select
+                        value={selectedProduct}
                         onValueChange={setSelectedProduct}
                       >
                         <SelectTrigger id="product-select" className="flex-1">
@@ -367,9 +367,9 @@ export function BidDetailsSidebar({
                           ))}
                         </SelectContent>
                       </Select>
-                      <Button 
-                        type="button" 
-                        variant="outline" 
+                      <Button
+                        type="button"
+                        variant="outline"
                         onClick={handleAddProduct}
                         disabled={!selectedProduct}
                       >
@@ -446,21 +446,21 @@ export function BidDetailsSidebar({
                     <Label>참조 이미지 (최대 5장)</Label>
                     <div className="grid grid-cols-5 gap-2 p-2 border rounded-md">
                       {Array(5).fill(0).map((_, index) => (
-                        <div 
-                          key={index} 
+                        <div
+                          key={index}
                           className="aspect-square bg-muted rounded-md flex flex-col items-center justify-center border border-dashed relative overflow-hidden group"
                           onClick={() => !uploading && handleImageSelection(index)}
                         >
                           {referenceImages[index] ? (
                             <>
-                              <img 
-                                src={referenceImages[index]} 
-                                alt={`참조 이미지 ${index + 1}`} 
+                              <img
+                                src={referenceImages[index]}
+                                alt={`참조 이미지 ${index + 1}`}
                                 className="w-full h-full object-cover"
                               />
                               <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                                <Button 
-                                  variant="destructive" 
+                                <Button
+                                  variant="destructive"
                                   size="sm"
                                   className="h-8 w-8 p-0"
                                   onClick={(e) => {
@@ -484,7 +484,7 @@ export function BidDetailsSidebar({
                       ))}
                     </div>
                     <p className="text-xs text-muted-foreground">* 이미지를 클릭하여 업로드하세요. 각 이미지는 최대 5MB 크기까지 가능합니다.</p>
-                    
+
                     {/* 숨겨진 파일 입력 */}
                     <input
                       type="file"

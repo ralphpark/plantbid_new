@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Label } from "@/components/ui/label"; 
+import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from "@/components/ui/select";
@@ -29,16 +29,16 @@ export function BidDetailsSidePanel({
   const [selectedProducts, setSelectedProducts] = useState<any[]>(() => {
     // 기존 선택된 상품들 배열
     const existingProducts = bid?.selectedProducts || [];
-    
+
     // bid.selectedProduct가 있고 아직 포함되지 않았다면 추가
-    if (bid?.selectedProduct && 
-        !existingProducts.some((p: any) => p.id === bid.selectedProduct.id)) {
+    if (bid?.selectedProduct &&
+      !existingProducts.some((p: any) => p.id === bid.selectedProduct.id)) {
       return [...existingProducts, bid.selectedProduct];
     }
-    
+
     return existingProducts;
   });
-  
+
   // 선택된 상품 ID (단일)
   const [selectedProduct, setSelectedProduct] = useState<string>(() => {
     // selectedProductId가 있으면 그 값 사용
@@ -59,12 +59,12 @@ export function BidDetailsSidePanel({
   const [status, setStatus] = useState(bid?.status || "pending");
   const [conversationData, setConversationData] = useState<any>(null); // 대화 정보 추가
   const { toast } = useToast();
-  
+
   // 입찰 정보 로드 및 상태 업데이트
   useEffect(() => {
     const loadBidDetails = async () => {
       if (!bid || !bid.id) return;
-      
+
       setLoading(true);
       try {
         // 입찰 상세 정보 가져오기
@@ -72,26 +72,26 @@ export function BidDetailsSidePanel({
         if (response.ok) {
           const bidDetails = await response.json();
           console.log("[BidDetailsSidePanel] 입찰 상세 정보 로드:", bidDetails);
-          
+
           // 입찰 기본 정보 설정
           setPrice(bidDetails.price?.toString() || "");
           setBidMessage(bidDetails.vendorMessage || "");
-          
+
           // 상태 업데이트 (중요: 이 부분이 누락되면 UI가 업데이트되지 않음)
           setStatus(bidDetails.status || "pending");
-          
+
           // 선택한 상품 업데이트
           if (bidDetails.selectedProducts && Array.isArray(bidDetails.selectedProducts)) {
             setSelectedProducts(bidDetails.selectedProducts);
           } else if (bidDetails.selectedProductIds && Array.isArray(bidDetails.selectedProductIds)) {
             // 선택된 상품 ID로 상품 정보 불러오기
-            const selectedProds = products.filter(p => 
-              bidDetails.selectedProductIds.includes(p.id.toString()) || 
+            const selectedProds = products.filter(p =>
+              bidDetails.selectedProductIds.includes(p.id.toString()) ||
               bidDetails.selectedProductIds.includes(p.id)
             );
             setSelectedProducts(selectedProds);
           }
-          
+
           // 식물 정보 불러오기
           if (bidDetails.plantId) {
             try {
@@ -104,7 +104,7 @@ export function BidDetailsSidePanel({
               console.error("식물 정보 로드 오류:", error);
             }
           }
-          
+
           // 대화 정보 불러오기 (요청사항, 리본요청, 배송시간 포함)
           if (bidDetails.conversationId) {
             try {
@@ -130,10 +130,10 @@ export function BidDetailsSidePanel({
         setLoading(false);
       }
     };
-    
+
     loadBidDetails();
   }, [bid?.id, bid?.status, bid?.conversationId, products, toast]); // bid.status, conversationId 변경 시에도 다시 로드
-  
+
   // 전화번호 형식 변환 (010-1234-5678)
   function formatPhoneNumber(phone: string): string {
     if (!phone) return "";
@@ -141,32 +141,32 @@ export function BidDetailsSidePanel({
       .replace(/[^0-9]/g, "")
       .replace(/(\d{3})(\d{4})(\d{4})/, "$1-$2-$3");
   }
-  
+
   // 제품 추가 처리
   const handleAddProduct = async () => {
     // 이미 선택된 제품 중복 확인
     if (selectedProduct && !selectedProducts.some(p => p.id === selectedProduct)) {
       const productToAdd = products.find(p => p.id.toString() === selectedProduct);
-      
+
       if (productToAdd) {
         const newProducts = [...selectedProducts, productToAdd];
         setSelectedProducts(newProducts);
-        
+
         // 상품 추가 시 자동으로 상태를 "검토중"으로 변경
         const newStatus = 'reviewing';
         setStatus(newStatus);
-        
+
         // 서버에 상태 변경 사항 저장 (bid 상태 및 선택된 제품 저장)
         try {
           const productIds = newProducts.map(p => p.id);
-          
+
           // 서버에 입찰 상태와 선택된 제품 저장
           await onUpdateBid(bid.id.toString(), {
             status: newStatus,
             selectedProducts: newProducts,
             selectedProductIds: productIds
           }, false);
-          
+
           // 대화 메시지 추가 (대화가 있는 경우에만)
           if (bid.conversationId) {
             // 판매자 정보 조회
@@ -174,12 +174,12 @@ export function BidDetailsSidePanel({
             const vendorResponse = await fetch(`/api/vendors/${bid.vendorId}`);
             if (vendorResponse.ok) {
               vendorInfo = await vendorResponse.json();
-              
+
               // vendorColor 처리
-              const vendorColorValue = typeof vendorInfo?.color === 'object' 
+              const vendorColorValue = typeof vendorInfo?.color === 'object'
                 ? vendorInfo?.color?.bg || "bg-slate-50"
                 : vendorInfo?.color || "bg-slate-50";
-              
+
               // 상품 추가 메시지 생성
               const reviewMessage = {
                 role: "vendor",
@@ -191,7 +191,7 @@ export function BidDetailsSidePanel({
                 vendorColor: vendorColorValue,
                 storeName: vendorInfo?.storeName || "식물 가게",
               };
-              
+
               // 메시지 전송
               const messageResponse = await fetch(`/api/conversations/${bid.conversationId}/messages`, {
                 method: 'POST',
@@ -199,17 +199,17 @@ export function BidDetailsSidePanel({
                 body: JSON.stringify(reviewMessage),
                 credentials: 'include'
               });
-              
+
               if (messageResponse.ok) {
                 // 대화 창 새로고침 이벤트 발생
-                const event = new CustomEvent('message-sent', { 
+                const event = new CustomEvent('message-sent', {
                   detail: { conversationId: bid.conversationId }
                 });
                 window.dispatchEvent(event);
               }
             }
           }
-          
+
           toast({
             title: "검토중 상태로 변경됨",
             description: "상품이 추가되어 자동으로 입찰 상태가 '검토중'으로 변경되었습니다.",
@@ -227,43 +227,43 @@ export function BidDetailsSidePanel({
     }
     setSelectedProduct("");
   };
-  
+
   // 제품 제거 처리
   const handleRemoveProduct = async (productId: string) => {
     // 제품 제거
     const updatedProducts = selectedProducts.filter(p => p.id.toString() !== productId);
     setSelectedProducts(updatedProducts);
-    
+
     try {
       // 서버에 변경사항 저장
       const productIds = updatedProducts.map(p => p.id);
-      
+
       // 상태 관리: 제품이 없으면 'pending', 있으면 현재 상태 유지
       let currentStatus = status;
       if (updatedProducts.length === 0 && status === 'reviewing') {
         currentStatus = 'pending';
         setStatus(currentStatus);
       }
-      
+
       // 서버에 업데이트 요청
       await onUpdateBid(bid.id.toString(), {
         selectedProducts: updatedProducts,
         selectedProductIds: productIds,
         status: currentStatus
       }, false);
-      
+
       // 제품을 모두 제거한 경우 메시지 추가
       if (updatedProducts.length === 0 && bid.conversationId) {
         // 판매자 정보 조회
         const vendorResponse = await fetch(`/api/vendors/${bid.vendorId}`);
         if (vendorResponse.ok) {
           const vendorInfo = await vendorResponse.json();
-          
+
           // vendorColor 처리
-          const vendorColorValue = typeof vendorInfo?.color === 'object' 
+          const vendorColorValue = typeof vendorInfo?.color === 'object'
             ? vendorInfo?.color?.bg || "bg-slate-50"
             : vendorInfo?.color || "bg-slate-50";
-          
+
           // 상품 제거 메시지 생성
           const message = {
             role: "vendor",
@@ -275,7 +275,7 @@ export function BidDetailsSidePanel({
             vendorColor: vendorColorValue,
             storeName: vendorInfo?.storeName || "식물 가게",
           };
-          
+
           // 메시지 전송
           const messageResponse = await fetch(`/api/conversations/${bid.conversationId}/messages`, {
             method: 'POST',
@@ -283,21 +283,21 @@ export function BidDetailsSidePanel({
             body: JSON.stringify(message),
             credentials: 'include'
           });
-          
+
           if (messageResponse.ok) {
             // 대화 창 새로고침 이벤트 발생
-            const event = new CustomEvent('message-sent', { 
+            const event = new CustomEvent('message-sent', {
               detail: { conversationId: bid.conversationId }
             });
             window.dispatchEvent(event);
           }
         }
       }
-      
+
       toast({
         title: "제품 제거 완료",
-        description: updatedProducts.length === 0 
-          ? "모든 제품이 제거되어 입찰 상태가 초기화되었습니다." 
+        description: updatedProducts.length === 0
+          ? "모든 제품이 제거되어 입찰 상태가 초기화되었습니다."
           : "선택한 제품이 제거되었습니다.",
         variant: "default"
       });
@@ -310,7 +310,7 @@ export function BidDetailsSidePanel({
       });
     }
   };
-  
+
   // 입찰 수정 저장
   const handleSaveBid = async () => {
     // 가격 유효성 검증
@@ -322,7 +322,7 @@ export function BidDetailsSidePanel({
       });
       return;
     }
-    
+
     // 상품 선택 유효성 검증 (상품이 하나 이상 선택되어야 함)
     if (selectedProducts.length === 0) {
       toast({
@@ -332,22 +332,22 @@ export function BidDetailsSidePanel({
       });
       return;
     }
-    
+
     try {
       // 선택된 제품들의 ID 배열 생성
       const productIds = selectedProducts.map(p => p.id);
-      
+
       // 단일 상품이 선택된 경우, selectedProductId도 설정
       const selectedProductId = selectedProducts.length === 1 ? selectedProducts[0].id : null;
-      
+
       // 이미지 배열 정리 (null 제거)
-      const cleanedImages = bid.referenceImages ? 
+      const cleanedImages = bid.referenceImages ?
         bid.referenceImages.filter((img: any) => img && typeof img === 'string') : [];
-      
+
       // 입찰 완료 상태로 변경
       const newStatus = 'bidded';
       setStatus(newStatus);
-      
+
       // 변경 내용 로깅
       console.log("[BidDetailsSidePanel] 입찰 정보 저장:", {
         bidId: bid.id,
@@ -359,7 +359,7 @@ export function BidDetailsSidePanel({
         selectedProductId,
         images: cleanedImages
       });
-      
+
       // 입찰 데이터 업데이트
       await onUpdateBid(bid.id.toString(), {
         price: Number(price),
@@ -370,10 +370,10 @@ export function BidDetailsSidePanel({
         selectedProductId: selectedProductId, // 직접 selectedProductId 설정
         referenceImages: cleanedImages // 정리된 참고 사진 데이터 포함
       }, false); // 패널 닫지 않기
-      
+
       // 대화 메시지는 handleUpdateBid (vendor-dashboard.tsx)에서 이미 추가됨
       // 중복 방지를 위해 여기서는 추가하지 않음
-      
+
       toast({
         title: "입찰이 완료되었습니다",
         description: "고객에게 입찰 완료 알림이 전송되었습니다",
@@ -388,7 +388,7 @@ export function BidDetailsSidePanel({
       });
     }
   };
-  
+
   return (
     <div className="h-full flex flex-col overflow-hidden">
       <div className="flex items-center justify-between mb-4">
@@ -397,7 +397,7 @@ export function BidDetailsSidePanel({
           #{bid.id} - {bid.createdAt ? new Date(bid.createdAt).toLocaleString('ko-KR') : ''}
         </div>
       </div>
-      
+
       <ScrollArea className="flex-1 pr-4 h-full">
         <div className="space-y-6">
           {/* 고객 정보 */}
@@ -412,12 +412,12 @@ export function BidDetailsSidePanel({
               <div className="grid grid-cols-[80px_1fr] gap-x-3 gap-y-2">
                 <div className="text-sm font-medium">이름:</div>
                 <div className="text-sm">{bid.user?.name || "이름 정보 없음"}</div>
-                
+
                 <div className="text-sm font-medium">연락처:</div>
                 <div className="text-sm">
                   {bid.user?.phone ? formatPhoneNumber(bid.user.phone) : "연락처 정보 없음"}
                 </div>
-                
+
                 <div className="text-sm font-medium">위치:</div>
                 <div className="text-sm">
                   {bid.customerInputAddress || bid.customer?.address || "위치 정보 없음"}
@@ -438,25 +438,25 @@ export function BidDetailsSidePanel({
               <div className="grid grid-cols-[80px_1fr] gap-x-3 gap-y-2">
                 <div className="text-sm font-medium">식물:</div>
                 <div className="text-sm">{bid.plant?.name || "식물 정보 없음"}</div>
-                
+
                 <div className="text-sm font-medium">요청 사항:</div>
                 <div className="text-sm">{conversationData?.userRequests || "요청 사항 없음"}</div>
-                
+
                 <div className="text-sm font-medium">리본 요청:</div>
                 <div className="text-sm">{conversationData?.ribbonRequest ? "예" : "아니요"}</div>
-                
+
                 {conversationData?.ribbonRequest && conversationData?.ribbonMessage && (
                   <>
                     <div className="text-sm font-medium">리본 메시지:</div>
                     <div className="text-sm">{conversationData.ribbonMessage}</div>
                   </>
                 )}
-                
+
                 <div className="text-sm font-medium">희망 배송 시간:</div>
                 <div className="text-sm">
                   {conversationData?.deliveryTime || "지정 없음"}
                 </div>
-                
+
                 <div className="text-sm font-medium">작성일:</div>
                 <div className="text-sm">
                   {bid.createdAt
@@ -476,14 +476,14 @@ export function BidDetailsSidePanel({
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <ConversationViewReadOnly 
-                conversationId={bid.conversationId} 
-                user={{ name: "판매자", role: "vendor", viewMode: "dashboard" }} 
+              <ConversationViewReadOnly
+                conversationId={bid.conversationId}
+                user={{ name: "판매자", role: "vendor", viewMode: "dashboard" }}
                 className="h-[550px] border rounded-md"
               />
             </CardContent>
           </Card>
-          
+
           {/* 입찰 내용 입력 */}
           <Card>
             <CardHeader className="pb-2">
@@ -497,8 +497,8 @@ export function BidDetailsSidePanel({
               <div className="space-y-2">
                 <Label htmlFor="product-select">상품 선택</Label>
                 <div className="flex space-x-2">
-                  <Select 
-                    value={selectedProduct} 
+                  <Select
+                    value={selectedProduct}
                     onValueChange={setSelectedProduct}
                   >
                     <SelectTrigger id="product-select" className="flex-1">
@@ -512,9 +512,9 @@ export function BidDetailsSidePanel({
                       ))}
                     </SelectContent>
                   </Select>
-                  <Button 
-                    type="button" 
-                    variant="outline" 
+                  <Button
+                    type="button"
+                    variant="outline"
                     onClick={handleAddProduct}
                     disabled={!selectedProduct}
                     className="bg-emerald-600 hover:bg-emerald-700 text-white"
@@ -568,7 +568,7 @@ export function BidDetailsSidePanel({
               {/* 판매자 메시지 */}
               <div className="space-y-2">
                 <Label htmlFor="bid-message">메시지</Label>
-                <Textarea 
+                <Textarea
                   id="bid-message"
                   value={bidMessage}
                   onChange={(e) => setBidMessage(e.target.value)}
@@ -582,39 +582,39 @@ export function BidDetailsSidePanel({
                 <Label>참고 사진 (최대 5장)</Label>
                 <div className="flex flex-col space-y-2">
                   <div className="flex flex-wrap gap-2 mb-2">
-                    {bid.referenceImages && Array.isArray(bid.referenceImages) && 
-                     bid.referenceImages.filter((img: any) => img && typeof img === 'string').map((image: string, index: number) => (
-                      <div key={index} className="relative w-20 h-20">
-                        <img 
-                          src={image} 
-                          alt={`참고사진 ${index+1}`} 
-                          className="w-full h-full object-cover rounded-md" 
-                        />
-                        <Button 
-                          type="button" 
-                          variant="destructive" 
-                          size="icon" 
-                          className="absolute -top-2 -right-2 h-5 w-5 rounded-full"
-                          onClick={() => {
-                            // 유효한 이미지만 필터링
-                            const validImages = (bid.referenceImages || []).filter((img: any) => img && typeof img === 'string');
-                            
-                            // 해당 인덱스의 이미지 제거
-                            validImages.splice(index, 1);
-                            
-                            // 로컬 상태 업데이트
-                            bid.referenceImages = validImages;
-                            
-                            // 패널 닫지 않고 업데이트
-                            onUpdateBid(bid.id.toString(), { referenceImages: validImages }, false);
-                          }}
-                        >
-                          <Trash className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    ))}
+                    {bid.referenceImages && Array.isArray(bid.referenceImages) &&
+                      bid.referenceImages.filter((img: any) => img && typeof img === 'string').map((image: string, index: number) => (
+                        <div key={index} className="relative w-20 h-20">
+                          <img
+                            src={image}
+                            alt={`참고사진 ${index + 1}`}
+                            className="w-full h-full object-cover rounded-md"
+                          />
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="icon"
+                            className="absolute -top-2 -right-2 h-5 w-5 rounded-full"
+                            onClick={() => {
+                              // 유효한 이미지만 필터링
+                              const validImages = (bid.referenceImages || []).filter((img: any) => img && typeof img === 'string');
+
+                              // 해당 인덱스의 이미지 제거
+                              validImages.splice(index, 1);
+
+                              // 로컬 상태 업데이트
+                              bid.referenceImages = validImages;
+
+                              // 패널 닫지 않고 업데이트
+                              onUpdateBid(bid.id.toString(), { referenceImages: validImages }, false);
+                            }}
+                          >
+                            <Trash className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ))}
                   </div>
-                  
+
                   <input
                     type="file"
                     ref={fileInputRef}
@@ -624,11 +624,11 @@ export function BidDetailsSidePanel({
                     onChange={async (e) => {
                       const files = e.target.files;
                       if (!files || files.length === 0) return;
-                      
+
                       // 유효한 이미지만 카운트
-                      const validImagesCount = bid.referenceImages ? 
+                      const validImagesCount = bid.referenceImages ?
                         bid.referenceImages.filter((img: any) => img && typeof img === 'string').length : 0;
-                        
+
                       // 최대 파일 수 제한 (현재 + 새로 선택한 파일들이 5개를 넘지 않도록)
                       const availableSlots = 5 - validImagesCount;
                       if (availableSlots <= 0) {
@@ -638,53 +638,56 @@ export function BidDetailsSidePanel({
                         });
                         return;
                       }
-                      
+
                       // 최대 갯수까지만 처리
                       const filesToUpload = Array.from(files).slice(0, availableSlots);
-                      
+
                       setUploading(true);
                       try {
                         const formData = new FormData();
-                        
+
                         // 여러 이미지 추가
                         filesToUpload.forEach(file => {
                           formData.append('images', file);
                         });
-                        
+
                         const response = await fetch('/api/uploads/image', {
                           method: 'POST',
                           body: formData,
                         });
-                        
-                        if (!response.ok) throw new Error('이미지 업로드에 실패했습니다');
-                        
-                        const result = await response.json();
-                        
+
+                        // 성공 여부와 관계없이 응답 본문 파싱 시도
+                        const result = await response.json().catch(() => ({}));
+
+                        if (!response.ok) {
+                          throw new Error(result.error || '이미지 업로드에 실패했습니다');
+                        }
+
                         // 기존 이미지 배열에 새 이미지 추가
                         let imageUrls: string[] = [];
-                        
+
                         if (result.images && Array.isArray(result.images)) {
                           imageUrls = result.images.map((img: any) => img.url);
                         } else if (result.url) {
                           imageUrls = [result.url]; // 단일 이미지 경우
                         }
-                        
+
                         if (imageUrls.length === 0) throw new Error('이미지 URL을 가져올 수 없습니다');
-                        
+
                         // 새 이미지 배열 생성 (기존 유효 이미지 + 새 이미지)
-                        const existingValidImages = bid.referenceImages ? 
+                        const existingValidImages = bid.referenceImages ?
                           bid.referenceImages.filter((img: any) => img && typeof img === 'string') : [];
-                          
+
                         const newImages = [...existingValidImages, ...imageUrls];
-                        
+
                         // 로컬 상태 업데이트 (즉시 보이도록)
                         bid.referenceImages = newImages;
-                        
+
                         // 서버에 입찰 정보 업데이트
                         await onUpdateBid(bid.id.toString(), {
                           referenceImages: newImages
                         }, false); // 확장 패널 닫지 않음
-                        
+
                         toast({
                           title: "이미지 업로드 완료",
                           description: `${imageUrls.length}장의 참고 사진이 추가되었습니다.`
@@ -705,13 +708,13 @@ export function BidDetailsSidePanel({
                       }
                     }}
                   />
-                  
-                  <Button 
-                    type="button" 
-                    variant="outline" 
+
+                  <Button
+                    type="button"
+                    variant="outline"
                     onClick={() => fileInputRef.current?.click()}
-                    disabled={uploading || (bid.referenceImages && 
-                                 bid.referenceImages.filter((img: any) => img && typeof img === 'string').length >= 5)}
+                    disabled={uploading || (bid.referenceImages &&
+                      bid.referenceImages.filter((img: any) => img && typeof img === 'string').length >= 5)}
                     className="w-full"
                   >
                     {uploading ? (
@@ -732,12 +735,12 @@ export function BidDetailsSidePanel({
 
 
               {/* 저장 버튼 - 완료 또는 입찰된 경우 비활성화 */}
-              <Button 
+              <Button
                 onClick={(e) => {
                   // 입찰하기 버튼이고 상품이 선택되지 않은 경우
                   if (bid.status === 'reviewing' && selectedProducts.length === 0) {
                     e.preventDefault();
-                    
+
                     // 팝업 메시지 표시
                     toast({
                       title: "식물을 선택해주세요",
@@ -747,15 +750,15 @@ export function BidDetailsSidePanel({
                     return;
                   }
                   handleSaveBid();
-                }} 
+                }}
                 className={`w-full ${bid.status === 'completed' || bid.status === 'bidded' ? 'opacity-50' : ''}`}
-                disabled={bid.status === 'completed' || bid.status === 'bidded' || 
-                        (bid.status === 'reviewing' && selectedProducts.length === 0)}
+                disabled={bid.status === 'completed' || bid.status === 'bidded' ||
+                  (bid.status === 'reviewing' && selectedProducts.length === 0)}
               >
                 {bid.status === 'completed' ? '완료된 입찰' :
-                 bid.status === 'bidded' ? '입찰 완료됨' : 
-                 bid.status === 'reviewing' ? '입찰하기' : 
-                 '입찰 정보 저장'}
+                  bid.status === 'bidded' ? '입찰 완료됨' :
+                    bid.status === 'reviewing' ? '입찰하기' :
+                      '입찰 정보 저장'}
               </Button>
             </CardContent>
           </Card>
