@@ -2111,10 +2111,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/map/config", getMapConfig);
 
   // 구글 이미지 검색 API 엔드포인트
-  app.get("/api/google-images", async (req, res) => {
-    const { handleGoogleImageSearch } = await import('./google-images');
-    handleGoogleImageSearch(req, res);
-  });
+  const { handleGoogleImageSearch } = await import('./google-images');
+  app.get("/api/google-images", handleGoogleImageSearch);
 
   // 이미지 업로드 API
   app.post("/api/upload-image", uploadImage);
