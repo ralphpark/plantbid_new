@@ -25,6 +25,7 @@ import uploadRouter from "./upload-routes.js";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { setupPlantRoutes } from "./plant-routes.js";
+import { handleGoogleImageSearch } from "./google-images.js";
 // WebSocket 대신 HTTP 폴링 방식을 사용
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -2111,7 +2112,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/map/config", getMapConfig);
 
   // 구글 이미지 검색 API 엔드포인트
-  const { handleGoogleImageSearch } = await import('./google-images');
   app.get("/api/google-images", handleGoogleImageSearch);
 
   // 이미지 업로드 API
