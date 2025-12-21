@@ -16,33 +16,34 @@ export function GoogleImageGallery({ plantName, className = '' }: GoogleImageGal
   const { loading, images, error } = useGoogleImages(plantName);
   const [loadedImages, setLoadedImages] = useState<string[]>([]);
   const [failedImages, setFailedImages] = useState<string[]>([]);
-  
+
   // 이미지 로드 상태 추적
   useEffect(() => {
     setLoadedImages([]); // 새 검색어가 들어오면 로드 상태 초기화
     setFailedImages([]);
   }, [plantName]);
-  
+
   // 이미지 로드 완료 처리
   const handleImageLoad = (url: string) => {
     setLoadedImages(prev => [...prev, url]);
   };
-  
+
   // 이미지 로드 실패 처리
   const handleImageError = (url: string) => {
     console.log(`이미지 로드 실패: ${url}`);
     // 로드 실패한 이미지를 실패 목록에 추가
     setFailedImages(prev => [...prev, url]);
   };
-  
+
   // 여러 이미지 중 첫 6개만 사용하되, 실패한 이미지는 제외
-  const availableImages = images.filter(img => !failedImages.includes(img.link));
-  const displayImages = availableImages.slice(0, 6).map(img => img.link);
-  
+  // 중요: 원본 링크(link) 대신 썸네일(thumbnail)을 사용하여 핫링크 차단 방지 및 로딩 속도 개선
+  const availableImages = images.filter(img => !failedImages.includes(img.thumbnail));
+  const displayImages = availableImages.slice(0, 6).map(img => img.thumbnail);
+
   // 빈 이미지 공간 보정을 위한 배열
   const placeholderCount = Math.max(0, 6 - displayImages.length);
   const placeholders = Array(placeholderCount).fill(null);
-  
+
   return (
     <div className={`w-full ${className}`}>
       <div className="grid grid-cols-3 gap-2">
@@ -58,7 +59,8 @@ export function GoogleImageGallery({ plantName, className = '' }: GoogleImageGal
         ) : error ? (
           // 에러 표시
           <div className="col-span-3 p-4 text-center text-sm text-muted-foreground">
-            이미지를 가져오지 못했습니다
+            <p>이미지를 가져오지 못했습니다</p>
+            <p className="text-xs opacity-70 mt-1">{error}</p>
           </div>
         ) : displayImages.length > 0 ? (
           // 이미지 갤러리
@@ -66,7 +68,7 @@ export function GoogleImageGallery({ plantName, className = '' }: GoogleImageGal
             {displayImages.map((url, index) => {
               const isLoaded = loadedImages.includes(url);
               const isFailed = failedImages.includes(url);
-              
+
               return (
                 <div key={`img-${index}`} className="aspect-square rounded-md overflow-hidden border border-muted relative">
                   {!isFailed ? (
@@ -94,7 +96,7 @@ export function GoogleImageGallery({ plantName, className = '' }: GoogleImageGal
                 </div>
               );
             })}
-            
+
             {/* 이미지가 4개 미만인 경우 플레이스홀더 표시 */}
             {placeholders.map((_, index) => (
               <div key={`placeholder-${index}`} className="aspect-square bg-muted rounded-md" />
@@ -107,7 +109,7 @@ export function GoogleImageGallery({ plantName, className = '' }: GoogleImageGal
           </div>
         )}
       </div>
-      
+
       {/* 구글 이미지 검색으로 연결되는 링크 */}
       <div className="flex justify-start mt-2">
         <a
