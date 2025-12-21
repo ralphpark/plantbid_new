@@ -172,22 +172,8 @@ export async function cancelPaymentWithRetry(
       console.error('포트원 API 요청은 전송되었으나 응답이 없음:', portoneError.request);
     }
 
-    // DB에만 취소로 처리
-    console.log('포트원 API 오류에도 불구하고 DB에는 취소 처리함');
-
-    // 결제 정보 업데이트
-    const updatedPayment = await storage.updatePayment(payment.id, {
-      status: 'CANCELLED',
-      updatedAt: new Date(),
-      cancelReason: reason || '고객 요청에 의한 취소 (API 오류)',
-      cancelledAt: new Date()
-    });
-
-    // 주문 상태 업데이트
-    const updatedOrder = await storage.updateOrderStatusByOrderId(orderId, 'cancelled');
-
-    // 업데이트된 결제 정보 다시 가져오기
-    const refreshedPayment = await storage.getPaymentByOrderId(orderId);
+    // 포트원 API 오류 시 DB 상태 변경하지 않음 (실제 취소가 되지 않았으므로)
+    console.error('[결제 취소 API] 포트원 API 오류로 인해 취소 실패. DB 상태는 변경하지 않습니다.');
 
     // API 오류 정보 추출
     let errorType = 'UNKNOWN_ERROR';
@@ -214,19 +200,16 @@ export async function cancelPaymentWithRetry(
       }
     }
 
-    // 테스트 환경 여부 확인
-    const isTestEnvironment = process.env.NODE_ENV !== 'production' || !process.env.PORTONE_API_KEY;
-
-    // 오류 응답 - 포트원 API 오류 응답 설정
-    return res.json({
-      success: true,
-      message: '결제가 데이터베이스에서 취소되었지만, 포트원 API 호출은 실패했습니다.',
-      apiCallSuccess: false,
+    // 오류 응답 반환 (DB 상태 변경 없음)
+    return res.status(502).json({
+      success: false,
+      message: '포트원 결제 취소 요청이 실패했습니다. 다시 시도해주세요.',
+      portoneCallSuccess: false,
       error: portoneError?.message || '포트원 API 오류',
+      errorType,
       details: errorDetails,
-      note: isTestEnvironment ? '테스트 환경에서는 이 오류가 예상됩니다. 데이터베이스 취소는 유효합니다.' : null,
-      payment: refreshedPayment || updatedPayment,
-      order: updatedOrder,
+      payment,
+      orderId,
       timestamp: new Date().toISOString()
     });
   }
