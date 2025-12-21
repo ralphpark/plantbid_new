@@ -98,7 +98,7 @@ export default function ProductDetailPage() {
     addToCartMutation.mutate();
   };
 
-  const handleBuyNow = () => {
+  const handleBuyNow = async () => {
     if (!user) {
       toast({
         title: "로그인이 필요합니다",
@@ -108,7 +108,7 @@ export default function ProductDetailPage() {
       navigate("/auth");
       return;
     }
-    addToCartMutation.mutate();
+    await addToCartMutation.mutateAsync();
     navigate("/cart");
   };
 
@@ -155,10 +155,10 @@ export default function ProductDetailPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
-      
+
       <main className="max-w-6xl mx-auto px-4 py-8">
-        <Button 
-          variant="ghost" 
+        <Button
+          variant="ghost"
           onClick={() => navigate("/")}
           className="mb-6 text-gray-600 hover:text-gray-900"
           data-testid="button-back"
@@ -175,8 +175,8 @@ export default function ProductDetailPage() {
         >
           <div className="aspect-square bg-white rounded-xl overflow-hidden shadow-sm">
             {product.imageUrl ? (
-              <img 
-                src={product.imageUrl} 
+              <img
+                src={product.imageUrl}
                 alt={product.name}
                 className="w-full h-full object-cover"
               />
@@ -257,8 +257,8 @@ export default function ProductDetailPage() {
               )}
 
               <div className="flex gap-4">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   className="flex-1 h-14 text-lg"
                   onClick={handleAddToCart}
                   disabled={isOutOfStock || addToCartMutation.isPending}
@@ -267,7 +267,7 @@ export default function ProductDetailPage() {
                   <ShoppingCart className="w-5 h-5 mr-2" />
                   {addToCartMutation.isPending ? "추가 중..." : "장바구니 담기"}
                 </Button>
-                <Button 
+                <Button
                   className="flex-1 h-14 text-lg"
                   onClick={handleBuyNow}
                   disabled={isOutOfStock || addToCartMutation.isPending}
@@ -305,7 +305,7 @@ export default function ProductDetailPage() {
             className="mb-12"
           >
             <h2 className="text-2xl font-bold text-gray-900 mb-4">판매 정보</h2>
-            <Card 
+            <Card
               className="border-0 shadow-md cursor-pointer hover:shadow-lg transition-shadow"
               onClick={() => navigate(`/vendors/${vendor.id}`)}
             >
@@ -371,8 +371,8 @@ export default function ProductDetailPage() {
           <div className="mb-12">
             <h2 className="text-2xl font-bold text-gray-900 mb-4">상품 설명</h2>
             <div className="bg-white p-8 rounded-lg border">
-              <div 
-                className="prose prose-sm max-w-none text-gray-700" 
+              <div
+                className="prose prose-sm max-w-none text-gray-700"
                 dangerouslySetInnerHTML={{ __html: product.detailedDescription }}
                 data-testid="text-detailed-description"
               />
