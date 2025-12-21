@@ -2821,10 +2821,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "판매자 권한이 필요합니다" });
       }
 
-      console.log(`판매자 입찰 데이터 요청: 판매자 ID ${userId}`);
+      console.log(`판매자 입찰 데이터 요청: 사용자 ID ${userId}`);
 
-      // 판매자의 모든 입찰 요청 가져오기
-      const bids = await storage.getBidsForVendor(userId);
+      // 사용자 ID로 판매자 정보 조회
+      const vendor = await storage.getVendorByUserId(userId);
+
+      if (!vendor) {
+        console.error(`사용자 ID ${userId}에 해당하는 판매자 정보를 찾을 수 없습니다.`);
+        return res.status(403).json({ error: "판매자 정보를 찾을 수 없습니다." });
+      }
+
+      console.log(`판매자 정보 확인: 판매자 ID ${vendor.id}, 상점명 ${vendor.storeName}`);
+
+      // 판매자의 모든 입찰 요청 가져오기 (판매자 ID 사용)
+      const bids = await storage.getBidsForVendor(vendor.id);
 
       console.log(`데이터베이스에서 가져온 입찰 데이터 ${bids.length}개`);
 
