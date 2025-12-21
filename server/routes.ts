@@ -2838,22 +2838,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`데이터베이스에서 가져온 입찰 데이터 ${bids.length}개`);
 
-      // 각 입찰에 대한 추가 정보 가져오기 (식물 및 사용자 정보)
-      const enrichedBids = await Promise.all(bids.map(async (bid) => {
-        const plant = await storage.getPlant(bid.plantId);
-        const customer = await storage.getUser(bid.userId);
+      console.log(`데이터베이스에서 가져온 입찰 데이터 ${bids.length}개`);
+
+      // 최적화: 입찰 데이터에서 필요한 ID 수집 (중복 제거)
+      const plantIds = [...new Set(bids.map(bid => bid.plantId))];
+      const customerIds = [...new Set(bids.map(bid => bid.userId))];
+
+      console.log(`관련 데이터 일괄 조회: 식물 ${plantIds.length}개, 고객 ${customerIds.length}명`);
+
+      // 일괄 조회 실행 (Promise.all로 병렬 처리)
+      const [plantsList, customersList] = await Promise.all([
+        storage.getPlantsByIds(plantIds),
+        storage.getUsersByIds(customerIds)
+      ]);
+
+      // 조회된 데이터를 Map으로 변환하여 빠른 접근 가능하게 함
+      const plantsMap = new Map(plantsList.map(p => [p.id, p]));
+      const customersMap = new Map(customersList.map(c => [c.id, c]));
+
+      // 각 입찰에 정보 매핑
+      const enrichedBids = bids.map((bid) => {
+        const plant = plantsMap.get(bid.plantId);
+        const customer = customersMap.get(bid.userId);
 
         // 전체 사용자 정보도 포함 (변환 중에 필요한 추가 필드 접근 용도)
         const user = customer;
-
-        // 로그 추가 - 고객 정보 상태 확인
-        console.log(`입찰 ID ${bid.id}의 고객 정보:`, {
-          id: customer?.id,
-          name: customer?.name,
-          username: customer?.username,
-          phone: customer?.phone,
-          email: customer?.email
-        });
 
         // referenceImages 필드가 문자열인 경우 (JSON 문자열) 파싱
         let parsedReferenceImages = bid.referenceImages;
@@ -2886,7 +2895,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             priceRange: plant?.priceRange
           }
         };
-      }));
+      });
 
       console.log(`응답: ${enrichedBids.length}개의 입찰 데이터 반환`);
       res.json(enrichedBids);

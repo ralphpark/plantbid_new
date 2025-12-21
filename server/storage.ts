@@ -26,6 +26,7 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: number, userData: Partial<User>): Promise<User | undefined>;
   updateUserPassword(id: number, hashedPassword: string): Promise<User | undefined>;
+  getUsersByIds(ids: number[]): Promise<User[]>;
 
   // Password reset token methods
   createPasswordResetToken(token: InsertPasswordResetToken): Promise<PasswordResetToken>;
@@ -42,6 +43,7 @@ export interface IStorage {
   deletePlant(id: number): Promise<void>;
   removeAllPlants(): Promise<void>;
   insertMultiplePlants(plantsData: any[]): Promise<void>;
+  getPlantsByIds(ids: number[]): Promise<Plant[]>;
 
   // Vendor methods
   getVendor(id: number): Promise<Vendor | undefined>;
@@ -680,6 +682,11 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
+  async getUsersByIds(ids: number[]): Promise<User[]> {
+    if (!ids.length) return [];
+    return db.select().from(users).where(inArray(users.id, ids));
+  }
+
   async createUser(insertUser: InsertUser): Promise<User> {
     const [user] = await db.insert(users).values(insertUser).returning();
     return user;
@@ -782,6 +789,11 @@ export class DatabaseStorage implements IStorage {
       petSafety: rawPlant.petSafety || (rawPlant as any).pet_safety || '',
       winterTemperature: rawPlant.winterTemperature || (rawPlant as any).winter_temperature || ''
     };
+  }
+
+  async getPlantsByIds(ids: number[]): Promise<Plant[]> {
+    if (!ids.length) return [];
+    return db.select().from(plants).where(inArray(plants.id, ids));
   }
 
   async getAllPlants(): Promise<Plant[]> {
