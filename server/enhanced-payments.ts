@@ -18,7 +18,6 @@ export async function cancelPaymentWithRetry(
     const { convertToV2PaymentId } = await import('./portone-v2-client.js');
     const { smartCancelPayment } = await import('./portone-payment-finder.js');
     // 포트원 V2 클라이언트 가져오기
-    // 포트원 V2 클라이언트 가져오기
     const portoneV2Module = await import('./portone-v2-client.js');
     const PortOneV2Client = portoneV2Module.PortOneV2Client;
 
@@ -46,6 +45,7 @@ export async function cancelPaymentWithRetry(
     console.log('- 취소 사유:', reason || '고객 요청에 의한 취소');
 
     // 재시도 관련 변수
+    let lastError: any = null;
     let portoneCallSuccess = false;
     let response: any = null;
     let attempts = 0;
@@ -108,6 +108,7 @@ export async function cancelPaymentWithRetry(
         console.log(`[결제 취소 API] 시도 ${attempts} - 포트원 결제 취소 성공. 응답:`, JSON.stringify(response, null, 2));
         break;
       } catch (retryError: any) {
+        lastError = retryError; // 오류 캡처
         console.error(`[결제 취소 API] 시도 ${attempts} - 실패:`, retryError?.message || retryError);
 
         // 마지막 시도가 아니면 재시도
@@ -128,6 +129,7 @@ export async function cancelPaymentWithRetry(
           response = smartResult.data;
           console.log('[결제 취소 API] 스마트 취소 유틸을 통한 취소 성공');
         } else {
+          lastError = smartResult.error ? { message: smartResult.error } : lastError;
           console.error('[결제 취소 API] 스마트 취소 유틸 실패:', smartResult.error);
         }
       } catch (smartError: any) {
@@ -163,11 +165,17 @@ export async function cancelPaymentWithRetry(
     } else {
       // 실패 시 상태 변경 없이 오류 반환
       console.warn('[결제 취소 API] 모든 취소 시도 실패. 데이터베이스 상태는 변경하지 않습니다.');
-      return res.status(502).json({
+
+      // 상세 오류 정보 구성
+      const errorDetails = lastError?.response?.data || lastError?.message || '알 수 없는 오류';
+      const statusCode = lastError?.response?.status || 502;
+
+      return res.status(statusCode).json({
         success: false,
         message: '포트원 결제 취소 요청이 실패했습니다.',
         portoneCallSuccess: false,
-        error: '포트원 API 취소 실패',
+        error: lastError?.message || '포트원 API 취소 실패',
+        details: errorDetails,
         payment,
         orderId,
         timestamp: new Date().toISOString()
