@@ -146,6 +146,45 @@ export async function cancelPaymentWithRetry(
       }
     }
 
+    // 2차 시도도 실패했다면, 마지막으로 orderId가 pay_ 형식인지 확인하고 이것으로 취소 시도
+    // (DB의 paymentKey가 잘못되었을 가능성 높음)
+    // lastError가 래핑되어 있을 수 있으므로 메시지 확인도 추가
+    const isNotFoundError = lastError?.response?.status === 404 ||
+      lastError?.message?.includes('PAYMENT_NOT_FOUND') ||
+      lastError?.message?.includes('404');
+
+    if (!portoneCallSuccess && isNotFoundError && orderId.startsWith('pay_')) {
+      console.log('[결제 취소 API] 모든 시도 실패했으나 orderId가 pay_ 형식임. 주문 ID를 결제 ID로 간주하고 최종 시도.');
+      console.log(`[결제 취소 API] 최종 시도 사용할 ID: ${orderId}`);
+
+      try {
+        // 검색으로 확인 절차 (선택사항이나 안전을 위해)
+        let verifySuccess = false;
+        try {
+          const checkPayment = await portoneClient.getPayment(orderId);
+          if (checkPayment && checkPayment.status) {
+            console.log(`[결제 취소 API] 주문 ID로 결제 확인 성공. 상태: ${checkPayment.status}`);
+            verifySuccess = true;
+          }
+        } catch (checkErr) {
+          console.warn('[결제 취소 API] 주문 ID로 결제 확인 시 오류 (무시하고 취소 시도 진행):', checkErr);
+        }
+
+        response = await portoneClient.cancelPayment({
+          paymentId: orderId,
+          reason: reason || '고객 요청에 의한 취소'
+        });
+
+        portoneCallSuccess = true;
+        console.log('[결제 취소 API] 주문 ID를 사용한 강제 취소 성공. 응답:', JSON.stringify(response, null, 2));
+      } catch (finalRetryError: any) {
+        console.error('[결제 취소 API] 주문 ID를 사용한 최종 취소 시도 실패:', finalRetryError?.message);
+        // lastError를 업데이트하지 않아 초기 에러 정보를 유지할지, 아니면 이 에러를 추가할지 결정
+        // 여기서는 details에 추가하는 방식으로 처리
+        smartCancelError = `Final attempt with orderId failed: ${finalRetryError?.message}`;
+      }
+    }
+
     // 성공 시에만 DB 업데이트
     if (portoneCallSuccess) {
       const updatedPayment = await storage.updatePayment(payment.id, {
