@@ -2836,8 +2836,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`데이터베이스에서 가져온 입찰 데이터 ${bids.length}개`);
 
       // 최적화: 입찰 데이터에서 필요한 ID 수집 (중복 제거)
-      const plantIds = [...new Set(bids.map(bid => bid.plantId))];
-      const customerIds = [...new Set(bids.map(bid => bid.userId))];
+      const plantIds = Array.from(new Set(bids.map(bid => bid.plantId)));
+      const customerIds = Array.from(new Set(bids.map(bid => bid.userId)));
 
       console.log(`관련 데이터 일괄 조회: 식물 ${plantIds.length}개, 고객 ${customerIds.length}명`);
 
