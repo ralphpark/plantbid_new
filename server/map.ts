@@ -195,14 +195,14 @@ export async function findNearbyVendors(req: Request, res: Response) {
       vendorStoreName: vendorsTable.storeName,
       // Haversine 공식을 사용하여 거리 계산 (km 단위)
       distance: sql<number>`
-        (6371 * acos(
+        (6371 * acos(LEAST(1.0, GREATEST(-1.0, 
           cos(radians(${userLat})) * 
           cos(radians(${storeLocations.lat})) * 
           cos(radians(${storeLocations.lng}) - 
           radians(${userLng})) + 
           sin(radians(${userLat})) * 
           sin(radians(${storeLocations.lat}))
-        ))`.as('distance')
+        ))))`.as('distance')
     })
       .from(storeLocations)
       .leftJoin(users, eq(storeLocations.userId, users.id))
@@ -213,14 +213,14 @@ export async function findNearbyVendors(req: Request, res: Response) {
           eq(users.role, 'vendor'),
           // 사용자의 서비스 반경보다 작은 거리에 있는 판매자만 선택
           sql<boolean>`
-          (6371 * acos(
+          (6371 * acos(LEAST(1.0, GREATEST(-1.0, 
             cos(radians(${userLat})) * 
             cos(radians(${storeLocations.lat})) * 
             cos(radians(${storeLocations.lng}) - 
             radians(${userLng})) + 
             sin(radians(${userLat})) * 
             sin(radians(${storeLocations.lat}))
-          )) <= ${radiusKm}`
+          )))) <= ${radiusKm}`
         )
       )
       .orderBy(sql`distance`);
