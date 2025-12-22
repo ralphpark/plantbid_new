@@ -518,7 +518,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         await storage.createPayment({
           userId: order.userId,
-          bidId: order.vendorId || 1,
+          bidId: null,
           orderId,
           orderName: paymentProductName,
           amount: order.price.toString(),
