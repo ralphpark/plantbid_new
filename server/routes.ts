@@ -144,14 +144,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/uploads', uploadRouter);
 
   // 판매자 프로필 업데이트를 위한 통합 업로드 엔드포인트 (FormData 처리)
+  // Vercel : EROFS 방지를 위해 memoryStorage 사용
   const profileUpload = multer({
-    storage: multer.diskStorage({
-      destination: './public/uploads',
-      filename: (_req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-        cb(null, uniqueSuffix + '-' + file.originalname);
-      }
-    }),
+    storage: multer.memoryStorage(),
     limits: { fileSize: 5 * 1024 * 1024 }
   });
 
