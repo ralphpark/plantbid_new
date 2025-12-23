@@ -2793,39 +2793,21 @@ export default function AIConsultationPage() {
                                         // 이 메시지를 대화에 저장
                                         if (conversationId) {
                                           try {
-                                            // 현재 대화 가져오기
-                                            const convResponse = await fetch(`/api/conversations/${conversationId}`);
-                                            if (!convResponse.ok) {
-                                              throw new Error('대화 정보를 가져오는데 실패했습니다.');
-                                            }
-
-                                            const convData = await convResponse.json();
-                                            let currentMessages = Array.isArray(convData.messages) ?
-                                              convData.messages :
-                                              (typeof convData.messages === 'string' ? JSON.parse(convData.messages) : []);
-
-                                            // 현재 메시지를 추가
-                                            currentMessages.push({
-                                              role: "assistant" as "assistant", // 여기서 두 역할 때문에 타입 지정이 필요
-                                              content: assistantMessage.content,
-                                              timestamp: assistantMessage.timestamp,
-                                              locationInfo: selectedLocation,
-                                              vendors: data.vendors || []
-                                            });
-
-                                            // 대화 업데이트
-                                            const updateResponse = await fetch(`/api/conversations/${conversationId}`, {
-                                              method: 'PATCH',
+                                            // PATCH 대신 POST /messages 엔드포인트를 사용하여 새 메시지만 추가
+                                            // 전체 대화 내역을 보내지 않으므로 413 오류를 근본적으로 해결
+                                            const updateResponse = await fetch(`/api/conversations/${conversationId}/messages`, {
+                                              method: 'POST',
                                               headers: {
                                                 'Content-Type': 'application/json',
                                               },
-                                              body: JSON.stringify({ messages: currentMessages })
+                                              // assistantMessage 객체에 이미 optimizedVendors가 포함되어 있습니다.
+                                              body: JSON.stringify(assistantMessage)
                                             });
 
                                             if (!updateResponse.ok) {
                                               console.error('판매자 정보 저장 실패:', updateResponse.status);
                                             } else {
-                                              console.log('판매자 정보가 대화에 저장되었습니다.', data.vendors ? data.vendors.length : 0);
+                                              console.log('판매자 정보가 대화에 저장되었습니다.', optimizedVendors.length);
                                             }
                                           } catch (error) {
                                             console.error('판매자 정보 저장 중 오류:', error);
