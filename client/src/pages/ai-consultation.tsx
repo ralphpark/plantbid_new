@@ -2744,16 +2744,26 @@ export default function AIConsultationPage() {
                                         const data = await response.json();
 
                                         // 지역 상점 정보 추가
-                                        // 413 Payload Too Large 방지를 위한 데이터 최적화 (Vercel 4.5MB 제한 대응)
+                                        // 413 Payload Too Large (Vercel 4.5MB Limit) 해결을 위한 강력한 데이터 다이어트
                                         const optimizedVendors = (data.vendors || []).map((vendor: any) => ({
-                                          ...vendor,
-                                          products: (vendor.products || []).map((product: any) => ({
-                                            ...product,
-                                            // Base64 이미지일 수 있는 긴 URL은 제외하여 페이로드 크기 대폭 감소
-                                            imageUrl: (product.imageUrl && product.imageUrl.length > 500) ? null : product.imageUrl,
-                                            // 긴 설명도 잘라서 저장
-                                            description: (product.description && product.description.length > 200) ? product.description.substring(0, 200) + '...' : product.description
-                                          }))
+                                          id: vendor.id,
+                                          name: vendor.name,
+                                          storeName: vendor.storeName,
+                                          address: vendor.address,
+                                          distance: vendor.distance,
+                                          lat: vendor.lat,
+                                          lng: vendor.lng,
+                                          products: (vendor.products || [])
+                                            .slice(0, 3) // 상점 당 최대 3개 상품만 저장하여 용량 확보
+                                            .map((product: any) => ({
+                                              id: product.id,
+                                              name: product.name,
+                                              price: product.price,
+                                              // Base64(수천~수만 자)는 무조건 제거하고, 짧은 URL만 허용
+                                              imageUrl: (product.imageUrl && product.imageUrl.length < 300) ? product.imageUrl : null,
+                                              // 설명은 대화 내역 저장 시 제거 (상세 보기나 실시간 조회로 확인 권장)
+                                              description: null
+                                            }))
                                         }));
 
                                         // 지역 상점 정보 추가
