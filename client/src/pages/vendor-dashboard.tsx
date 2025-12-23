@@ -1911,21 +1911,21 @@ export default function VendorDashboard() {
                               <td className="py-3 px-4 text-center">
                                 <Badge
                                   variant={
-                                    payment.status === 'success' || payment.status === 'paid' ? 'default' :
-                                      payment.status === 'cancel' || payment.status === 'CANCELLED' ? 'destructive' :
-                                        payment.status === 'ready' || payment.status === 'pending' ? 'secondary' :
+                                    payment.status === 'success' || payment.status === 'paid' || payment.status === 'COMPLETED' ? 'default' :
+                                      payment.status === 'cancel' || payment.status === 'CANCELLED' || payment.status === 'CANCELED' ? 'destructive' :
+                                        payment.status === 'ready' || payment.status === 'pending' || payment.status === 'READY' ? 'secondary' :
                                           'outline'
                                   }
                                 >
-                                  {payment.status === 'success' || payment.status === 'paid' ? '결제완료' :
-                                    payment.status === 'cancel' || payment.status === 'CANCELLED' ? '취소됨' :
-                                      payment.status === 'ready' ? '준비중' :
+                                  {payment.status === 'success' || payment.status === 'paid' || payment.status === 'COMPLETED' ? '결제완료' :
+                                    payment.status === 'cancel' || payment.status === 'CANCELLED' || payment.status === 'CANCELED' ? '취소됨' :
+                                      payment.status === 'ready' || payment.status === 'READY' ? '준비중' :
                                         payment.status === 'pending' ? '처리중' :
                                           payment.status}
                                 </Badge>
                               </td>
                               <td className="py-3 px-4 text-center">
-                                {(payment.status === 'success' || payment.status === 'paid') && (
+                                {(payment.status === 'success' || payment.status === 'paid' || payment.status === 'COMPLETED') && (
                                   <Button
                                     size="sm"
                                     variant="ghost"

@@ -145,8 +145,39 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
           v1Data.status === 'Failed' ? 'FAILED' :
             v1Data.status === 'Cancelled' ? 'CANCELED' : 'UNKNOWN';
 
-      // V1 형식은 amount 정보가 없을 수 있음, 이 경우 DB에서 조회
+      // V1 형식은 amount 정보가 없을 수 있음, 이 경우 포트원 API로 상세 조회
       amount = v1Data.amount || "0";
+
+      // 금액이 없거나 0인 경우 API로 조회하여 보정
+      if (amount === "0" || !amount) {
+        try {
+          console.log(`[웹훅] V1: 금액 정보 누락으로 상세 조회 시도 (key: ${paymentKey})`);
+          // 포트원 클라이언트 초기화 (시크릿 필요)
+          // 주의: 핸들러 내부에서 클라이언트를 새로 생성하거나 import된 인스턴스 사용
+          const V2_SECRET = process.env.PORTONE_V2_API_SECRET || process.env.PORTONE_API_SECRET;
+
+          if (V2_SECRET) {
+            const { PortOneV2Client } = await import('./portone-v2-client.js');
+            const client = new PortOneV2Client(V2_SECRET);
+            const paymentDetails = await client.getPayment(paymentKey);
+
+            if (paymentDetails) {
+              if (paymentDetails.amount) {
+                amount = (typeof paymentDetails.amount === 'object'
+                  ? (paymentDetails.amount.total || paymentDetails.amount.paid || 0)
+                  : paymentDetails.amount).toString();
+              }
+              // 이름 등 누락된 정보도 보정
+              if (paymentDetails.method) {
+                // method 보정 로직은 복잡할 수 있으니 일단 금액 위주로
+              }
+              console.log(`[웹훅] 상세 조회로 금액 보정 완료: ${amount}`);
+            }
+          }
+        } catch (err) {
+          console.error(`[웹훅] 상세 조회 실패:`, err);
+        }
+      }
 
       // V1 이벤트 타입 변환
       eventType = "PAYMENT_STATUS_CHANGED";

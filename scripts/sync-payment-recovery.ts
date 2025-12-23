@@ -6,10 +6,10 @@ import { eq } from "drizzle-orm";
 import { PortOneV2Client } from "../server/portone-v2-client";
 
 async function syncPayment() {
-    const paymentKey = 'pay_G2sIZMK0LUB8x1zbU8xDkH';
+    const paymentKey = 'pay_UYm5bGn0lrtJmUFKY2KqYa';
     console.log(`Syncing payment: ${paymentKey}`);
 
-    // 1. Initialize PortOne Client
+    // 1. Initialize Client
     const secret = process.env.PORTONE_API_SECRET || process.env.PORTONE_V2_API_SECRET;
     if (!secret) {
         console.error("❌ PORTONE_API_SECRET is missing!");
@@ -32,73 +32,75 @@ async function syncPayment() {
             process.exit(1);
         }
 
-        console.log("✅ Fetched Payment Data.");
+        console.log("✅ Fetched Payment Data:", JSON.stringify(paymentData, null, 2));
 
         const status = paymentData.status;
-        // Fallback: If order_id is missing from PortOne response, use paymentKey 
-        // (since we verified order #229 has orderId == paymentKey)
         const orderId = paymentData.order_id || paymentData.orderId || paymentKey;
+        const paymentId = paymentData.id || paymentData.paymentId; // Get canonical ID from PortOne
 
-        const amount = (paymentData.amount?.total || paymentData.amount || 0).toString();
+        // Amount
+        let amount = "0";
+        if (paymentData.amount) {
+            if (typeof paymentData.amount === 'object') {
+                amount = (paymentData.amount.total || paymentData.amount.paid || "0").toString();
+            } else {
+                amount = paymentData.amount.toString();
+            }
+        }
+
         const method = paymentData.method?.type || paymentData.method || 'CARD';
-        // JSON response had method: { type: 'PaymentMethodCard', ... } but schema expects string? 
-        // Client code usually handles this. Let's start with simple string "CARD" or extract type.
-
         const requestedAt = paymentData.requestedAt || paymentData.requested_at;
         const approvedAt = paymentData.paidAt || paymentData.approved_at || paymentData.approvedAt;
-        const merchantId = paymentData.merchantId || "MOI3204387";
+        const customer = paymentData.customer;
 
         console.log(`Processing Order ID: ${orderId}`);
 
-        // 3. Check Order
+        // 3. Find Order in DB
         const orderResults = await db.select().from(orders).where(eq(orders.orderId, orderId));
         const order = orderResults[0];
 
-        if (!order) {
-            console.error(`❌ Order ${orderId} not found in DB! Cannot create payment.`);
-            // Try searching by payment info? No, let's stop.
-            process.exit(1);
-        }
-        console.log("✅ Found Local Order:", order.id);
+        // 4. Update or Insert Payment
+        // First, check if a payment with this ORDER ID exists (to fix the garbage record)
+        const existingByOrder = await db.select().from(payments).where(eq(payments.orderId, orderId));
+        const targetPayment = existingByOrder[0];
 
-        // 4. Check if Payment already exists
-        const existingPaymentResults = await db.select().from(payments).where(eq(payments.paymentKey, paymentKey));
-        if (existingPaymentResults.length > 0) {
-            console.log("⚠️ Payment already exists in DB. updating...");
+        if (targetPayment) {
+            console.log(`⚠️ Payment record found (ID: ${targetPayment.id}, Key: ${targetPayment.paymentKey}). Updating...`);
+
             await db.update(payments).set({
-                status: status,
+                status: status === 'PAID' ? 'COMPLETED' : status,
+                amount: amount,
+                userId: order?.userId || targetPayment.userId,
+                paymentKey: paymentId || paymentKey, // Update to canonical key if different
+                method: JSON.stringify(method),
+                customerName: customer?.name || null,
+                customerEmail: customer?.email || null,
+                customerMobilePhone: customer?.phoneNumber || null,
                 approvedAt: approvedAt ? new Date(approvedAt) : new Date(),
                 updatedAt: new Date()
-            }).where(eq(payments.paymentKey, paymentKey));
+            }).where(eq(payments.id, targetPayment.id));
             console.log("✅ Payment updated.");
         } else {
             console.log("Creating new payment record...");
-
             await db.insert(payments).values({
-                userId: order.userId,
+                userId: order?.userId || 1, // Fallback
                 bidId: null,
                 orderId: orderId,
-                orderName: `상품 주문: ${orderId}`, // Matches webhook format
+                orderName: `상품 주문: ${orderId}`,
                 amount: amount,
-                status: status === 'PAID' ? 'COMPLETED' : status, // Map status
-                paymentKey: paymentKey,
-                merchantId: merchantId,
-                method: JSON.stringify(method), // Store as string
+                status: status === 'PAID' ? 'COMPLETED' : status,
+                paymentKey: paymentId || paymentKey,
+                merchantId: paymentData.merchantId || "MOI3204387",
+                method: JSON.stringify(method),
+                customerName: customer?.name || null,
+                customerEmail: customer?.email || null,
+                customerMobilePhone: customer?.phoneNumber || null,
                 requestedAt: requestedAt ? new Date(requestedAt) : new Date(),
                 approvedAt: approvedAt ? new Date(approvedAt) : new Date(),
                 createdAt: new Date(),
                 updatedAt: new Date()
             });
-            console.log("✅ Payment inserted successfully.");
-
-            // Update Order status
-            if (status === 'PAID') {
-                await db.update(orders).set({
-                    status: 'paid',
-                    updatedAt: new Date()
-                }).where(eq(orders.id, order.id));
-                console.log("✅ Order status updated to 'paid'.");
-            }
+            console.log("✅ Payment inserted.");
         }
 
     } catch (error) {
