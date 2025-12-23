@@ -103,3 +103,8 @@ MCP 서버를 활성화하려면 다음 환경 변수를 `.env` 파일에 추가
 ├── vite.config.ts    # Vite config (Vite 설정)
 └── package.json      # Dependencies and scripts (의존성 및 스크립트)
 ```
+## 언어 설정 (Language Settings)
+
+*   **기본 언어:** 한국어 (Korean)
+*   모든 대화, 주석, 문서화는 **한국어**로 작성하는 것을 원칙으로 합니다.
+*   사용자에게 표시되는 에러 메시지 또한 반드시 한국어로 제공되어야 합니다.
