@@ -111,6 +111,23 @@ export async function cancelPaymentWithRetry(
         lastError = retryError; // 오류 캡처 (덮어쓰지 않고 보존)
         console.error(`[결제 취소 API] 시도 ${attempts} - 실패:`, retryError?.message || retryError);
 
+        // 이미 취소된 결제인 경우 성공으로 간주
+        const errorData = retryError?.response?.data;
+        if (errorData?.type === 'PAYMENT_ALREADY_CANCELLED' ||
+          errorData?.message === 'payment already cancelled' ||
+          retryError?.message?.includes('payment already cancelled')) {
+          console.log('[결제 취소 API] 이미 취소된 결제입니다. 로컬 DB 상태를 동기화합니다.');
+          portoneCallSuccess = true;
+          // 성공 응답 구조 맞추기
+          response = {
+            status: 'CANCELLED',
+            note: '이미 취소된 결제(DB 동기화)',
+            ...errorData
+          };
+          lastError = null;
+          break;
+        }
+
         // 401 Unauthorized 에러면 즉시 중단 (키가 틀린 것이므로 재시도 불필요)
         if (retryError?.response?.status === 401) {
           console.error('[결제 취소 API] 401 인증 오류 감지. 재시도 중단.');
