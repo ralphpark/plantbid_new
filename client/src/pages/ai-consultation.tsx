@@ -2744,12 +2744,25 @@ export default function AIConsultationPage() {
                                         const data = await response.json();
 
                                         // 지역 상점 정보 추가
+                                        // 413 Payload Too Large 방지를 위한 데이터 최적화 (Vercel 4.5MB 제한 대응)
+                                        const optimizedVendors = (data.vendors || []).map((vendor: any) => ({
+                                          ...vendor,
+                                          products: (vendor.products || []).map((product: any) => ({
+                                            ...product,
+                                            // Base64 이미지일 수 있는 긴 URL은 제외하여 페이로드 크기 대폭 감소
+                                            imageUrl: (product.imageUrl && product.imageUrl.length > 500) ? null : product.imageUrl,
+                                            // 긴 설명도 잘라서 저장
+                                            description: (product.description && product.description.length > 200) ? product.description.substring(0, 200) + '...' : product.description
+                                          }))
+                                        }));
+
+                                        // 지역 상점 정보 추가
                                         const assistantMessage: ChatMessage = {
                                           role: "assistant",
-                                          content: `선택하신 지역: ${selectedLocation.address} 부근의 등록된 상품을 확인하세요. 온라인 상점 표시 가능으로 설정된 상품만 표시됩니다.`,
+                                          content: `선택하신 지역: ${selectedLocation.address} (약 ${data.radius}km 반경) 내에서 빛나는 시작을 도와주실 이웃 상점에서 반려화분 식물을 확인하실 수 있습니다.`,
                                           timestamp: new Date(),
                                           locationInfo: selectedLocation, // 위치 정보 추가
-                                          vendors: data.vendors || [] // 판매자 정보 추가
+                                          vendors: optimizedVendors // 최적화된 데이터 사용
                                         };
 
                                         // 상태 업데이트
@@ -3754,6 +3767,6 @@ export default function AIConsultationPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </DashboardLayout>
+    </DashboardLayout >
   );
 }
