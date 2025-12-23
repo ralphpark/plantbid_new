@@ -12,8 +12,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
-import { 
-  Store, Bell, Settings, ShoppingBag, Package, MapPin, 
+import {
+  Store, Bell, Settings, ShoppingBag, Package, MapPin,
   ChevronRight, MessageSquare, Filter, Search, PlusCircle,
   Edit, Trash, MessageCircle, CheckCircle, Clock, LogOut,
   ImagePlus, Truck, AlertCircle, Send, User, Phone,
@@ -34,7 +34,7 @@ export default function VendorDashboard() {
   const [, navigate] = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
-  
+
   const [loading, setLoading] = useState(true);
   const [bids, setBids] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
@@ -57,7 +57,7 @@ export default function VendorDashboard() {
   const [userName, setUserName] = useState<string>('판매자');
   const [sendPhotoDialogOpen, setSendPhotoDialogOpen] = useState(false);
   const [preparingOrder, setPreparingOrder] = useState<any>(null);
-  
+
   // 판매자 프로필 상태
   const [vendorProfile, setVendorProfile] = useState<{
     id: number;
@@ -71,10 +71,10 @@ export default function VendorDashboard() {
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileImageFile, setProfileImageFile] = useState<File | null>(null);
   const [profileImagePreview, setProfileImagePreview] = useState<string | null>(null);
-  
+
   // 알림 요약
   const [notifications, setNotifications] = useState<any[]>([]);
-  
+
   const [conversations, setConversations] = useState<Record<number, any>>({});
 
   // 데이터 로드 - 컴포넌트 마운트 시 실행
@@ -84,7 +84,7 @@ export default function VendorDashboard() {
       navigate('/login');
       return;
     }
-    
+
     // 사용자가 판매자 역할이 아닌 경우 리디렉션
     if (user.role !== 'vendor') {
       toast({
@@ -95,10 +95,10 @@ export default function VendorDashboard() {
       navigate('/');
       return;
     }
-    
+
     // 이름 설정
     setUserName(user.username || user.email || '판매자');
-    
+
     // 데이터 로드
     const loadData = async () => {
       setLoading(true);
@@ -109,28 +109,28 @@ export default function VendorDashboard() {
           const bidsData = await bidsResponse.json();
           setBids(bidsData || []);
         }
-        
+
         // 판매자 주문 데이터 로드
         const ordersResponse = await fetch('/api/orders/vendor/me');
         if (ordersResponse.ok) {
           const ordersData = await ordersResponse.json();
           setOrders(ordersData || []);
         }
-        
+
         // 판매자 직접 판매 주문 데이터 로드
         const directOrdersResponse = await fetch('/api/orders/vendor/direct');
         if (directOrdersResponse.ok) {
           const directOrdersData = await directOrdersResponse.json();
           setDirectOrders(directOrdersData || []);
         }
-        
+
         // 판매자 제품 데이터 로드
         const productsResponse = await fetch('/api/products');
         if (productsResponse.ok) {
           const productsData = await productsResponse.json();
           setProducts(productsData || []);
         }
-        
+
         // 판매자 결제 데이터 로드
         const paymentsResponse = await fetch('/api/payments/vendor/me');
         if (paymentsResponse.ok) {
@@ -138,7 +138,7 @@ export default function VendorDashboard() {
           setPayments(paymentsData || []);
           console.log('판매자 결제 데이터 로드:', paymentsData.length, '개 항목');
         }
-        
+
         // 판매자 위치 정보 로드
         const locationResponse = await fetch('/api/vendors/location');
         if (locationResponse.ok) {
@@ -152,7 +152,7 @@ export default function VendorDashboard() {
             });
           }
         }
-        
+
         // 판매자 프로필 정보 로드
         const vendorResponse = await fetch('/api/vendors/me');
         if (vendorResponse.ok) {
@@ -179,14 +179,14 @@ export default function VendorDashboard() {
         setLoading(false);
       }
     };
-    
+
     loadData();
   }, [user, navigate, toast]);
-  
+
   // 로그아웃 처리
   const handleLogout = () => {
     setLoading(true); // 로딩 표시 시작
-    
+
     // 직접 API 요청으로 로그아웃 처리
     fetch('/api/logout', {
       method: 'POST',
@@ -194,42 +194,42 @@ export default function VendorDashboard() {
         'Content-Type': 'application/json'
       }
     })
-    .then(() => {
-      // 캐시와 상태 초기화
-      setBids([]);
-      setOrders([]);
-      setProducts([]);
-      setConversations({});
-      
-      // 성공 메시지 표시
-      toast({
-        title: "로그아웃 성공",
-        description: "성공적으로 로그아웃되었습니다."
+      .then(() => {
+        // 캐시와 상태 초기화
+        setBids([]);
+        setOrders([]);
+        setProducts([]);
+        setConversations({});
+
+        // 성공 메시지 표시
+        toast({
+          title: "로그아웃 성공",
+          description: "성공적으로 로그아웃되었습니다."
+        });
+
+        // 전체 페이지 새로고침 (모든 React Query 캐시 및 상태 초기화)
+        setTimeout(() => {
+          window.location.href = '/auth'; // 로그아웃 후 인증 페이지로 강제 이동 (navigate 대신 location 사용)
+        }, 500);
+      })
+      .catch(error => {
+        console.error("로그아웃 오류:", error);
+        setLoading(false);
+        toast({
+          title: "로그아웃 실패",
+          description: "로그아웃 처리 중 오류가 발생했습니다.",
+          variant: "destructive"
+        });
       });
-      
-      // 전체 페이지 새로고침 (모든 React Query 캐시 및 상태 초기화)
-      setTimeout(() => {
-        window.location.href = '/auth'; // 로그아웃 후 인증 페이지로 강제 이동 (navigate 대신 location 사용)
-      }, 500);
-    })
-    .catch(error => {
-      console.error("로그아웃 오류:", error);
-      setLoading(false);
-      toast({
-        title: "로그아웃 실패",
-        description: "로그아웃 처리 중 오류가 발생했습니다.",
-        variant: "destructive"
-      });
-    });
   };
-  
+
   // 주문 클릭 처리
   const handleOrderClick = (order: any) => {
     setSelectedOrder(order);
     setSelectedBid(null);
     setShowConversation(false);
   };
-  
+
   // 입찰 클릭 처리
   const handleBidClick = (bid: any) => {
     if (selectedBid && selectedBid.id === bid.id) {
@@ -240,12 +240,12 @@ export default function VendorDashboard() {
       setShowConversation(false);
     }
   };
-  
+
   // 입찰 업데이트 처리
   const handleUpdateBid = async (bidId: string, bidData: any, closePanel = true) => {
     try {
       console.log("입찰 업데이트 시작:", { bidId, status: bidData.status, data: bidData });
-      
+
       const response = await fetch(`/api/bids/${bidId}`, {
         method: 'PATCH',
         headers: {
@@ -253,26 +253,26 @@ export default function VendorDashboard() {
         },
         body: JSON.stringify(bidData)
       });
-      
+
       if (!response.ok) throw new Error("입찰 업데이트에 실패했습니다");
-      
+
       const updatedBid = await response.json();
       console.log("서버에서 업데이트된 입찰 데이터:", updatedBid);
-      
+
       // 로컬 상태 업데이트 - 새로운 상태를 확실히 반영
       setBids(prev => {
-        const updatedBids = prev.map(b => 
+        const updatedBids = prev.map(b =>
           b.id.toString() === bidId ? { ...b, ...updatedBid, status: bidData.status || updatedBid.status } : b
         );
         console.log("업데이트 된 입찰 목록:", updatedBids);
         return updatedBids;
       });
-      
+
       // 선택된 입찰이 현재 업데이트 중인 입찰이면 업데이트
       if (selectedBid && selectedBid.id.toString() === bidId) {
-        setSelectedBid({...selectedBid, ...updatedBid, status: bidData.status || updatedBid.status});
+        setSelectedBid({ ...selectedBid, ...updatedBid, status: bidData.status || updatedBid.status });
       }
-      
+
       // 자동 메시지 전송
       if ((bidData.status === 'bidded' || bidData.status === 'reviewing') && updatedBid.conversationId) {
         // 판매자 정보 조회
@@ -286,18 +286,18 @@ export default function VendorDashboard() {
         } catch (error) {
           console.error("판매자 정보 조회 오류:", error);
         }
-        
+
         // 현재 대화 내용 가져오기 - 중복 확인용
         const convResponse = await fetch(`/api/conversations/${updatedBid.conversationId}`);
         const conversation = await convResponse.json();
         const existingMessages = conversation.messages || [];
-        
+
         // 🚫 검토 상태에서는 메시지를 생성하지 않음 (근본적 해결)
         if (bidData.status === 'reviewing') {
           console.log("입찰 검토 상태에서는 메시지를 생성하지 않습니다 (중복 방지)");
           return;
         }
-        
+
         // 입찰 상세 정보 메시지 먼저 생성 (상품 정보, 참고 이미지 포함)
         const detailsMessage = {
           role: "vendor",
@@ -312,17 +312,17 @@ export default function VendorDashboard() {
           vendorColor: "bg-slate-50", // 판매자 색상
           storeName: vendorInfo?.storeName || "식물 가게", // 상점 이름
         };
-        
+
         // 먼저 상세 정보 메시지 추가 (bidded 상태일 때만)
         let updatedMessages = [...existingMessages];
-        
+
         // 1. bidded 상태인 경우 - 두 메시지 모두 추가 (상세 메시지 + 완료 메시지)
         if (bidData.status === 'bidded') {
           // 선택된 상품 정보와 메시지가 있는 경우만 상세 메시지 추가
           if (bidData.vendorMessage && bidData.vendorMessage.trim() !== '') {
             updatedMessages = [...updatedMessages, detailsMessage];
           }
-          
+
           // 입찰 완료 메시지 추가 - 모든 판매자에게 일관되게 표시
           const completedMessage = {
             role: "vendor",
@@ -334,10 +334,10 @@ export default function VendorDashboard() {
             vendorColor: "bg-slate-50",
             storeName: vendorInfo?.storeName || "식물 가게",
           };
-          
+
           // 메시지 추가
           updatedMessages.push(completedMessage);
-        } 
+        }
         // 2. reviewing 상태인 경우 - 검토 중 메시지만 추가
         else if (bidData.status === 'reviewing') {
           // 검토 중 메시지 추가
@@ -351,11 +351,11 @@ export default function VendorDashboard() {
             vendorColor: "bg-slate-50",
             storeName: vendorInfo?.storeName || "식물 가게",
           };
-          
+
           // 메시지 추가 
           updatedMessages.push(reviewingMessage);
         }
-        
+
         // 최종 메시지 전송
         console.log("[handleUpdateBid] 메시지 전송 시작:", {
           conversationId: updatedBid.conversationId,
@@ -363,7 +363,7 @@ export default function VendorDashboard() {
           messageCount: updatedMessages.length,
           status: bidData.status
         });
-        
+
         const patchResult = await fetch(`/api/conversations/${updatedBid.conversationId}`, {
           method: 'PATCH',
           headers: {
@@ -373,7 +373,7 @@ export default function VendorDashboard() {
             messages: updatedMessages
           })
         });
-        
+
         if (!patchResult.ok) {
           const errorData = await patchResult.json().catch(() => ({}));
           console.error("[handleUpdateBid] 메시지 전송 실패:", {
@@ -385,18 +385,18 @@ export default function VendorDashboard() {
           console.log("[handleUpdateBid] 메시지 전송 성공 - 메시지 개수:", updatedMessages.length);
         }
       }
-      
+
       toast({
         title: "입찰 정보 업데이트 완료",
         description: bidData.status === 'bidded' ? "고객에게 입찰 내용이 전송되었습니다." : "입찰 정보가 업데이트되었습니다.",
       });
-      
+
       // 이미지만 업데이트할 경우 패널 닫지 않음
       if (closePanel) {
         setSelectedBid(null);
       } else if (selectedBid) {
         // 선택된 입찰 정보 업데이트
-        setSelectedBid({...selectedBid, ...updatedBid});
+        setSelectedBid({ ...selectedBid, ...updatedBid });
       }
     } catch (error) {
       console.error("입찰 업데이트 오류:", error);
@@ -407,20 +407,20 @@ export default function VendorDashboard() {
       });
     }
   };
-  
 
-  
+
+
   // 주문 상태 업데이트 처리
   const handleUpdateOrderStatus = async (orderId: string, status: string) => {
     try {
       const orderIdNum = parseInt(orderId);
       // 주문 정보 찾기
       const orderToUpdate = orders.find(o => o.id === orderIdNum);
-      
+
       if (!orderToUpdate) {
         throw new Error("주문 정보를 찾을 수 없습니다");
       }
-      
+
       // API 호출 (서버는 PUT 메서드만 지원함)
       const response = await fetch(`/api/orders/${orderToUpdate.orderId}/status`, {
         method: 'PUT',
@@ -429,9 +429,9 @@ export default function VendorDashboard() {
         },
         body: JSON.stringify({ status })
       });
-      
+
       if (!response.ok) throw new Error("주문 상태 업데이트에 실패했습니다");
-      
+
       // 'preparing' 상태로 변경하는 경우 자동 메시지 전송만 처리
       if (status === 'preparing') {
         // 상품 준비중 메시지 자동 전송
@@ -478,7 +478,7 @@ export default function VendorDashboard() {
           content: "안녕하세요! 주문하신 상품이 배송 완료되었습니다. 상품에 문제가 있거나 궁금한 점이 있으시면 언제든지 문의해주세요.",
           timestamp: new Date(),
         };
-        
+
         await fetch(`/api/conversations/${orderToUpdate.conversationId}`, {
           method: 'PATCH',
           headers: {
@@ -495,7 +495,7 @@ export default function VendorDashboard() {
           content: "안녕하세요. 주문이 취소되었습니다. 문의사항이 있으시면 언제든지 알려주세요.",
           timestamp: new Date(),
         };
-        
+
         await fetch(`/api/conversations/${orderToUpdate.conversationId}`, {
           method: 'PATCH',
           headers: {
@@ -506,18 +506,18 @@ export default function VendorDashboard() {
           })
         });
       }
-      
+
       // 로컬 상태 업데이트
-      setOrders(prev => prev.map(o => 
+      setOrders(prev => prev.map(o =>
         o.id === orderIdNum ? { ...o, status } : o
       ));
-      
+
       if (selectedOrder?.id === orderIdNum) {
         setSelectedOrder((prev: any) => prev ? { ...prev, status } : null);
       }
-      
+
       let statusText = '';
-      switch(status) {
+      switch (status) {
         case 'preparing':
           statusText = '준비 중';
           break;
@@ -533,7 +533,7 @@ export default function VendorDashboard() {
         default:
           statusText = status;
       }
-      
+
       toast({
         title: "주문 상태 업데이트 완료",
         description: `주문이 ${statusText} 상태로 변경되었습니다.`,
@@ -547,7 +547,7 @@ export default function VendorDashboard() {
       });
     }
   };
-  
+
   // 식물 사진 및 메시지 전송 처리
   const handleSendPlantPhoto = async (data: { message: string; imageUrl?: string }) => {
     if (!preparingOrder || !preparingOrder.conversationId) {
@@ -558,7 +558,7 @@ export default function VendorDashboard() {
       });
       return;
     }
-    
+
     try {
       // 메시지 객체 생성
       const photoMessage = {
@@ -567,7 +567,7 @@ export default function VendorDashboard() {
         timestamp: new Date(),
         imageUrl: data.imageUrl // 이미지 URL이 있을 경우 포함
       };
-      
+
       // API 호출
       const response = await fetch(`/api/conversations/${preparingOrder.conversationId}`, {
         method: 'PATCH',
@@ -578,11 +578,11 @@ export default function VendorDashboard() {
           messages: [...(conversations[preparingOrder.conversationId]?.messages || []), photoMessage]
         })
       });
-      
+
       if (!response.ok) {
         throw new Error("메시지 전송에 실패했습니다");
       }
-      
+
       // 상태 업데이트
       if (conversations[preparingOrder.conversationId]) {
         setConversations(prev => ({
@@ -593,12 +593,12 @@ export default function VendorDashboard() {
           }
         }));
       }
-      
+
       toast({
         title: "메시지 전송 완료",
         description: "식물 사진과 메시지가 성공적으로 전송되었습니다.",
       });
-      
+
       // 다이얼로그 닫기
       setSendPhotoDialogOpen(false);
     } catch (error) {
@@ -610,13 +610,13 @@ export default function VendorDashboard() {
       });
     }
   };
-  
+
   // 결제 취소 처리 함수
   const handleCancelPayment = async (order: any) => {
     if (!window.confirm("정말로 이 주문의 결제를 취소하시겠습니까?")) {
       return;
     }
-    
+
     try {
       // 결제 취소 API 호출
       const response = await fetch(`/api/payments/cancel`, {
@@ -624,20 +624,38 @@ export default function VendorDashboard() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           orderId: order.orderId,
-          reason: "판매자에 의한 취소" 
+          reason: "판매자에 의한 취소"
         })
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || "결제 취소에 실패했습니다");
       }
-      
-      // 결제 취소 성공 시 주문 상태도 취소로 변경
-      await handleUpdateOrderStatus(order.id.toString(), 'cancelled');
-      
+
+      // 결제 취소 성공 시 로컬 상태 업데이트
+
+      // 1. 주문 목록 상태 업데이트
+      if (orders.length > 0) {
+        setOrders(prev => prev.map(o =>
+          o.orderId === order.orderId ? { ...o, status: 'cancelled' } : o
+        ));
+      }
+
+      // 2. 결제 목록 상태 업데이트
+      if (payments.length > 0) {
+        setPayments(prev => prev.map(p =>
+          p.orderId === order.orderId ? { ...p, status: 'CANCELLED' } : p
+        ));
+      }
+
+      // 3. 선택된 주문이 있다면 그 상태도 업데이트
+      if (selectedOrder && selectedOrder.orderId === order.orderId) {
+        setSelectedOrder((prev: any) => prev ? { ...prev, status: 'cancelled' } : null);
+      }
+
       toast({
         title: "결제 취소 완료",
         description: "결제가 성공적으로 취소되었습니다.",
@@ -651,26 +669,26 @@ export default function VendorDashboard() {
       });
     }
   };
-  
+
   // 제품 추가 다이얼로그 열기
   const handleAddProduct = () => {
     setEditingProduct(null);
     setProductDialogOpen(true);
   };
-  
+
   // 제품 수정 다이얼로그 열기
   const handleEditProduct = (product: any) => {
     setEditingProduct(product);
     setProductDialogOpen(true);
   };
-  
+
   // 제품 저장 처리
   const handleSaveProduct = async (productData: any) => {
     try {
       const isNewProduct = !editingProduct;
       const method = isNewProduct ? 'POST' : 'PUT';
       const url = isNewProduct ? '/api/products' : `/api/products/${editingProduct?.id}`;
-      
+
       const response = await fetch(url, {
         method,
         headers: {
@@ -678,26 +696,26 @@ export default function VendorDashboard() {
         },
         body: JSON.stringify(productData)
       });
-      
+
       if (!response.ok) {
         throw new Error("제품 저장에 실패했습니다");
       }
-      
+
       const savedProduct = await response.json();
-      
+
       // 로컬 상태 업데이트
       if (isNewProduct) {
         setProducts(prev => [...prev, savedProduct]);
       } else {
-        setProducts(prev => prev.map(p => 
+        setProducts(prev => prev.map(p =>
           p.id === editingProduct?.id ? { ...p, ...savedProduct } : p
         ));
       }
-      
+
       // 대화상자 닫기 및 상태 초기화
       setProductDialogOpen(false);
       setEditingProduct(null);
-      
+
       toast({
         title: `제품 ${isNewProduct ? '추가' : '업데이트'} 완료`,
         description: `${savedProduct.name} 제품이 성공적으로 ${isNewProduct ? '추가' : '업데이트'}되었습니다.`,
@@ -711,25 +729,25 @@ export default function VendorDashboard() {
       });
     }
   };
-  
+
   // 제품 삭제 처리
   const handleDeleteProduct = async (productId: string) => {
     if (!confirm("정말로 이 제품을 삭제하시겠습니까?")) {
       return;
     }
-    
+
     try {
       const response = await fetch(`/api/products/${productId}`, {
         method: 'DELETE'
       });
-      
+
       if (!response.ok) {
         throw new Error("제품 삭제에 실패했습니다");
       }
-      
+
       // 로컬 상태 업데이트
       setProducts(prev => prev.filter(p => p.id !== productId));
-      
+
       toast({
         title: "제품 삭제 완료",
         description: "제품이 성공적으로 삭제되었습니다.",
@@ -743,18 +761,18 @@ export default function VendorDashboard() {
       });
     }
   };
-  
+
   // 판매자 주문 데이터 필터링
   const filteredOrders = useMemo(() => {
     if (!orders || orders.length === 0) return [];
-    
+
     return orders.filter((order: any) => {
       // 검색어가 없으면 모든 주문 표시
       if (!searchTerm.trim()) return true;
-      
+
       // 소문자로 변환하여 비교
       const term = searchTerm.toLowerCase();
-      
+
       // 주문 ID, 고객 정보, 상태 등으로 검색
       return (
         (order.orderId && order.orderId.toLowerCase().includes(term)) ||
@@ -764,22 +782,22 @@ export default function VendorDashboard() {
       );
     });
   }, [orders, searchTerm]);
-  
+
   // 결제 내역을 결제 완료 목록에 통합
   const ordersWithPayments = useMemo(() => {
     const result = [...filteredOrders];
-    
+
     // 결제 내역 추가 (orders에 없는 결제만)
     if (payments && payments.length > 0) {
       // 성공/완료 상태의 결제만 필터링
-      const completedPayments = payments.filter(payment => 
-        payment.status === 'success' || 
-        payment.status === 'COMPLETED' || 
+      const completedPayments = payments.filter(payment =>
+        payment.status === 'success' ||
+        payment.status === 'COMPLETED' ||
         payment.status === 'paid'
       );
-      
+
       console.log('결제완료 탭에 표시할 결제 데이터:', completedPayments);
-      
+
       // 특정 케이스 확인 - 판매자 ID 5의 결제 정보
       // 해당 연결 정보 확인
       const vendorSpecificMappings: Record<string, any> = {
@@ -792,21 +810,21 @@ export default function VendorDashboard() {
           shippingAddress: '서울특별시 강남구 테헤란로 427 위워크 타워 10층'
         }
       };
-      
+
       // 입찰 정보 모음
       const bidInfoMap = bids.reduce((acc, bid) => {
         acc[bid.id] = bid;
         return acc;
       }, {} as Record<number, any>);
-      
+
       // 결제 내역과 연결된 입찰 ID 및 상세 정보 로깅
       completedPayments.forEach(payment => {
         const specificMapping = vendorSpecificMappings[payment.orderId];
-        
+
         if (specificMapping) {
           console.log(`결제 ID ${payment.id}에 대한 특정 매핑 정보 발견:`, specificMapping);
         }
-        
+
         if (payment.bidId) {
           const bidInfo = bidInfoMap[payment.bidId];
           console.log(`결제 ID ${payment.id}와 연결된 입찰 정보:`, {
@@ -817,33 +835,33 @@ export default function VendorDashboard() {
           });
         }
       });
-      
+
       // 각 결제 데이터를 orders 형식으로 변환
       completedPayments.forEach(payment => {
         // 이미 주문 목록에 있는지 확인
-        const exists = result.some(order => 
-          order.orderId === payment.orderId || 
+        const exists = result.some(order =>
+          order.orderId === payment.orderId ||
           order.id === payment.orderId
         );
-        
+
         // 주문 목록에 없는 결제만 추가
         if (!exists) {
           // 특정 결제에 대한 매핑 정보 확인
           const specificMapping = vendorSpecificMappings[payment.orderId];
-          
+
           // 연관된 입찰 정보 가져오기
           const relatedBid = payment.bidId ? bidInfoMap[payment.bidId] : null;
-          
+
           // 연결된 사용자 정보 가져오기
           const userInfo = relatedBid?.user || null;
-          
+
           // 결제 데이터를 주문 형식으로 변환 (핵심 정보 직접 연결)
           // 기존 주문 목록에서 현재 결제와 일치하는 주문 검색 (ID로 찾기)
           const existingOrder = filteredOrders.find(
             order => order.id.toString() === payment.id.toString() ||
-                    order.orderId === payment.orderId
+              order.orderId === payment.orderId
           );
-          
+
           result.push({
             id: payment.id,
             orderId: payment.orderId,
@@ -852,28 +870,28 @@ export default function VendorDashboard() {
             status: existingOrder ? existingOrder.status : 'paid',
             createdAt: payment.createdAt || payment.approvedAt || new Date(),
             // 특정 매핑 정보가 있으면 해당 정보 사용, 없으면 기존 로직 유지
-            price: specificMapping ? 
-                   parseInt(specificMapping.price) : 
-                   (payment.amount || (relatedBid?.price) || 0),
+            price: specificMapping ?
+              parseInt(specificMapping.price) :
+              (payment.amount || (relatedBid?.price) || 0),
             productName: specificMapping ?
-                         specificMapping.plantName :
-                         (payment.orderName || payment.productName || (relatedBid?.plant?.name) || '상품 정보 없음'),
+              specificMapping.plantName :
+              (payment.orderName || payment.productName || (relatedBid?.plant?.name) || '상품 정보 없음'),
             buyerInfo: {
-              name: specificMapping ? 
-                    specificMapping.customerName : 
-                    (payment.customerName || (userInfo?.name) || '고객 정보 없음'),
-              phone: specificMapping ? 
-                     specificMapping.customerPhone : 
-                     (payment.customerPhone || (userInfo?.phone) || '연락처 정보 없음'),
-              address: specificMapping ? 
-                       specificMapping.shippingAddress : 
-                       (payment.shippingAddress || '배송 정보 없음'),
+              name: specificMapping ?
+                specificMapping.customerName :
+                (payment.customerName || (userInfo?.name) || '고객 정보 없음'),
+              phone: specificMapping ?
+                specificMapping.customerPhone :
+                (payment.customerPhone || (userInfo?.phone) || '연락처 정보 없음'),
+              address: specificMapping ?
+                specificMapping.shippingAddress :
+                (payment.shippingAddress || '배송 정보 없음'),
               email: payment.customerEmail || (userInfo?.email) || '이메일 정보 없음'
             },
             shippingInfo: {
-              address: specificMapping ? 
-                       specificMapping.shippingAddress : 
-                       (payment.shippingAddress || '배송지 정보 없음'),
+              address: specificMapping ?
+                specificMapping.shippingAddress :
+                (payment.shippingAddress || '배송지 정보 없음'),
               message: payment.shippingMessage || '배송 메시지 없음'
             },
             vendorId: payment.vendorId,
@@ -889,9 +907,9 @@ export default function VendorDashboard() {
             bidInfo: relatedBid ? {
               id: relatedBid.id,
               plant: relatedBid.plant,
-              price: specificMapping ? 
-                     parseInt(specificMapping.price) : 
-                     relatedBid.price,
+              price: specificMapping ?
+                parseInt(specificMapping.price) :
+                relatedBid.price,
               status: relatedBid.status,
               userId: relatedBid.userId,
               user: relatedBid.user
@@ -902,21 +920,21 @@ export default function VendorDashboard() {
         }
       });
     }
-    
+
     return result;
   }, [filteredOrders, payments, bids]);
-  
+
   // 판매자 입찰 데이터 필터링
   const filteredBids = useMemo(() => {
     if (!bids || bids.length === 0) return [];
-    
+
     return bids.filter((bid: any) => {
       // 검색어가 없으면 모든 입찰 표시
       if (!searchTerm.trim()) return true;
-      
+
       // 소문자로 변환하여 비교
       const term = searchTerm.toLowerCase();
-      
+
       // 입찰 ID, 고객 정보, 상태 등으로 검색
       return (
         (bid.id && bid.id.toString().includes(term)) ||
@@ -936,12 +954,12 @@ export default function VendorDashboard() {
   if (!user) {
     return <Redirect to="/auth" />;
   }
-  
+
   // 사용자가 판매자 역할이 아닌 경우 리디렉션
   if (user.role !== 'vendor') {
     return <Redirect to="/" />;
   }
-  
+
   return (
     <div className="flex flex-col h-screen">
       <header className="py-4 px-6 border-b bg-background sticky top-0 z-10 flex justify-between items-center">
@@ -962,9 +980,9 @@ export default function VendorDashboard() {
           <span className="text-sm text-muted-foreground">
             안녕하세요, {userName}님
           </span>
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleLogout}
             className="gap-1"
           >
@@ -973,7 +991,7 @@ export default function VendorDashboard() {
           </Button>
         </div>
       </header>
-      
+
       <div className="flex-1 p-6 overflow-auto">
         <Tabs defaultValue="bids" className="space-y-6">
           <div className="flex items-center justify-between">
@@ -988,7 +1006,7 @@ export default function VendorDashboard() {
               <TabsTrigger value="products">상품 관리</TabsTrigger>
               <TabsTrigger value="settings">설정</TabsTrigger>
             </TabsList>
-            
+
             <div className="flex items-center gap-2">
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -1009,7 +1027,7 @@ export default function VendorDashboard() {
               </Button>
             </div>
           </div>
-          
+
           {showFilters && (
             <Card className="mb-6">
               <CardContent className="p-4">
@@ -1061,7 +1079,7 @@ export default function VendorDashboard() {
               </CardContent>
             </Card>
           )}
-          
+
           {/* 입찰 요청 탭 */}
           <TabsContent value="bids" className="space-y-4">
             {loading ? (
@@ -1086,12 +1104,12 @@ export default function VendorDashboard() {
                   .filter(bid => bid.status === 'pending' || bid.status === 'reviewing' || bid.status === 'bidded')
                   .map(bid => (
                     <div key={bid.id}>
-                      <Card 
+                      <Card
                         className={`
                           ${selectedBid?.id === bid.id ? "border-primary" : ""}
-                          ${bid.status === 'completed' || bid.status === 'bidded' ? "bg-green-50 border-green-200" : 
-                            bid.status === 'reviewing' ? "bg-yellow-50 border-yellow-200" : 
-                            "bg-card"}
+                          ${bid.status === 'completed' || bid.status === 'bidded' ? "bg-green-50 border-green-200" :
+                            bid.status === 'reviewing' ? "bg-yellow-50 border-yellow-200" :
+                              "bg-card"}
                           cursor-pointer hover:bg-muted/50 transition-colors
                         `}
                         onClick={() => handleBidClick(bid)}
@@ -1103,15 +1121,15 @@ export default function VendorDashboard() {
                                 <span className="font-medium">
                                   {bid.plant?.name || "식물 이름 정보 없음"}
                                 </span>
-                                <Badge 
-                                  variant="outline" 
-                                  className={`text-xs ${bid.status === 'completed' || bid.status === 'bidded' ? 'bg-green-50 text-green-600 border-green-200' : 
-                                  bid.status === 'reviewing' ? 'bg-yellow-50 text-yellow-600 border-yellow-200' : ''}`}
+                                <Badge
+                                  variant="outline"
+                                  className={`text-xs ${bid.status === 'completed' || bid.status === 'bidded' ? 'bg-green-50 text-green-600 border-green-200' :
+                                    bid.status === 'reviewing' ? 'bg-yellow-50 text-yellow-600 border-yellow-200' : ''}`}
                                 >
-                                  {bid.status === 'completed' ? '완료됨' : 
-                                   bid.status === 'bidded' ? '입찰 완료' : 
-                                   bid.status === 'reviewing' ? '검토 중' : 
-                                   `입찰 #${bid.id}`}
+                                  {bid.status === 'completed' ? '완료됨' :
+                                    bid.status === 'bidded' ? '입찰 완료' :
+                                      bid.status === 'reviewing' ? '검토 중' :
+                                        `입찰 #${bid.id}`}
                                 </Badge>
                               </div>
                               <div className="text-sm text-muted-foreground flex items-center gap-3">
@@ -1129,14 +1147,14 @@ export default function VendorDashboard() {
                               {/* 입찰 상태 표시 Badge */}
                               <div className="flex items-center mr-2">
                                 <Badge variant={
-                                  bid.status === 'completed' ? 'outline' : 
-                                  bid.status === 'reviewing' ? 'secondary' : 'default'
+                                  bid.status === 'completed' ? 'outline' :
+                                    bid.status === 'reviewing' ? 'secondary' : 'default'
                                 } className="px-2 py-1">
-                                  {bid.status === 'completed' ? '완료' : 
-                                   bid.status === 'reviewing' ? '검토중' : '검토 필요'}
+                                  {bid.status === 'completed' ? '완료' :
+                                    bid.status === 'reviewing' ? '검토중' : '검토 필요'}
                                 </Badge>
                               </div>
-                              
+
                               <div>
                                 <ChevronRight className={`h-5 w-5 transition-transform ${selectedBid?.id === bid.id ? "rotate-90" : ""}`} />
                               </div>
@@ -1149,7 +1167,7 @@ export default function VendorDashboard() {
                       {selectedBid?.id === bid.id && (
                         <Card className="mt-1 border-t-0 rounded-t-none p-4 border-primary bg-primary/5 shadow-sm">
                           <CardContent className="p-0">
-                            <BidDetailsSidePanel 
+                            <BidDetailsSidePanel
                               bid={selectedBid}
                               onUpdateBid={handleUpdateBid}
                               products={products}
@@ -1162,7 +1180,7 @@ export default function VendorDashboard() {
               </div>
             )}
           </TabsContent>
-          
+
           {/* 직접 판매 탭 */}
           <TabsContent value="direct" className="space-y-4">
             {loading ? (
@@ -1221,7 +1239,7 @@ export default function VendorDashboard() {
                             {order.buyerInfo?.name || "이름 정보 없음"}
                           </span>
                         </div>
-                        
+
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-1 text-muted-foreground">
                             <Phone className="h-3.5 w-3.5" />
@@ -1231,7 +1249,7 @@ export default function VendorDashboard() {
                             {order.buyerInfo?.phone || "연락처 정보 없음"}
                           </span>
                         </div>
-                        
+
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-1 text-muted-foreground">
                             <DollarSign className="h-3.5 w-3.5" />
@@ -1241,7 +1259,7 @@ export default function VendorDashboard() {
                             {order.price ? Number(order.price).toLocaleString() + '원' : "가격 정보 없음"}
                           </span>
                         </div>
-                        
+
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-1 text-muted-foreground">
                             <Package className="h-3.5 w-3.5" />
@@ -1251,7 +1269,7 @@ export default function VendorDashboard() {
                             {order.productName || "상품 정보 없음"}
                           </span>
                         </div>
-                        
+
                         {(order.buyerInfo?.address || order.recipientInfo?.address) && (
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-1 text-muted-foreground">
@@ -1264,7 +1282,7 @@ export default function VendorDashboard() {
                           </div>
                         )}
                       </div>
-                      
+
                       <div className="mt-4 pt-3 border-t border-dashed flex justify-between items-center">
                         <div className="flex gap-2">
                           <Button
@@ -1294,7 +1312,7 @@ export default function VendorDashboard() {
               </div>
             )}
           </TabsContent>
-          
+
           {/* 결제 완료 탭 */}
           <TabsContent value="paid" className="space-y-4">
             {loading ? (
@@ -1352,52 +1370,52 @@ export default function VendorDashboard() {
                               <span>고객:</span>
                             </div>
                             <span className="font-medium">
-                              {order.buyerInfo?.name || 
-                                (order.isFromPayment && order.bidInfo?.userId ? 
-                                  bids.find(b => b.id === order.bidInfo.id)?.user?.name : 
+                              {order.buyerInfo?.name ||
+                                (order.isFromPayment && order.bidInfo?.userId ?
+                                  bids.find(b => b.id === order.bidInfo.id)?.user?.name :
                                   "이름 정보 없음")}
                             </span>
                           </div>
-                          
+
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-1 text-muted-foreground">
                               <Phone className="h-3.5 w-3.5" />
                               <span>연락처:</span>
                             </div>
                             <span className="font-medium">
-                              {order.buyerInfo?.phone || 
-                                (order.isFromPayment && order.bidInfo?.userId ? 
-                                  bids.find(b => b.id === order.bidInfo.id)?.user?.phone : 
+                              {order.buyerInfo?.phone ||
+                                (order.isFromPayment && order.bidInfo?.userId ?
+                                  bids.find(b => b.id === order.bidInfo.id)?.user?.phone :
                                   "연락처 정보 없음")}
                             </span>
                           </div>
-                          
+
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-1 text-muted-foreground">
                               <DollarSign className="h-3.5 w-3.5" />
                               <span>금액:</span>
                             </div>
                             <span className="font-medium">
-                              {order.price ? 
-                                Number(order.price).toLocaleString() + '원' : 
-                                (order.bidInfo?.price ? 
-                                  Number(order.bidInfo.price).toLocaleString() + '원' : 
+                              {order.price ?
+                                Number(order.price).toLocaleString() + '원' :
+                                (order.bidInfo?.price ?
+                                  Number(order.bidInfo.price).toLocaleString() + '원' :
                                   "가격 정보 없음")}
                             </span>
                           </div>
-                          
+
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-1 text-muted-foreground">
                               <Package className="h-3.5 w-3.5" />
                               <span>상품:</span>
                             </div>
                             <span className="font-medium">
-                              {order.productName || 
-                                (order.bidInfo?.plant?.name) || 
+                              {order.productName ||
+                                (order.bidInfo?.plant?.name) ||
                                 "상품 정보 없음"}
                             </span>
                           </div>
-                          
+
                           {(order.buyerInfo?.address || order.shippingInfo?.address) && (
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-1 text-muted-foreground">
@@ -1409,7 +1427,7 @@ export default function VendorDashboard() {
                               </span>
                             </div>
                           )}
-                          
+
                           {order.paymentId && (
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-1 text-muted-foreground">
@@ -1422,7 +1440,7 @@ export default function VendorDashboard() {
                             </div>
                           )}
                         </div>
-                        
+
                         <div className="mt-4 pt-3 border-t border-dashed flex justify-between items-center">
                           <div className="flex gap-2">
                             <Button
@@ -1434,7 +1452,7 @@ export default function VendorDashboard() {
                               <Package className="h-3.5 w-3.5" />
                               상품 준비 시작
                             </Button>
-                            
+
                             <Button
                               size="sm"
                               variant="destructive"
@@ -1447,7 +1465,7 @@ export default function VendorDashboard() {
                               결제 취소
                             </Button>
                           </div>
-                          
+
                           {order.conversationId && (
                             <Button
                               size="icon"
@@ -1468,7 +1486,7 @@ export default function VendorDashboard() {
               </div>
             )}
           </TabsContent>
-          
+
           {/* 상품 준비 중 탭 */}
           <TabsContent value="preparing" className="space-y-4">
             {loading ? (
@@ -1546,7 +1564,7 @@ export default function VendorDashboard() {
                             </span>
                           </div>
                         </div>
-                        
+
                         {/* 고객 대화 버튼 */}
                         {order.conversationId && (
                           <div className="mt-4 pt-3 border-t border-dashed">
@@ -1567,7 +1585,7 @@ export default function VendorDashboard() {
                             </div>
                           </div>
                         )}
-                        
+
                         <div className="mt-4 pt-3 border-t border-dashed flex justify-between items-center">
                           <Button
                             size="sm"
@@ -1729,7 +1747,7 @@ export default function VendorDashboard() {
               </div>
             )}
           </TabsContent>
-          
+
           {/* 완료 탭 */}
           <TabsContent value="completed" className="space-y-4">
             {loading ? (
@@ -1807,7 +1825,7 @@ export default function VendorDashboard() {
                             </span>
                           </div>
                         </div>
-                        
+
                         <div className="mt-4 pt-3 border-t border-dashed flex justify-end items-center">
                           {order.conversationId && (
                             <Button
@@ -1829,7 +1847,7 @@ export default function VendorDashboard() {
               </div>
             )}
           </TabsContent>
-          
+
           {/* 결제 내역 탭 */}
           <TabsContent value="payments" className="space-y-4">
             {loading ? (
@@ -1877,10 +1895,10 @@ export default function VendorDashboard() {
                                 {payment.orderId ? payment.orderId.substring(0, 12) + '...' : '번호 없음'}
                               </td>
                               <td className="py-3 px-4 text-muted-foreground">
-                                {payment.approvedAt ? 
-                                  new Date(payment.approvedAt).toLocaleDateString() + ' ' + 
-                                  new Date(payment.approvedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) 
-                                  : 
+                                {payment.approvedAt ?
+                                  new Date(payment.approvedAt).toLocaleDateString() + ' ' +
+                                  new Date(payment.approvedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                                  :
                                   new Date(payment.createdAt).toLocaleDateString()
                                 }
                               </td>
@@ -1891,19 +1909,19 @@ export default function VendorDashboard() {
                                 {Number(payment.amount).toLocaleString()}원
                               </td>
                               <td className="py-3 px-4 text-center">
-                                <Badge 
+                                <Badge
                                   variant={
                                     payment.status === 'success' || payment.status === 'paid' ? 'default' :
-                                    payment.status === 'cancel' || payment.status === 'CANCELLED' ? 'destructive' :
-                                    payment.status === 'ready' || payment.status === 'pending' ? 'secondary' : 
-                                    'outline'
+                                      payment.status === 'cancel' || payment.status === 'CANCELLED' ? 'destructive' :
+                                        payment.status === 'ready' || payment.status === 'pending' ? 'secondary' :
+                                          'outline'
                                   }
                                 >
                                   {payment.status === 'success' || payment.status === 'paid' ? '결제완료' :
-                                   payment.status === 'cancel' || payment.status === 'CANCELLED' ? '취소됨' :
-                                   payment.status === 'ready' ? '준비중' :
-                                   payment.status === 'pending' ? '처리중' :
-                                   payment.status}
+                                    payment.status === 'cancel' || payment.status === 'CANCELLED' ? '취소됨' :
+                                      payment.status === 'ready' ? '준비중' :
+                                        payment.status === 'pending' ? '처리중' :
+                                          payment.status}
                                 </Badge>
                               </td>
                               <td className="py-3 px-4 text-center">
@@ -1912,7 +1930,7 @@ export default function VendorDashboard() {
                                     size="sm"
                                     variant="ghost"
                                     className="h-8 w-8 p-0 text-destructive"
-                                    onClick={() => handleCancelPayment({orderId: payment.orderId})}
+                                    onClick={() => handleCancelPayment({ orderId: payment.orderId })}
                                   >
                                     <XCircle className="h-4 w-4" />
                                   </Button>
@@ -1928,7 +1946,7 @@ export default function VendorDashboard() {
               </div>
             )}
           </TabsContent>
-          
+
           {/* 프로필 관리 탭 */}
           <TabsContent value="profile" className="space-y-4">
             <Card className="border-0 shadow-md">
@@ -1945,11 +1963,11 @@ export default function VendorDashboard() {
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="storeName" className="font-semibold">상호명</Label>
-                    <Input 
-                      id="storeName" 
-                      placeholder="가게 이름을 입력하세요" 
+                    <Input
+                      id="storeName"
+                      placeholder="가게 이름을 입력하세요"
                       value={vendorProfile?.storeName || ''}
-                      onChange={(e) => setVendorProfile(prev => prev ? {...prev, storeName: e.target.value} : null)}
+                      onChange={(e) => setVendorProfile(prev => prev ? { ...prev, storeName: e.target.value } : null)}
                       className="h-10"
                     />
                   </div>
@@ -1960,28 +1978,28 @@ export default function VendorDashboard() {
                       placeholder="판매자 소개를 입력하세요 (고객들이 볼 내용)"
                       className="min-h-[120px] resize-none"
                       value={vendorProfile?.description || ''}
-                      onChange={(e) => setVendorProfile(prev => prev ? {...prev, description: e.target.value} : null)}
+                      onChange={(e) => setVendorProfile(prev => prev ? { ...prev, description: e.target.value } : null)}
                     />
                     <p className="text-xs text-gray-500">최대 500자까지 입력 가능합니다</p>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="phone" className="font-semibold">연락처</Label>
-                      <Input 
-                        id="phone" 
-                        placeholder="010-XXXX-XXXX" 
+                      <Input
+                        id="phone"
+                        placeholder="010-XXXX-XXXX"
                         value={vendorProfile?.phone || ''}
-                        onChange={(e) => setVendorProfile(prev => prev ? {...prev, phone: e.target.value} : null)}
+                        onChange={(e) => setVendorProfile(prev => prev ? { ...prev, phone: e.target.value } : null)}
                         className="h-10"
                       />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="address" className="font-semibold">위치</Label>
-                      <Input 
-                        id="address" 
-                        placeholder="서울시 강남구..." 
+                      <Input
+                        id="address"
+                        placeholder="서울시 강남구..."
                         value={vendorProfile?.address || ''}
-                        onChange={(e) => setVendorProfile(prev => prev ? {...prev, address: e.target.value} : null)}
+                        onChange={(e) => setVendorProfile(prev => prev ? { ...prev, address: e.target.value } : null)}
                         className="h-10"
                       />
                     </div>
@@ -1991,15 +2009,15 @@ export default function VendorDashboard() {
                     <div className="flex items-center gap-4 p-4 bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg border border-green-200">
                       <div className="w-20 h-20 rounded-full bg-white border-2 border-green-200 flex items-center justify-center overflow-hidden flex-shrink-0">
                         {profileImagePreview ? (
-                          <img 
-                            src={profileImagePreview} 
-                            alt="프로필" 
+                          <img
+                            src={profileImagePreview}
+                            alt="프로필"
                             className="w-full h-full object-cover"
                           />
                         ) : vendorProfile?.profileImageUrl ? (
-                          <img 
-                            src={vendorProfile.profileImageUrl} 
-                            alt="프로필" 
+                          <img
+                            src={vendorProfile.profileImageUrl}
+                            alt="프로필"
                             className="w-full h-full object-cover"
                           />
                         ) : (
@@ -2007,8 +2025,8 @@ export default function VendorDashboard() {
                         )}
                       </div>
                       <div className="flex-1">
-                        <Input 
-                          type="file" 
+                        <Input
+                          type="file"
                           accept="image/*"
                           className="hidden"
                           id="profile-image-upload"
@@ -2024,9 +2042,9 @@ export default function VendorDashboard() {
                             }
                           }}
                         />
-                        <Button 
+                        <Button
                           type="button"
-                          variant="outline" 
+                          variant="outline"
                           size="sm"
                           onClick={() => document.getElementById('profile-image-upload')?.click()}
                           className="w-full"
@@ -2039,7 +2057,7 @@ export default function VendorDashboard() {
                   </div>
                 </div>
                 <div className="pt-4 border-t flex gap-2 justify-end">
-                  <Button 
+                  <Button
                     variant="outline"
                     onClick={() => {
                       setProfileImageFile(null);
@@ -2048,7 +2066,7 @@ export default function VendorDashboard() {
                   >
                     취소
                   </Button>
-                  <Button 
+                  <Button
                     className="bg-green-600 hover:bg-green-700"
                     onClick={async () => {
                       if (!vendorProfile) return;
@@ -2094,7 +2112,7 @@ export default function VendorDashboard() {
               </CardContent>
             </Card>
           </TabsContent>
-          
+
           {/* 상품 관리 탭 */}
           <TabsContent value="products" className="space-y-4">
             <div className="flex justify-between items-center">
@@ -2104,7 +2122,7 @@ export default function VendorDashboard() {
                 상품 추가
               </Button>
             </div>
-            
+
             {loading ? (
               <div className="flex justify-center items-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -2178,13 +2196,13 @@ export default function VendorDashboard() {
               </div>
             )}
           </TabsContent>
-          
+
           {/* 설정 탭 */}
           <TabsContent value="settings" className="space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-lg font-medium">설정</h2>
             </div>
-            
+
             <Card>
               <CardHeader>
                 <CardTitle>프로필 사진</CardTitle>
@@ -2197,9 +2215,9 @@ export default function VendorDashboard() {
                   <div className="relative">
                     <div className="w-24 h-24 rounded-full bg-gradient-to-br from-green-100 to-green-50 flex items-center justify-center overflow-hidden border-2 border-green-200">
                       {profileImagePreview ? (
-                        <img 
-                          src={profileImagePreview} 
-                          alt="프로필" 
+                        <img
+                          src={profileImagePreview}
+                          alt="프로필"
                           className="w-full h-full object-cover"
                         />
                       ) : (
@@ -2208,8 +2226,8 @@ export default function VendorDashboard() {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Input 
-                      type="file" 
+                    <Input
+                      type="file"
                       accept="image/*"
                       className="hidden"
                       id="profile-image-upload"
@@ -2226,8 +2244,8 @@ export default function VendorDashboard() {
                       }}
                       data-testid="input-profile-image"
                     />
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       size="sm"
                       onClick={() => document.getElementById('profile-image-upload')?.click()}
                       data-testid="button-upload-profile-image"
@@ -2236,8 +2254,8 @@ export default function VendorDashboard() {
                       사진 변경
                     </Button>
                     {profileImagePreview && (
-                      <Button 
-                        variant="ghost" 
+                      <Button
+                        variant="ghost"
                         size="sm"
                         className="text-red-500 hover:text-red-600"
                         onClick={() => {
@@ -2254,7 +2272,7 @@ export default function VendorDashboard() {
                 </div>
               </CardContent>
             </Card>
-            
+
             <Card>
               <CardHeader>
                 <CardTitle>판매자 정보</CardTitle>
@@ -2265,11 +2283,11 @@ export default function VendorDashboard() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="vendorStoreName">상호명</Label>
-                  <Input 
-                    id="vendorStoreName" 
-                    placeholder="상호명을 입력하세요" 
+                  <Input
+                    id="vendorStoreName"
+                    placeholder="상호명을 입력하세요"
                     value={vendorProfile?.storeName || ''}
-                    onChange={(e) => setVendorProfile(prev => prev ? {...prev, storeName: e.target.value} : null)}
+                    onChange={(e) => setVendorProfile(prev => prev ? { ...prev, storeName: e.target.value } : null)}
                     data-testid="input-vendor-store-name"
                   />
                 </div>
@@ -2280,74 +2298,74 @@ export default function VendorDashboard() {
                     placeholder="판매자 소개를 입력하세요"
                     className="min-h-[100px]"
                     value={vendorProfile?.description || ''}
-                    onChange={(e) => setVendorProfile(prev => prev ? {...prev, description: e.target.value} : null)}
+                    onChange={(e) => setVendorProfile(prev => prev ? { ...prev, description: e.target.value } : null)}
                     data-testid="input-vendor-description"
                   />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="vendorPhone">연락처</Label>
-                    <Input 
-                      id="vendorPhone" 
-                      placeholder="연락처를 입력하세요" 
+                    <Input
+                      id="vendorPhone"
+                      placeholder="연락처를 입력하세요"
                       value={vendorProfile?.phone || ''}
-                      onChange={(e) => setVendorProfile(prev => prev ? {...prev, phone: e.target.value} : null)}
+                      onChange={(e) => setVendorProfile(prev => prev ? { ...prev, phone: e.target.value } : null)}
                       data-testid="input-vendor-phone"
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="vendorRegion">지역</Label>
-                    <Input 
-                      id="vendorRegion" 
-                      placeholder="지역 (예: 서울, 경기)" 
+                    <Input
+                      id="vendorRegion"
+                      placeholder="지역 (예: 서울, 경기)"
                       value={vendorProfile?.region || ''}
-                      onChange={(e) => setVendorProfile(prev => prev ? {...prev, region: e.target.value} : null)}
+                      onChange={(e) => setVendorProfile(prev => prev ? { ...prev, region: e.target.value } : null)}
                       data-testid="input-vendor-region"
                     />
                   </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="vendorAddress">주소</Label>
-                  <Input 
-                    id="vendorAddress" 
-                    placeholder="상세 주소를 입력하세요" 
+                  <Input
+                    id="vendorAddress"
+                    placeholder="상세 주소를 입력하세요"
                     value={vendorProfile?.address || ''}
-                    onChange={(e) => setVendorProfile(prev => prev ? {...prev, address: e.target.value} : null)}
+                    onChange={(e) => setVendorProfile(prev => prev ? { ...prev, address: e.target.value } : null)}
                     data-testid="input-vendor-address"
                   />
                 </div>
                 <div className="pt-4">
-                  <Button 
+                  <Button
                     className="w-full sm:w-auto bg-green-600 hover:bg-green-700"
                     disabled={profileLoading}
                     onClick={async () => {
                       if (!vendorProfile) return;
-                      
+
                       setProfileLoading(true);
                       try {
                         let imageUrl = vendorProfile.profileImageUrl;
-                        
+
                         if (profileImageFile) {
                           const formData = new FormData();
                           formData.append('file', profileImageFile);
                           formData.append('type', 'profile');
-                          
+
                           const uploadRes = await fetch('/api/upload', {
                             method: 'POST',
                             body: formData,
                           });
-                          
+
                           if (!uploadRes.ok) {
                             throw new Error(`이미지 업로드 실패: ${uploadRes.status}`);
                           }
-                          
+
                           const uploadData = await uploadRes.json();
                           if (!uploadData.url) {
                             throw new Error('이미지 URL을 받지 못했습니다');
                           }
                           imageUrl = uploadData.url;
                         }
-                        
+
                         const profileFormData = new FormData();
                         profileFormData.append('storeName', vendorProfile.storeName || '');
                         profileFormData.append('description', vendorProfile.description || '');
@@ -2355,18 +2373,18 @@ export default function VendorDashboard() {
                         profileFormData.append('phone', vendorProfile.phone || '');
                         profileFormData.append('profileImageUrl', imageUrl || '');
                         profileFormData.append('type', 'vendor-profile');
-                        
+
                         const response = await fetch('/api/upload', {
                           method: 'POST',
                           body: profileFormData,
                         });
-                        
+
                         if (!response.ok) {
                           const errorText = await response.text();
                           console.error('프로필 저장 응답 오류:', response.status, errorText);
                           throw new Error(`프로필 저장 실패: ${response.status}`);
                         }
-                        
+
                         const updatedVendor = await response.json();
                         setVendorProfile({
                           ...vendorProfile,
@@ -2403,7 +2421,7 @@ export default function VendorDashboard() {
                 </div>
               </CardContent>
             </Card>
-            
+
             <Card>
               <CardHeader>
                 <CardTitle>위치 설정</CardTitle>
@@ -2412,8 +2430,8 @@ export default function VendorDashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <LocationSettings 
-                  initialLocation={location} 
+                <LocationSettings
+                  initialLocation={location}
                   onSave={(loc: any) => setLocation(loc)}
                 />
               </CardContent>
@@ -2421,7 +2439,7 @@ export default function VendorDashboard() {
           </TabsContent>
         </Tabs>
       </div>
-      
+
       {/* 주문 상세 다이얼로그 */}
       <OrderDetailsDialog
         order={selectedOrder}
@@ -2430,7 +2448,7 @@ export default function VendorDashboard() {
         onUpdateStatus={handleUpdateOrderStatus}
         onShowChat={() => setShowConversation(true)}
       />
-      
+
       {/* 대화 내역 다이얼로그 */}
       {selectedOrder && showConversation && (
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
@@ -2440,8 +2458,8 @@ export default function VendorDashboard() {
                 <h3 className="font-medium text-lg">
                   대화 내역 - 주문 #{selectedOrder.orderId || selectedOrder.id}
                 </h3>
-                <Button 
-                  size="sm" 
+                <Button
+                  size="sm"
                   variant="ghost"
                   onClick={() => {
                     setShowConversation(false);
@@ -2451,7 +2469,7 @@ export default function VendorDashboard() {
                 </Button>
               </div>
               <div className="flex-1 p-0 h-[600px]">
-                <ConversationView 
+                <ConversationView
                   conversationId={selectedOrder.conversationId}
                   user={{ role: "vendor" }}
                   className="h-full"
@@ -2461,7 +2479,7 @@ export default function VendorDashboard() {
           </div>
         </div>
       )}
-      
+
       {/* 제품 다이얼로그 */}
       <ProductDialog
         open={productDialogOpen}
@@ -2469,7 +2487,7 @@ export default function VendorDashboard() {
         onSave={handleSaveProduct}
         product={editingProduct}
       />
-      
+
       {/* 식물 사진 및 메시지 전송 다이얼로그 */}
       <SendPlantPhotoDialog
         open={sendPhotoDialogOpen}
