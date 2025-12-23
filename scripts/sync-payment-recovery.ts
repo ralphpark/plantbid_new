@@ -22,7 +22,7 @@ async function syncPayment() {
         try {
             console.log("Fetching payment from PortOne...");
             paymentData = await client.getPayment(targetKey);
-        } catch (e) {
+        } catch (e: any) {
             console.error("❌ PortOne API Error:", e.message);
         }
 
