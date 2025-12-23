@@ -1,6 +1,9 @@
 import { Express, Request, Response } from 'express';
 import { IStorage } from './storage.js';
 
+import { convertToV2PaymentId, PortOneV2Client } from './portone-v2-client.js';
+import { smartCancelPayment } from './portone-payment-finder.js';
+
 /**
  * 포트원(PortOne) 결제 취소 개선 API 입니다.
  * - 재시도 로직
@@ -15,11 +18,7 @@ export async function cancelPaymentWithRetry(
   res: Response
 ) {
   try {
-    const { convertToV2PaymentId } = await import('./portone-v2-client.js');
-    const { smartCancelPayment } = await import('./portone-payment-finder.js');
-    // 포트원 V2 클라이언트 가져오기
-    const portoneV2Module = await import('./portone-v2-client.js');
-    const PortOneV2Client = portoneV2Module.PortOneV2Client;
+    // Dynamic imports replaced with static imports above
 
     // 환경 변수에서 시크릿 키 직접 조회 (함수 실행 시점의 최신 값 사용)
     const apiSecret = process.env.PORTONE_SECRET_KEY || process.env.PORTONE_API_SECRET || process.env.PORTONE_V2_API_SECRET;

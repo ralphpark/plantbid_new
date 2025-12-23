@@ -5,7 +5,7 @@
 import { Request, Response, Router } from 'express';
 import crypto from 'crypto';
 import { storage } from './storage.js';
-import { generatePortonePaymentId, convertToV2PaymentId, generateInicisOrderNumber, MERCHANT_ID } from './portone-v2-client.js';
+import { generatePortonePaymentId, convertToV2PaymentId, generateInicisOrderNumber, MERCHANT_ID, PortOneV2Client } from './portone-v2-client.js';
 
 const router = Router();
 
@@ -137,9 +137,21 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
       console.log('[웹훅] V1 형식 웹훅 감지');
 
       // V1 웹훅 이벤트 처리
+      // V1 웹훅 이벤트 처리
       const v1Data = req.body;
-      paymentKey = v1Data.tx_id;
-      orderId = v1Data.payment_id;
+      // 중요: payment_id가 pay_로 시작하면 그것이 V2 ID이므로 우선 사용
+      if (v1Data.payment_id && v1Data.payment_id.startsWith('pay_')) {
+        paymentKey = v1Data.payment_id;
+        orderId = v1Data.tx_id; // tx_id를 orderId로 사용하거나 보관? 
+        // 사실 orderId도 payment_id와 동일한 경우가 많음 (pay_...)
+        // 하지만 여기선 orderId로 검색해야 하므로, DB에 저장된 값을 고려해야 함.
+        // DB엔 orderId='pay_TrD1T...'로 저장됨.
+        orderId = v1Data.payment_id;
+      } else {
+        paymentKey = v1Data.tx_id;
+        orderId = v1Data.payment_id;
+      }
+
       status = v1Data.status === 'Ready' ? 'READY' :
         v1Data.status === 'Paid' ? 'COMPLETED' :
           v1Data.status === 'Failed' ? 'FAILED' :
@@ -157,7 +169,8 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
           const V2_SECRET = process.env.PORTONE_V2_API_SECRET || process.env.PORTONE_API_SECRET;
 
           if (V2_SECRET) {
-            const { PortOneV2Client } = await import('./portone-v2-client.js');
+            // Static import is now used at the top of file (added in next step)
+            // const { PortOneV2Client } = await import('./portone-v2-client.js');
             const client = new PortOneV2Client(V2_SECRET);
             const paymentDetails = await client.getPayment(paymentKey);
 
