@@ -27,6 +27,7 @@ import { promisify } from "util";
 import { setupPlantRoutes } from "./plant-routes.js";
 import { handleGoogleImageSearch } from "./google-images.js";
 // WebSocket 대신 HTTP 폴링 방식을 사용
+import portoneV2Client from "./portone-v2-client.js";
 
 export async function registerRoutes(app: Express): Promise<Server> {
 
@@ -476,16 +477,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ success: false, error: '주문을 찾을 수 없습니다.' });
       }
 
-      // 2. 포트원에서 결제 정보 조회 (선택적)
-      const portoneV2Client = await import('./portone-v2-client');
-      const portoneClient = portoneV2Client.default;
 
+      // 2. 포트원에서 결제 정보 조회 (선택적)
       let paymentDetail = null;
       try {
-        paymentDetail = await portoneClient.getPayment(paymentId);
-        console.log(`[결제 검증] 포트원 결제 정보:`, paymentDetail?.payment?.status);
+        if (portoneV2Client) {
+          paymentDetail = await portoneV2Client.getPayment(paymentId);
+          console.log(`[결제 검증] 포트원 결제 정보:`, paymentDetail?.payment?.status);
+        } else {
+          console.warn(`[결제 검증] 포트원 클라이언트가 초기화되지 않았습니다.`);
+        }
       } catch (e: any) {
         console.error(`[결제 검증] 포트원 조회 실패:`, e.message);
+        // 포트원 조회 실패해도 DB 업데이트는 계속 진행 (필수 아님)
       }
 
       // 3. 결제 검증 및 상태 업데이트
@@ -540,7 +544,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     } catch (error: any) {
       console.error(`[결제 검증] 오류:`, error);
-      res.status(500).json({ success: false, error: '결제 검증 중 오류가 발생했습니다.' });
+      res.status(500).json({ success: false, error: '결제 검증 중 오류가 발생했습니다: ' + (error.message || '알 수 없는 오류') });
     }
   });
 
