@@ -14,34 +14,54 @@ interface LocationData {
 // 로컬 스토리지 키
 const VENDOR_LOCATION_KEY = 'vendor_location';
 
-export default function LocationSettings() {
+interface LocationSettingsProps {
+  initialLocation?: {
+    lat: number;
+    lng: number;
+    address: string;
+    isExact?: boolean;
+  } | null;
+  onSave?: (location: LocationData) => void;
+}
+
+export default function LocationSettings({ initialLocation, onSave }: LocationSettingsProps) {
   // 위치 정보 상태
   const [location, setLocation] = useState<LocationData>({
     lat: 37.5665,
     lng: 126.9780,
     address: '서울특별시 중구 세종대로 110'
   });
-  
+
   // 데이터 로딩 상태
   const [dataLoading, setDataLoading] = useState(true);
-  
+
   // 검색어 상태
   const [searchQuery, setSearchQuery] = useState("");
-  
+
   // 로딩 상태
   const [isLoading, setIsLoading] = useState(false);
   const [mapUrl, setMapUrl] = useState("");
-  
+
   // 저장 성공 상태
   const [saveSuccess, setSaveSuccess] = useState(false);
-  
-  // 초기 위치 데이터 로딩
+
+  // 초기 위치 데이터 로딩 (props가 없거나 데이터가 없을 때만 독립적으로 실행)
   useEffect(() => {
+    if (initialLocation) {
+      setLocation({
+        lat: initialLocation.lat,
+        lng: initialLocation.lng,
+        address: initialLocation.address
+      });
+      setDataLoading(false);
+      return;
+    }
+
     const fetchLocation = async () => {
       try {
         setDataLoading(true);
         const response = await fetch('/api/store-location');
-        
+
         if (response.ok) {
           const locationData = await response.json();
           setLocation({
@@ -61,9 +81,9 @@ export default function LocationSettings() {
         setDataLoading(false);
       }
     };
-    
+
     fetchLocation();
-  }, []);
+  }, [initialLocation]);
 
   // Google Maps API 키 및 지도 URL 생성
   useEffect(() => {
@@ -80,31 +100,31 @@ export default function LocationSettings() {
         console.error('Error fetching Google Maps API key:', error);
       });
   }, [location]);
-  
+
   // 저장 성공 메시지 타이머
   useEffect(() => {
     if (saveSuccess) {
       const timer = setTimeout(() => {
         setSaveSuccess(false);
       }, 3000);
-      
+
       return () => clearTimeout(timer);
     }
   }, [saveSuccess]);
-  
+
   // 검색어로 주소 검색 함수
   const searchLocation = useCallback(async () => {
     if (!searchQuery.trim()) return;
-    
+
     setIsLoading(true);
-    
+
     try {
       const response = await fetch(`/api/map/search-address?query=${encodeURIComponent(searchQuery)}`);
       const data = await response.json();
-      
+
       if (data.success && data.results.length > 0) {
         const result = data.results[0];
-        
+
         // 좌표 및 주소 설정
         setLocation({
           lat: result.geometry.location.lat,
@@ -121,7 +141,7 @@ export default function LocationSettings() {
       setIsLoading(false);
     }
   }, [searchQuery]);
-  
+
   // 검색 입력 처리
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
@@ -129,20 +149,20 @@ export default function LocationSettings() {
       searchLocation();
     }
   };
-  
+
   // 저장 핸들러
   const handleSave = async () => {
     try {
       // 저장 중 상태 표시
       setIsLoading(true);
-      
+
       // 판매자 테이블에 직접 저장할 데이터
       const vendorData = {
         address: location.address,
         latitude: location.lat,
         longitude: location.lng
       };
-      
+
       // 판매자 정보 업데이트 (PATCH /api/vendors/me)
       const response = await fetch('/api/vendors/me', {
         method: 'PATCH',
@@ -151,11 +171,16 @@ export default function LocationSettings() {
         },
         body: JSON.stringify(vendorData),
       });
-      
+
       if (response.ok) {
         // 성공 상태 표시
         setSaveSuccess(true);
         console.log('판매자 위치 정보가 성공적으로 저장되었습니다:', vendorData);
+
+        // 부모 컴포넌트에 알림
+        if (onSave) {
+          onSave(location);
+        }
       } else {
         const errorData = await response.json();
         alert('매장 위치 저장 중 오류가 발생했습니다: ' + (errorData.error || '알 수 없는 오류'));
@@ -167,7 +192,7 @@ export default function LocationSettings() {
       setIsLoading(false);
     }
   };
-  
+
   return (
     <div className="space-y-4">
       {/* 구글 검색 필드 */}
@@ -176,7 +201,7 @@ export default function LocationSettings() {
         <div className="flex gap-2">
           <div className="relative flex-1">
             <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input 
+            <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={handleSearchKeyDown}
@@ -194,7 +219,7 @@ export default function LocationSettings() {
           </Button>
         </div>
       </div>
-      
+
       {/* 저장 성공 메시지 */}
       {saveSuccess && (
         <div className="p-3 bg-green-50 border border-green-200 text-green-700 rounded-md flex items-center">
@@ -202,7 +227,7 @@ export default function LocationSettings() {
           <div>매장 위치가 성공적으로 저장되었습니다.</div>
         </div>
       )}
-      
+
       {/* 선택된 주소 표시 */}
       <div className="p-3 bg-muted/30 rounded-md">
         <div className="font-medium text-sm mb-1">선택된 위치:</div>
@@ -211,14 +236,14 @@ export default function LocationSettings() {
           좌표: {location.lat.toFixed(6)}, {location.lng.toFixed(6)}
         </div>
       </div>
-      
+
       {/* 정적 지도 표시 */}
       <div className="border rounded-md p-2 h-[400px] relative overflow-hidden">
         {mapUrl ? (
           <div className="w-full h-full flex items-center justify-center">
-            <img 
-              src={mapUrl} 
-              alt="선택한 매장 위치" 
+            <img
+              src={mapUrl}
+              alt="선택한 매장 위치"
               className="max-w-full max-h-full object-contain"
             />
           </div>
@@ -231,7 +256,7 @@ export default function LocationSettings() {
           지도는 참고용 이미지입니다. 정확한 위치는 주소 검색으로 지정해 주세요.
         </div>
       </div>
-      
+
       {/* 저장 버튼 */}
       <div className="flex justify-end">
         <Button onClick={handleSave} disabled={isLoading}>

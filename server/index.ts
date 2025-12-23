@@ -41,7 +41,8 @@ const allowPublicAccess = (req: Request, res: Response, next: NextFunction) => {
     '/api_direct/payments/cancel', // MID 취소 테스트를 위한 라우트
     '/api/site-settings', // 사이트 설정 공개 API
     '/api/plants/remove-duplicates', // 중복 정리 API
-    '/api/plants/upload-excel' // 엑셀 업로드 API
+    '/api/plants/upload-excel', // 엑셀 업로드 API
+    '/api/portone/webhook'
   ];
 
   // 정확한 경로 매칭 또는 패턴 매칭 (경로에 매개변수가 있는 경우)

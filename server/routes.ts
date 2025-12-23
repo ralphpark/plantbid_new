@@ -62,7 +62,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       '/api/plants/popular',
       '/api/plants/search',
       '/api/products/available',
-      '/api/google-images'
+      '/api/google-images',
+      '/api/portone/webhook'
     ];
 
     const isPublicRoute = publicRoutes.some(route => {
