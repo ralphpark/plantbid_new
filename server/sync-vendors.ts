@@ -78,7 +78,7 @@ export async function updateVendorColors() {
     const allVendors = await db.select().from(vendors);
 
     // 색상이 없는 판매자 필터링
-    const vendorsWithoutColor = allVendors.filter(vendor => !vendor.color);
+    const vendorsWithoutColor = allVendors.filter((vendor: typeof allVendors[number]) => !vendor.color);
 
     if (vendorsWithoutColor.length === 0) {
       console.log("모든 판매자에게 색상이 이미 할당되어 있습니다.");
@@ -89,8 +89,8 @@ export async function updateVendorColors() {
 
     // 이미 사용 중인 색상 이름 추출
     const existingColors = allVendors
-      .filter(vendor => vendor.color)
-      .map(vendor => {
+      .filter((vendor: typeof allVendors[number]) => vendor.color)
+      .map((vendor: typeof allVendors[number]) => {
         const match = vendor.color?.bg?.match(/bg-([a-z]+)-\d+/);
         return match ? match[1] : null;
       })

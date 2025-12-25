@@ -1,7 +1,7 @@
 // server/supabase-mcp.ts
 
-import { createPostgrestMcpServer } from '@supabase/mcp-server-postgrest';
-import { createSupabaseMcpServer as createSupabaseAdminMcpServer } from '@supabase/mcp-server-supabase';
+// import { createPostgrestMcpServer } from '@supabase/mcp-server-postgrest';
+// import { createSupabaseMcpServer as createSupabaseAdminMcpServer } from '@supabase/mcp-server-supabase';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 
 // These values should be stored in your .env file
@@ -17,17 +17,19 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY || !SUPABASE_ANON_KEY) {
 }
 
 // MCP Server for PostgREST (for data queries)
-export const postgrestMcpServer = SUPABASE_URL && SUPABASE_ANON_KEY ? createPostgrestMcpServer({
+export const postgrestMcpServer = null;
+/* SUPABASE_URL && SUPABASE_ANON_KEY ? createPostgrestMcpServer({
   apiUrl: `${SUPABASE_URL}/rest/v1`,
   apiKey: SUPABASE_ANON_KEY,
   schema: SUPABASE_SCHEMA,
-}) : null;
+}) : null; */
 
 // MCP Server for Supabase Admin (for managing users, storage, etc.)
-export const supabaseAdminMcpServer = SUPABASE_URL && SUPABASE_SERVICE_KEY ? createSupabaseAdminMcpServer({
+export const supabaseAdminMcpServer = null;
+/* SUPABASE_URL && SUPABASE_SERVICE_KEY ? createSupabaseAdminMcpServer({
   apiUrl: SUPABASE_URL,
   apiKey: SUPABASE_SERVICE_KEY,
-}) : null;
+}) : null; */
 
 // Transports for the MCP servers
 export const postgrestMcpTransport = new StreamableHTTPServerTransport({

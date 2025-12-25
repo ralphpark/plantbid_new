@@ -313,7 +313,7 @@ export const aiSettings = pgTable("ai_settings", {
 });
 
 // Relations
-export const usersRelations = relations(users, ({ many }) => ({
+export const usersRelations = relations(users, ({ many }: { many: any }) => ({
   bids: many(bids),
   conversations: many(conversations),
   products: many(products),
@@ -322,17 +322,17 @@ export const usersRelations = relations(users, ({ many }) => ({
   notifications: many(notifications),
 }));
 
-export const plantsRelations = relations(plants, ({ many }) => ({
+export const plantsRelations = relations(plants, ({ many }: { many: any }) => ({
   bids: many(bids),
 }));
 
-export const vendorsRelations = relations(vendors, ({ many }) => ({
+export const vendorsRelations = relations(vendors, ({ many }: { many: any }) => ({
   bids: many(bids),
   orders: many(orders),
   reviews: many(reviews),
 }));
 
-export const bidsRelations = relations(bids, ({ one }) => ({
+export const bidsRelations = relations(bids, ({ one }: { one: any }) => ({
   user: one(users, {
     fields: [bids.userId],
     references: [users.id],
@@ -351,7 +351,7 @@ export const bidsRelations = relations(bids, ({ one }) => ({
   }),
 }));
 
-export const paymentsRelations = relations(payments, ({ one }) => ({
+export const paymentsRelations = relations(payments, ({ one }: { one: any }) => ({
   user: one(users, {
     fields: [payments.userId],
     references: [users.id],
@@ -362,7 +362,7 @@ export const paymentsRelations = relations(payments, ({ one }) => ({
   }),
 }));
 
-export const conversationsRelations = relations(conversations, ({ one, many }) => ({
+export const conversationsRelations = relations(conversations, ({ one, many }: { one: any, many: any }) => ({
   user: one(users, {
     fields: [conversations.userId],
     references: [users.id],
@@ -370,7 +370,7 @@ export const conversationsRelations = relations(conversations, ({ one, many }) =
   bids: many(bids),
 }));
 
-export const productsRelations = relations(products, ({ one, many }) => ({
+export const productsRelations = relations(products, ({ one, many }: { one: any, many: any }) => ({
   user: one(users, {
     fields: [products.userId],
     references: [users.id],
@@ -378,7 +378,7 @@ export const productsRelations = relations(products, ({ one, many }) => ({
   orders: many(orders),
 }));
 
-export const ordersRelations = relations(orders, ({ one }) => ({
+export const ordersRelations = relations(orders, ({ one }: { one: any }) => ({
   user: one(users, {
     fields: [orders.userId],
     references: [users.id],
@@ -393,7 +393,7 @@ export const ordersRelations = relations(orders, ({ one }) => ({
   }),
 }));
 
-export const notificationsRelations = relations(notifications, ({ one }) => ({
+export const notificationsRelations = relations(notifications, ({ one }: { one: any }) => ({
   user: one(users, {
     fields: [notifications.userId],
     references: [users.id],
@@ -404,14 +404,14 @@ export const notificationsRelations = relations(notifications, ({ one }) => ({
   }),
 }));
 
-export const storeLocationsRelations = relations(storeLocations, ({ one }) => ({
+export const storeLocationsRelations = relations(storeLocations, ({ one }: { one: any }) => ({
   user: one(users, {
     fields: [storeLocations.userId],
     references: [users.id],
   }),
 }));
 
-export const cartItemsRelations = relations(cartItems, ({ one }) => ({
+export const cartItemsRelations = relations(cartItems, ({ one }: { one: any }) => ({
   user: one(users, {
     fields: [cartItems.userId],
     references: [users.id],
@@ -422,7 +422,7 @@ export const cartItemsRelations = relations(cartItems, ({ one }) => ({
   }),
 }));
 
-export const reviewsRelations = relations(reviews, ({ one }) => ({
+export const reviewsRelations = relations(reviews, ({ one }: { one: any }) => ({
   vendor: one(vendors, {
     fields: [reviews.vendorId],
     references: [vendors.id],
