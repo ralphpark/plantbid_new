@@ -486,6 +486,7 @@ export const insertVendorSchema = createInsertSchema(vendors).pick({
   description: true,
   rating: true,
   color: true, // 색상 정보 추가
+  userId: true, // 사용자 ID 연결
 });
 
 export const insertBidSchema = createInsertSchema(bids).pick({

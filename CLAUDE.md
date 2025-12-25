@@ -89,3 +89,9 @@ Required:
 - `PORTONE_STORE_ID` - PortOne store ID
 - `GOOGLE_GEMINI_API_KEY` - Gemini AI API key
 - `GOOGLE_MAPS_API_KEY` - Google Maps API key
+
+## Language Preferences
+
+- **Primary Language:** Korean (한국어)
+- All conversations, explanations, and comments must be in Korean.
+- Error messages shown to users must also be in Korean.

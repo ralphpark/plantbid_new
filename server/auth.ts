@@ -179,6 +179,7 @@ export function setupAuth(app: Express) {
       if (role === "vendor") {
         try {
           const vendor = await storage.createVendor({
+            userId: user.id, // 사용자 ID 연결
             name: req.body.storeName || username, // 상호명
             email: email,
             phone: req.body.phone || "정보 없음",

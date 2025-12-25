@@ -23,7 +23,7 @@ export async function syncVendorsTable() {
       // vendors 테이블에서 해당 사용자 ID로 이미 있는지 확인
       const existingVendor = await db.select()
         .from(vendors)
-        .where(eq(vendors.id, user.id))
+        .where(eq(vendors.userId, user.id))
         .limit(1);
 
       // vendors 테이블에 해당 레코드가 없으면 생성
@@ -39,7 +39,8 @@ export async function syncVendorsTable() {
         // vendors 테이블에 레코드 생성
         await db.insert(vendors)
           .values({
-            id: user.id, // ID를 명시적으로 설정하여 같은 ID 사용
+            userId: user.id, // 사용자 ID 연결
+            // id: user.id, // ID 강제 할당 제거 (자동 증가 사용)
             name: user.name || user.username || "판매자", // 판매자 이름
             email: `${user.email}-vendor-${user.id}`, // 고유한 이메일 주소 생성
             phone: user.phone || "정보 없음",
