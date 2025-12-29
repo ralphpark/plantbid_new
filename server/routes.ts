@@ -2996,10 +2996,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           console.log(`판매자 ${vendor.name || vendor.id}에게 입찰 요청 생성`);
 
-          // 수정: users 테이블에서 vendor 역할을 가진 사용자인지 확인
-          const vendorUser = await storage.getUser(vendor.id);
+          // 수정: 올바른 User ID와 Vendor ID 추출
+          // Map API 결과(findNearbyVendors)는 vendor.userId와 vendor.vendorId를 가짐
+          // 이름 검색 결과(getVendorsByStoreName)는 vendor.userId와 vendor.id(VendorId)를 가짐
+          const targetUserId = vendor.userId;
+          const targetVendorId = vendor.vendorId || vendor.id;
+
+          if (!targetUserId) {
+            console.log(`판매자 객체에 userId가 없습니다. (vendor: ${JSON.stringify(vendor)}) 건너뜁니다.`);
+            continue;
+          }
+
+          console.log(`판매자 검증: UserID=${targetUserId}, VendorID=${targetVendorId}`);
+
+          // users 테이블에서 vendor 역할을 가진 사용자인지 확인
+          const vendorUser = await storage.getUser(targetUserId);
           if (!vendorUser || vendorUser.role !== 'vendor') {
-            console.log(`사용자 ID ${vendor.id}는 판매자 역할이 아니거나 존재하지 않습니다. 건너뜁니다.`);
+            console.log(`사용자 ID ${targetUserId}는 판매자 역할이 아니거나 존재하지 않습니다. 건너뜁니다.`);
             continue;
           }
 
@@ -3008,7 +3021,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           await storage.createBid({
             userId,
-            vendorId: vendor.id,
+            vendorId: targetVendorId,
             plantId,
             price: estimatedPrice.toString(), // 초기 예상 가격 (문자열로 변환)
             status: "pending",

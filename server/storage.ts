@@ -957,7 +957,7 @@ export class DatabaseStorage implements IStorage {
     // vendors 테이블에서 해당 ID를 가진 판매자 정보 가져오기
     const vendorsList = await Promise.all(
       vendorIds.map(async (id) => {
-        const [vendor] = await db.select().from(vendors).where(eq(vendors.id, id));
+        const [vendor] = await db.select().from(vendors).where(eq(vendors.userId, id));
         return vendor;
       })
     );
