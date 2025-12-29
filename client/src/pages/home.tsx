@@ -163,7 +163,7 @@ export default function Home() {
       if (saved && saved.startsWith('{')) {
         try {
           const data = JSON.parse(saved);
-          query = `?lat=${data.lat}&lng=${data.lng}&radius=30`;
+          query = `?lat=${data.lat}&lng=${data.lng}&radius=10`;
         } catch {
           query = '';
         }
@@ -184,7 +184,7 @@ export default function Home() {
       if (saved && saved.startsWith('{')) {
         try {
           const data = JSON.parse(saved);
-          query = `?lat=${data.lat}&lng=${data.lng}&radius=30`;
+          query = `?lat=${data.lat}&lng=${data.lng}&radius=10`;
         } catch {
           query = `?region=${encodeURIComponent(userLocation)}`;
         }
