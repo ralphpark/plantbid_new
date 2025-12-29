@@ -650,8 +650,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const bids = await storage.getBidsForConversation(Number(conversationId));
             console.log(`[결제 검증] 발견된 입찰 수: ${bids.length}`);
 
-            // First try: Find explicitly accepted bid or matching vendor
-            let acceptedBid = bids.find(b => b.status === 'accepted' || (vendorId && b.vendorId === Number(vendorId)));
+            // First try: Find explicitly accepted/completed bid or matching vendor
+            // User Feedback: Bid status might be 'completed' (Vendor finished input) or 'pending', not just 'accepted'.
+            let acceptedBid = bids.find(b =>
+              ['accepted', 'completed', 'pending'].includes(b.status) &&
+              (!vendorId || b.vendorId === Number(vendorId))
+            );
 
             if (acceptedBid) {
               console.log(`[결제 검증] 낙찰된 입찰(${acceptedBid.id}) 정보 사용. PlantId: ${acceptedBid.plantId}, Status: ${acceptedBid.status}`);
