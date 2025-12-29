@@ -2599,21 +2599,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     try {
+      console.log('주문 생성 요청 받음:', JSON.stringify(req.body, null, 2));
+
       const { vendorId, productId, price, conversationId, buyerInfo, recipientInfo } = req.body;
 
       // 필수 필드 검증
       if (!vendorId || !productId || !price || !buyerInfo || !recipientInfo) {
+        console.error('주문 생성 필수 정보 누락:', { vendorId, productId, price, hasBuyerInfo: !!buyerInfo, hasRecipientInfo: !!recipientInfo });
         return res.status(400).json({ error: "필수 정보가 누락되었습니다" });
       }
 
       // 주문 ID 생성 (예: ord_abcdef12345)
       const orderId = `ord_${nanoid(10)}`;
 
-      const order = await storage.createOrder({
+      // conversationId 처리: 숫자로 변환, 없으면 0이 아닌 null로 처리하거나 테이블 제약조건 확인 필요
+      // 스키마상 conversation_id는 integer not null이므로 유효한 ID가 필요함.
+      // 0은 유효한 FK가 아닐 수 있으므로 conversationId가 없는 경우 어떻게 처리할지 중요함.
+      // 만약 conversationId가 없이 주문 생성되는 경우라면 스키마 수정이 필요할 수 있으나, 
+      // 일단 클라이언트에서 conversationId를 보내는지 확인.
+
+      const convId = conversationId ? parseInt(conversationId) : 0;
+
+      const orderData = {
         userId: req.user!.id,
-        vendorId,
-        productId,
-        conversationId: conversationId ? parseInt(conversationId) : 0,
+        vendorId: parseInt(vendorId), // 안전하게 정수 변환
+        productId: parseInt(productId), // 안전하게 정수 변환
+        conversationId: isNaN(convId) ? 0 : convId,
         price: price.toString(),
         status: 'created',
         orderId,
@@ -2621,13 +2632,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         recipientInfo,
         paymentInfo: null,
         trackingInfo: null
-      });
+      };
 
-      console.log(`주문 생성됨: ${orderId}`);
+      console.log('주문 생성 데이터 준비:', orderData);
+
+      const order = await storage.createOrder(orderData);
+
+      console.log(`주문 생성 성공: ${orderId}`);
       res.status(201).json(order);
-    } catch (error) {
-      console.error("주문 생성 오류:", error);
-      res.status(500).json({ error: "주문 생성 중 오류가 발생했습니다" });
+    } catch (error: any) {
+      console.error("주문 생성 상세 오류:", error);
+      console.error("오류 스택:", error.stack);
+
+      // DB 오류 상세 정보 반환 (디버깅용)
+      res.status(500).json({
+        error: "주문 생성 중 오류가 발생했습니다",
+        details: error.message,
+        code: error.code // Postgres 에러 코드
+      });
     }
   });
 
