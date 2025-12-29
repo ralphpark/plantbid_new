@@ -2368,8 +2368,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const newProduct = await storage.createProduct({
         userId,
+        plantId: productData.plantId || null,
         name: productData.name,
         description: productData.description || "",
+        detailedDescription: productData.detailedDescription || "",
+        images: productData.images || [],
         category: productData.category || "",
         price: productData.price,
         stock: productData.stock || 0,

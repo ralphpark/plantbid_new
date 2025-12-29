@@ -518,8 +518,11 @@ export const insertConversationSchema = createInsertSchema(conversations).pick({
 // 제품 스키마
 export const insertProductSchema = createInsertSchema(products).pick({
   userId: true,
+  plantId: true,
   name: true,
   description: true,
+  detailedDescription: true,
+  images: true,
   category: true,
   price: true,
   stock: true,
@@ -638,7 +641,7 @@ export type Bid = typeof bids.$inferSelect;
 export type InsertConversation = z.infer<typeof insertConversationSchema>;
 export type Conversation = typeof conversations.$inferSelect;
 
-export type InsertProduct = z.infer<typeof insertProductSchema>;
+export type InsertProduct = typeof products.$inferInsert;
 export type Product = typeof products.$inferSelect;
 
 export type InsertStoreLocation = z.infer<typeof insertStoreLocationSchema>;

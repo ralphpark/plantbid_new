@@ -1,0 +1,6 @@
+
+[2025-12-29T09:54:53.606Z] Entering /api/vendors/popular
+[2025-12-29T09:54:53.683Z] Fetched 234 orders.
+[2025-12-29T09:54:53.689Z] Fetched 7 reviews.
+[2025-12-29T09:54:53.696Z] Fetched 13 vendors.
+[2025-12-29T09:54:53.696Z] Logic processing complete, preparing response.

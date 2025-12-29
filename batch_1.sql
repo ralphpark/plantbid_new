@@ -1,0 +1,22 @@
+INSERT INTO plants (id, name, image_url, scientific_name, description, water_needs, light, humidity, temperature, winter_temperature, color_feature, plant_type, has_thorns, leaf_shape1, leaf_shape2, leaf_shape3, leaf_shape4, experience_level, pet_safety, size, difficulty, price_range, care_instructions, category, created_at) VALUES
+(923, '몬스테라 카스테니안', NULL, 'Monstera karstenianum', '몬스테라 카스테니안은 올록볼록 근육이 나온 것 같은 재밌는 모양의 두꺼운 잎을 가지고 있어요. 짙은 녹색의 잎에 엠보싱이 더해져 신비로운 느낌을 주고, 덩굴성의 줄기를 가지고 있어 야생에서는 나무를 타고 올라가며 자라는 식물이랍니다. 페루가 원산지라 ''몬스테라 페루''라고도 불러요. 카스테니안은 빛이 적은 곳에서도 잘 자라고 평균 실내 습도에도 잘 적응하여 키우기 어렵지 않은 순둥이 식물에 속하지만 다른 몬스테라 종류에 비해 성장속도가 느린 편에 속해요. 식물체에는 독성이 있어 반려동물이 섭취하지 않도록 주의가 필요해요.', '평균 주 1~2회
+흙 표면부터 3cm까지 마르면, 듬뿍 주세요', '반음지', '40~70%', '16~30℃', '13℃ 이상', '짙은녹색 ', '잎을 감상하는', false, '둥근모양', '길쭉한', '무늬가 있는', '잎 끝이 뾰족한', '초보자', '주의 필요', '소형', '하', '2만원~4만원', NULL, NULL, '2025-05-26 15:33:25.055221'),
+(505, '용신목', 'https://images.unsplash.com/photo-1611211034452-33a5389ab8dc?w=400', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-04-19 17:49:58.1217'),
+(517, '금전수', NULL, NULL, '금전수 식물', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '미정', NULL, NULL, '2025-04-23 15:05:44.081881'),
+(518, '호접란', NULL, NULL, '호접란 식물', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '미정', NULL, NULL, '2025-04-24 00:23:47.36876'),
+(519, '알로카시아', NULL, NULL, '알로카시아 식물', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '미정', NULL, NULL, '2025-04-24 01:24:26.314264'),
+(520, '필로덴드론 버킨', NULL, NULL, '필로덴드론 버킨 식물', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '미정', NULL, NULL, '2025-04-24 01:31:17.773957'),
+(521, '극락조', NULL, NULL, '극락조 식물', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '미정', NULL, NULL, '2025-04-24 01:42:39.20145'),
+(522, '몬스테라', NULL, NULL, '몬스테라 식물', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '미정', NULL, NULL, '2025-04-24 15:55:39.035534'),
+(523, '미니 장미', NULL, NULL, '미니 장미 식물', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '미정', NULL, NULL, '2025-04-24 18:53:29.295655'),
+(524, '앵초', NULL, NULL, '앵초 식물', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '미정', NULL, NULL, '2025-04-25 03:56:56.264394'),
+(525, '글록시니아', NULL, NULL, '글록시니아 식물', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '미정', NULL, NULL, '2025-04-27 06:06:38.232927'),
+(526, 'ZZ 플랜트 (자미오쿨카스)', NULL, NULL, 'ZZ 플랜트 (자미오쿨카스) 식물', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '미정', NULL, NULL, '2025-04-28 03:33:46.640252'),
+(527, '떡갈잎고무나무', NULL, NULL, '떡갈잎고무나무 식물', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '미정', NULL, NULL, '2025-04-28 16:14:29.642893'),
+(528, '블루베리', NULL, NULL, '블루베리 식물', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '미정', NULL, NULL, '2025-04-28 17:50:47.294305'),
+(529, '스트렙토카르푸스', NULL, NULL, '스트렙토카르푸스 식물', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '미정', NULL, NULL, '2025-04-30 08:36:59.801121'),
+(530, '백일홍', NULL, NULL, '백일홍 식물', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '미정', NULL, NULL, '2025-05-01 05:57:21.696335'),
+(531, '칼랑코에', NULL, NULL, '칼랑코에 식물', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '미정', NULL, NULL, '2025-05-13 19:06:51.075224'),
+(532, '자스민', NULL, NULL, '자스민 식물', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '미정', NULL, NULL, '2025-05-14 14:57:30.314302'),
+(533, '네펜데스', NULL, NULL, '네펜데스 식물', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '미정', NULL, NULL, '2025-05-14 15:51:31.071822'),
+(534, '인도고무나무', NULL, NULL, '인도고무나무 식물', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '미정', NULL, NULL, '2025-05-15 18:24:12.908271') ON CONFLICT (id) DO NOTHING;
