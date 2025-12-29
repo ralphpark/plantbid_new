@@ -14,12 +14,21 @@ if (!connectionString) {
 
   // Fix: Clean connection string of sslmode parameters to prevent conflict with explicit SSL config
   // This resolves 'SELF_SIGNED_CERT_IN_CHAIN' errors when using Supabase Poolers
-  if (connectionString.includes('sslmode=')) {
-    console.log("🔧 Removing sslmode param from connection string to force rejectUnauthorized:false");
-    // Remove ?sslmode=... or &sslmode=...
-    connectionString = connectionString.replace(/([?&])sslmode=[^&]*/, '$1').replace(/[?&]$/, '');
-    // If it leaves a trailing ? or & specifically at the end of string or just cleans it up
-    connectionString = connectionString.replace(/[?&]sslmode=[^&]+/, "");
+  // Fix: Clean connection string of sslmode parameters to prevent conflict with explicit SSL config
+  // This resolves 'SELF_SIGNED_CERT_IN_CHAIN' errors when using Supabase Poolers
+  try {
+    const url = new URL(connectionString);
+    if (url.searchParams.has('sslmode')) {
+      console.log("🔧 Removing sslmode param from connection string to force rejectUnauthorized:false");
+      url.searchParams.delete('sslmode');
+      connectionString = url.toString();
+    }
+  } catch (err) {
+    console.error("Error parsing connection string:", err);
+    // Fallback to minimal replacement if URL parsing fails
+    if (connectionString.includes('sslmode=')) {
+      connectionString = connectionString.replace(/([?&])sslmode=[^&]*/g, '');
+    }
   }
 }
 
