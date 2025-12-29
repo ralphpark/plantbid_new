@@ -3327,7 +3327,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // 판매자만 입찰 데이터를 업데이트할 수 있음 (단, conversationId는 고객도 업데이트 가능)
-      const isVendor = bid.vendorId === req.user!.id;
+      // Fix: bid.vendorId는 vendors 테이블의 ID이며, req.user!.id는 users 테이블의 ID임.
+      // 따라서 사용자의 vendor 정보를 조회하여 비교해야 함.
+      let isVendor = false;
+
+      if (req.user!.role === 'vendor') {
+        const vendor = await storage.getVendorByUserId(req.user!.id);
+        if (vendor && vendor.id === bid.vendorId) {
+          isVendor = true;
+        }
+      }
+
+      // Fallback: 일부 레거시 데이터는 vendorId 자리에 userId가 저장되어 있을 수 있음
+      if (!isVendor && bid.vendorId === req.user!.id) {
+        isVendor = true;
+      }
       const isCustomer = bid.userId === req.user!.id;
 
       if (!isVendor && !isCustomer) {
