@@ -42,7 +42,9 @@ export async function geocodeAddressList(address: string): Promise<Array<{
       params: {
         address: address,
         key: GOOGLE_MAPS_API_KEY,
-        language: 'ko'
+        language: 'ko',
+        region: 'kr',
+        components: 'country:KR'
       }
     });
 
