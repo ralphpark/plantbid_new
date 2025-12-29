@@ -773,9 +773,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 3. 결제 검증 및 상태 업데이트
       console.log(`[결제 검증] 주문 확인됨: ${order.id}, 상태: ${order.status}`);
 
-      // 결제 상태 업데이트 (주문 완료 처리)
+      // 결제 상태 업데이트 (결제 완료 → 'paid' 상태로 설정)
+      // 'completed'는 배송 완료 상태이므로, 결제만 완료된 경우 'paid' 사용
       await storage.updateOrder(order.id, {
-        status: 'completed',
+        status: 'paid',
         paymentInfo: {
           ...(order.paymentInfo as any || {}), // Cast to any/object to allow spread
           paymentId,
