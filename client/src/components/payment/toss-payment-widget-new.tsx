@@ -1,11 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-// 토스페이먼츠 타입 선언
-declare global {
-  interface Window {
-    PaymentWidget: any;
-  }
-}
+// 전역 타입 선언은 client/src/types/window.d.ts에서 관리
 
 // 토스페이먼츠 결제 위젯 Props 타입 정의
 interface TossPaymentWidgetProps {

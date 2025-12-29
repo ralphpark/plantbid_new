@@ -3,26 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, CreditCard } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-// 윈도우 타입 확장 (타입 에러 해결)
-declare global {
-  interface Window {
-    PortOne?: {
-      getIMP: () => any;
-      setGlobalConfiguration: (config: any) => void;
-      loadUI: (config: string) => void;
-    };
-    IMP?: {
-      init: (merchantID: string) => void;
-      request_pay: (params: any, callback: (response: any) => void) => void;
-      agency?: string;
-      pg?: any;
-    } & {
-      // V2 확장 속성 추가 (타입스크립트 오류 해결)
-      [key: string]: any;
-    };
-    __PortOneSDKLoaded?: () => void;
-  }
-}
+// 전역 타입 선언은 client/src/types/window.d.ts에서 관리
 
 // PortOne 결제 위젯 컴포넌트의 Props 타입
 interface PortOnePaymentProps {

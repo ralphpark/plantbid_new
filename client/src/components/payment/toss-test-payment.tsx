@@ -7,16 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, CreditCard } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-// 포트원 V1 (iamport) 타입 정의
-declare global {
-  interface Window {
-    IMP?: {
-      init: (merchantID: string) => void;
-      request_pay: (params: any, callback: (response: any) => void) => void;
-      [key: string]: any; // 추가 속성 지원
-    };
-  }
-}
+// 전역 타입 선언은 client/src/types/window.d.ts에서 관리
 
 // 테스트 결제 컴포넌트 props
 interface TossTestPaymentProps {

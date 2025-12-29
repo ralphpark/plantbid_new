@@ -96,7 +96,7 @@ export function InteractiveDotGrid({
         console.log('마우스 위치에서 도트 찾는 중:', mousePosition);
         
         // 가장 가까운 도트 찾기
-        let closestDot = null;
+        let closestDot: Dot | null = null;
         let closestDistance = Infinity;
         
         dots.forEach(dot => {

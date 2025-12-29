@@ -25,11 +25,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 
-declare global {
-  interface Window {
-    PortOne?: any;
-  }
-}
+// 전역 타입 선언은 client/src/types/window.d.ts에서 관리
 
 const shippingFormSchema = z.object({
   recipientName: z.string().min(2, "수령인 이름을 입력해주세요"),
@@ -156,7 +152,7 @@ export default function CheckoutPage() {
         throw new Error('결제 ID가 생성되지 않았습니다.');
       }
 
-      const response = await window.PortOne.requestPayment({
+      const response = await (window.PortOne as any).requestPayment({
         storeId: mapConfig.storeId,
         channelKey: mapConfig.channelKey,
         paymentId: paymentId,

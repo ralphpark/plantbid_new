@@ -69,10 +69,10 @@ export default function PopularPlantsPage() {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = subscribeToLocationChange((newLocation: string) => {
-      setUserLocation(newLocation);
+    const unsubscribe = subscribeToLocationChange((location) => {
+      setUserLocation(location.searchLocation);
     });
-    return unsubscribe;
+    return () => { unsubscribe(); };
   }, []);
 
   const { data: plants, isLoading } = useQuery<Plant[]>({

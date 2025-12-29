@@ -23,21 +23,7 @@ export interface DaumPostcodeData {
   apartment: string;     // 공동주택 여부
 }
 
-// 전역 window 객체에 daum 타입 선언
-declare global {
-  interface Window {
-    daum: {
-      Postcode: new (options: { 
-        oncomplete: (data: DaumPostcodeData) => void;
-        width?: string;
-        height?: string;
-      }) => { 
-        open: () => void;
-        embed: (container: HTMLElement) => void;
-      }
-    };
-  }
-}
+// 전역 타입 선언은 client/src/types/window.d.ts에서 관리
 
 export default function DaumPostcode({ 
   onComplete, 

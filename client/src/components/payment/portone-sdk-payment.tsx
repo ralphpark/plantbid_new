@@ -3,12 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, CreditCard } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-// 포트원 타입 정의 (window에 전역으로 추가됨)
-declare global {
-  interface Window {
-    IMP?: any;
-  }
-}
+// 전역 타입 선언은 client/src/types/window.d.ts에서 관리
 
 /**
  * 포트원 SDK 결제 컴포넌트 타입

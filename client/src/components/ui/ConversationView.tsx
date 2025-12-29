@@ -10,13 +10,13 @@ import { VendorRecommendations } from './VendorRecommendations';
 import { MapLocationInfo } from './MapLocationInfo';
 import { LocateIcon } from "lucide-react";
 
-export function ConversationView({ 
-  conversationId, 
+export function ConversationView({
+  conversationId,
   user,
-  className = "" 
-}: { 
-  conversationId?: number; 
-  user: { name?: string; role?: string };
+  className = ""
+}: {
+  conversationId?: number;
+  user: { id?: number; name?: string; role?: string };
   className?: string;
 }) {
   const [chatMessages, setChatMessages] = useState<any[]>([]);

@@ -225,15 +225,9 @@ export default function PlantsList() {
   const mutation = useMutation({
     mutationFn: async (data: PlantFormValues) => {
       if (selectedPlant) {
-        return apiRequest(`/api/plants/${selectedPlant.id}`, {
-          method: 'PUT',
-          body: JSON.stringify(data),
-        });
+        return apiRequest('PUT', `/api/plants/${selectedPlant.id}`, data);
       } else {
-        return apiRequest('/api/plants', {
-          method: 'POST',
-          body: JSON.stringify(data),
-        });
+        return apiRequest('POST', '/api/plants', data);
       }
     },
     onSuccess: () => {
@@ -257,9 +251,7 @@ export default function PlantsList() {
   // 식물 삭제 뮤테이션
   const deleteMutation = useMutation({
     mutationFn: async (plantId: number) => {
-      return apiRequest(`/api/plants/${plantId}`, {
-        method: 'DELETE',
-      });
+      return apiRequest('DELETE', `/api/plants/${plantId}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/plants'] });

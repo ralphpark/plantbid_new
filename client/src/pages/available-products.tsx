@@ -43,10 +43,10 @@ export default function AvailableProductsPage() {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = subscribeToLocationChange((newLocation: string) => {
-      setUserLocation(newLocation);
+    const unsubscribe = subscribeToLocationChange((location) => {
+      setUserLocation(location.searchLocation);
     });
-    return unsubscribe;
+    return () => { unsubscribe(); };
   }, []);
 
   const { data: products, isLoading } = useQuery<Product[]>({
