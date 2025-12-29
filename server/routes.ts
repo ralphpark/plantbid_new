@@ -28,6 +28,123 @@ import { setupPlantRoutes } from "./plant-routes.js";
 import { handleGoogleImageSearch } from "./google-images.js";
 // WebSocket 대신 HTTP 폴링 방식을 사용
 import portoneV2Client from "./portone-v2-client.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
+import { postgrestMcpServer, supabaseAdminMcpServer } from "./supabase-mcp.js";
+
+const registerMcpEndpoint = (
+  app: Express,
+  path: string,
+  server: { connect: (transport: StreamableHTTPServerTransport) => Promise<void> } | null
+) => {
+  if (!server) {
+    console.warn(`MCP 서버를 초기화하지 못했습니다: ${path}`);
+    return;
+  }
+
+  const transports = new Map<string, StreamableHTTPServerTransport>();
+
+  const getTransport = (sessionId?: string | string[]) => {
+    if (!sessionId || Array.isArray(sessionId)) {
+      return undefined;
+    }
+    return transports.get(sessionId);
+  };
+
+  const createTransport = async () => {
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: () => crypto.randomUUID(),
+      onsessioninitialized: (sessionId) => {
+        transports.set(sessionId, transport);
+      },
+      onsessionclosed: (sessionId) => {
+        transports.delete(sessionId);
+      },
+    });
+
+    transport.onclose = () => {
+      const sessionId = transport.sessionId;
+      if (sessionId) {
+        transports.delete(sessionId);
+      }
+    };
+
+    await server.connect(transport);
+    return transport;
+  };
+
+  const postHandler = async (req: Request, res: Response) => {
+    try {
+      const sessionId = req.headers["mcp-session-id"];
+      let transport = getTransport(sessionId);
+
+      if (!transport) {
+        if (!sessionId && isInitializeRequest(req.body)) {
+          transport = await createTransport();
+        } else {
+          res.status(400).json({
+            jsonrpc: "2.0",
+            error: {
+              code: -32000,
+              message: "Bad Request: No valid session ID provided",
+            },
+            id: null,
+          });
+          return;
+        }
+      }
+
+      await transport.handleRequest(req, res, req.body);
+    } catch (error) {
+      console.error(`MCP 요청 처리 실패 (${path}):`, error);
+      if (!res.headersSent) {
+        res.status(500).json({
+          jsonrpc: "2.0",
+          error: {
+            code: -32603,
+            message: "Internal server error",
+          },
+          id: null,
+        });
+      }
+    }
+  };
+
+  const getHandler = async (req: Request, res: Response) => {
+    const sessionId = req.headers["mcp-session-id"];
+    const transport = getTransport(sessionId);
+
+    if (!transport) {
+      res.status(400).send("Invalid or missing session ID");
+      return;
+    }
+
+    await transport.handleRequest(req, res);
+  };
+
+  const deleteHandler = async (req: Request, res: Response) => {
+    const sessionId = req.headers["mcp-session-id"];
+    const transport = getTransport(sessionId);
+
+    if (!transport) {
+      res.status(400).send("Invalid or missing session ID");
+      return;
+    }
+
+    try {
+      await transport.handleRequest(req, res);
+    } catch (error) {
+      console.error(`MCP 세션 종료 실패 (${path}):`, error);
+      if (!res.headersSent) {
+        res.status(500).send("Error processing session termination");
+      }
+    }
+  };
+
+  app.post(path, postHandler);
+  app.get(path, getHandler);
+  app.delete(path, deleteHandler);
+};
 
 export async function registerRoutes(app: Express): Promise<Server> {
 
@@ -53,6 +170,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       '/api/orders/emergency-cancel/:orderId',
       '/api_direct/payment/create-test',
       '/api_direct/payments/cancel',
+      '/mcp/supabase/postgrest',
+      '/mcp/supabase/admin',
       '/api/site-settings',
       '/api/plants/remove-duplicates',
       '/api/plants/upload-excel',
@@ -88,6 +207,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     next();
   });
+
+  registerMcpEndpoint(app, "/mcp/supabase/postgrest", postgrestMcpServer);
+  registerMcpEndpoint(app, "/mcp/supabase/admin", supabaseAdminMcpServer);
 
   // 진단용 엔드포인트 - 환경 변수 및 DB 연결 상태 확인 (보안 주의)
   app.get("/api/debug/status", async (req, res) => {
@@ -1286,7 +1408,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     try {
-      const vendor = await storage.getVendor(req.user!.id);
+      const vendor = await storage.getVendorByUserId(req.user!.id);
 
       if (!vendor) {
         return res.status(404).json({ error: "판매자 정보를 찾을 수 없습니다" });
@@ -1321,7 +1443,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     try {
-      const vendor = await storage.getVendor(req.user!.id);
+      const vendor = await storage.getVendorByUserId(req.user!.id);
 
       if (!vendor) {
         return res.status(404).json({ error: "판매자 정보를 찾을 수 없습니다" });
@@ -1346,7 +1468,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     try {
-      const vendor = await storage.getVendor(req.user!.id);
+      const vendor = await storage.getVendorByUserId(req.user!.id);
 
       if (!vendor) {
         return res.status(404).json({ error: "판매자를 찾을 수 없습니다" });
@@ -1407,7 +1529,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     try {
-      const vendor = await storage.getVendor(req.user!.id);
+      const vendor = await storage.getVendorByUserId(req.user!.id);
 
       if (!vendor) {
         return res.status(404).json({ error: "판매자를 찾을 수 없습니다" });
