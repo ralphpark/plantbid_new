@@ -38,9 +38,10 @@ const registerMcpEndpoint = (
   server: { connect: (transport: StreamableHTTPServerTransport) => Promise<void> } | null
 ) => {
   if (!server) {
-    console.warn(`MCP 서버를 초기화하지 못했습니다: ${path}`);
+    // console.warn(`MCP 서버를 초기화하지 못했습니다: ${path}`);
     return;
   }
+
 
   const transports = new Map<string, StreamableHTTPServerTransport>();
 

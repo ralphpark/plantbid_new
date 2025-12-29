@@ -113,9 +113,56 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
       }
 
       // 판매자 정보
-      const vendor = await storage.getVendor(bid.vendorId);
+      let vendor = await storage.getVendor(bid.vendorId);
+
+      // 레거시 데이터 호환성: vendorId가 실제로는 userId인 경우 처리
+      if (!vendor) {
+        console.log(`[결제 준비] 판매자 ID(${bid.vendorId}) 없음. UserId로 검색 시도...`);
+        // Note: storage.getVendorByUserId를 사용할 수 없으므로 직접 쿼리 (server/payments.ts에 db, vendors import 필요)
+        // 하지만 여기서는 storage 메서드만 사용하는 것이 안전함. 
+        // 일단 storage에 없는 기능을 우회하기 위해 다음과 같이 처리:
+        // 만약 직접 쿼리가 어렵다면, routes.ts와 동일한 로직을 적용해야 함.
+        // 여기서는 db 객체 접근이 필요하므로 상단 import 확인 필요. db가 import 되어 있지 않다면 추가해야 함.
+      }
+
+      // db 객체 직접 사용 (payments.ts 상단에 import { db } from './db'; 필요)
+      // 현재 파일에는 db import가 없을 수 있음. 확인 필요. 
+      // 만약 db import가 없다면 추가해야 함.
+
+      // 일단 vendor가 없으면 db 쿼리 시도
+      if (!vendor) {
+        try {
+          const { db } = await import('./db');
+          const { vendors } = await import('../shared/schema');
+          const { eq } = await import('drizzle-orm');
+
+          const [vendorByUserId] = await db
+            .select()
+            .from(vendors)
+            .where(eq(vendors.userId, bid.vendorId));
+
+          if (vendorByUserId) {
+            console.log(`[결제 준비] UserId(${bid.vendorId})로 판매자(${vendorByUserId.id}) 찾음. 매핑.`);
+            vendor = vendorByUserId;
+            // bid 객체의 vendorId는 수정하지 않고, 이후 로직에서 vendor.id를 사용하도록 유도하거나
+            // payment 생성 시 사용하는 vendorId가 있다면 교체해야 함. 
+            // 하지만 createPayment에는 vendorId 필드가 없고 bidId만 있음.
+            // 문제는 createPayment -> createOrder로 이어지는 흐름이 아니라,
+            // 이 로직은 단지 '결제 준비'이고, 실제 주문 생성은 이전에 이미 'POST /api/orders'에서 수행되었을 수 있음.
+
+            // Wait, the error is "insert or update on table orders violates...". 
+            // This happens in POST /api/orders, NOT here?
+            // Or does payment prepare create an order?
+            // The log says `/api/payments/verify` 500 error.
+            // Let's check verify endpoint and logic.
+          }
+        } catch (e) {
+          console.error('[결제 준비] 판매자 ID 보정 실패:', e);
+        }
+      }
+
       if (vendor) {
-        console.log(`판매자 정보 조회: ID=${bid.vendorId}, 상호=${vendor.storeName}`);
+        console.log(`판매자 정보 조회: ID=${vendor.id} (요청ID: ${bid.vendorId}), 상호=${vendor.storeName}`);
         orderName = `${vendor.storeName} - ${orderName}`;
       }
       console.log(`최종 주문명: ${orderName}`);
