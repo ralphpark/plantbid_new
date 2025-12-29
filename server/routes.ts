@@ -2618,11 +2618,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 만약 conversationId가 없이 주문 생성되는 경우라면 스키마 수정이 필요할 수 있으나, 
       // 일단 클라이언트에서 conversationId를 보내는지 확인.
 
+
+      let finalVendorId = parseInt(vendorId);
+
+      // 판매자 ID 검증 및 레거시 데이터(userId로 된 경우) 처리
+      const [existingVendor] = await db
+        .select()
+        .from(vendors)
+        .where(eq(vendors.id, finalVendorId));
+
+      if (!existingVendor) {
+        // ID로 판매자를 찾을 수 없는 경우, userId로 검색 시도 (레거시 데이터 호환성)
+        console.log(`[주문 생성] 판매자 ID(${finalVendorId}) 없음. UserId로 검색 시도...`);
+        const [vendorByUserId] = await db
+          .select()
+          .from(vendors)
+          .where(eq(vendors.userId, finalVendorId));
+
+        if (vendorByUserId) {
+          console.log(`[주문 생성] UserId(${finalVendorId})로 판매자(${vendorByUserId.id}) 찾음. ID 매핑.`);
+          finalVendorId = vendorByUserId.id;
+        } else {
+          console.error(`[주문 생성] 유효하지 않은 판매자 ID: ${finalVendorId}`);
+          return res.status(400).json({
+            error: "존재하지 않는 판매자입니다",
+            details: `Vendor ID ${finalVendorId} not found`
+          });
+        }
+      }
+
+      // conversationId 처리
       const convId = conversationId ? parseInt(conversationId) : 0;
 
       const orderData = {
         userId: req.user!.id,
-        vendorId: parseInt(vendorId), // 안전하게 정수 변환
+        vendorId: finalVendorId, // 검증/매핑된 ID 사용
         productId: parseInt(productId), // 안전하게 정수 변환
         conversationId: isNaN(convId) ? 0 : convId,
         price: price.toString(),
