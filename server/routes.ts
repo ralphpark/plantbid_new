@@ -560,9 +560,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         receiptUrl = (info?.payment?.receipt_url as string) || (info?.payment?.receipt?.url as string) || undefined;
       } catch { }
 
+      // Try to find associated bid correctly
+      let bidId: number | undefined;
+      if (order.conversationId) {
+        try {
+          // Check for bids in this conversation
+          const bids = await storage.getBidsForConversation(order.conversationId);
+          // Find the accepted bid that matches vendor and plant
+          // If no accepted bid found, try to find any bid from this vendor for this plant
+          const matchedBid = bids.find(b =>
+            b.vendorId === order.vendorId &&
+            b.plantId === order.productId &&
+            (b.status === 'accepted' || b.status === 'completed' || b.status === 'paid')
+          );
+
+          if (matchedBid) {
+            bidId = matchedBid.id;
+            console.log(`[결제 조회] 연관된 입찰 ID 찾음: ${bidId}`);
+          } else {
+            console.log(`[결제 조회] 연관된 입찰을 찾을 수 없음 (Conversation: ${order.conversationId})`);
+          }
+        } catch (bidErr) {
+          console.error(`[결제 조회] 입찰 정보 조회 중 오류:`, bidErr);
+        }
+      }
+
       const created = await storage.createPayment({
         userId: order.userId,
-        bidId: 1,
+        bidId: bidId, // Use the found bid ID or undefined
         orderId,
         orderName: '식물 구매: ' + orderId,
         amount: order.price.toString(),
@@ -4378,104 +4403,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // 결제 ID로 결제 정보 조회 API
-  app.get("/api/payments/order/:orderId", async (req, res) => {
-    try {
-      const { orderId } = req.params;
-      console.log('주문 ID로 결제 정보 조회:', orderId);
-      const payment = await storage.getPaymentByOrderId(orderId);
 
-      if (!payment) {
-        console.log('주문에 대한 결제 정보가 없음:', orderId);
-        // 바로 404를 반환하지 않고 포트원 검색으로 생성 폴백 수행
-        try {
-          const order = await storage.getOrderByOrderId(orderId);
-          if (!order) {
-            return res.status(404).json({ error: '주문을 찾을 수 없습니다.' });
-          }
-          const portoneV2Client = await import('./portone-v2-client');
-          const portoneClient = portoneV2Client.default;
-          const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-          const maxAttempts = 6;
-          const baseDelayMs = 500;
-          let finalPaymentId = '';
-          for (let attempt = 1; attempt <= maxAttempts && !finalPaymentId; attempt++) {
-            try {
-              const searchResult = await portoneClient.searchPayments({ orderId });
-              if (searchResult && Array.isArray(searchResult.payments) && searchResult.payments.length > 0) {
-                const exact = searchResult.payments.find((p: any) => p.order_id === orderId);
-                const chosen = exact || searchResult.payments[0];
-                finalPaymentId = chosen?.payment_id || '';
-                if (finalPaymentId) {
-                  // 상세 조회로 주문번호 확인
-                  try {
-                    const detail = await portoneClient.getPayment(finalPaymentId);
-                    if (detail?.payment?.order_id && detail.payment.order_id !== orderId) {
-                      console.warn(`상세 조회 결과 주문번호 불일치. 요청=${orderId}, 응답=${detail.payment.order_id}`);
-                      finalPaymentId = '';
-                    }
-                  } catch (detailErr: any) {
-                    console.error('결제 상세 조회 오류:', detailErr?.message || detailErr);
-                    finalPaymentId = '';
-                  }
-                }
-              }
-            } catch (e: any) {
-              console.error('포트원 결제 검색 오류:', e.message || e);
-            }
-            if (!finalPaymentId && attempt < maxAttempts) {
-              const waitMs = baseDelayMs * attempt;
-              console.log(`포트원 결제 검색 재시도 준비 (${attempt}/${maxAttempts}) 대기 ${waitMs}ms`);
-              await sleep(waitMs);
-            }
-          }
-          if (!finalPaymentId) {
-            return res.status(404).json({ error: '결제 정보를 찾을 수 없습니다.' });
-          }
-          const paymentData = {
-            userId: order.userId,
-            bidId: 1,
-            orderId: orderId,
-            orderName: "식물 구매: " + orderId,
-            amount: order.price.toString(),
-            method: "CARD",
-            status: "success",
-            paymentKey: finalPaymentId,
-            customerName: "구매자"
-          };
-          // 결제 상세 조회로 영수증 URL 등 부가 정보 확보
-          let receiptUrl: string | undefined;
-          try {
-            const info = await portoneClient.getPayment(finalPaymentId);
-            receiptUrl = (info?.payment?.receipt_url as string) || (info?.payment?.receipt?.url as string) || undefined;
-          } catch (detailErr: any) {
-            console.warn('[결제 조회 폴백] 결제 상세 조회 실패로 영수증 URL 설정 생략:', detailErr?.message || detailErr);
-          }
-
-          const created = await storage.createPayment({
-            ...paymentData,
-            paymentUrl: receiptUrl
-          });
-          return res.json(created);
-        } catch (fallbackErr: any) {
-          console.error('결제 조회 폴백 처리 오류:', fallbackErr?.message || fallbackErr);
-          return res.status(404).json({ error: '결제 정보를 찾을 수 없습니다.' });
-        }
-      }
-
-      // V2 API 형식의 결제키 확인
-      if (payment.paymentKey && !payment.paymentKey.startsWith('pay_')) {
-        // KG이니시스 TID 형식을 V2 API 형식으로 변환 시도
-        console.log('기존 결제키를 V2 형식으로 변환 시도:', payment.paymentKey);
-        // 변환할 필요가 없거나 불가능한 경우 원래 값 유지
-      }
-
-      res.json(payment);
-    } catch (error: any) {
-      console.error('결제 정보 조회 중 오류:', error);
-      res.status(500).json({ error: error.message || '결제 정보 조회에 실패했습니다.' });
-    }
-  });
 
   // 공개 결제 동기화 API - 인증 불필요
   app.post("/api/public/payments/sync", async (req, res) => {
