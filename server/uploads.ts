@@ -9,18 +9,43 @@ import { createClient } from '@supabase/supabase-js';
 // 주의: SUPABASE_URL과 SUPABASE_SERVICE_KEY가 .env에 있어야 합니다.
 // 없는 경우 실행 시 에러가 나지 않도록 체크 (Lazy Initialization / Safe Fail)
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || '';
-const supabaseUrl = process.env.SUPABASE_URL || (process.env.SUPABASE_DB_URL?.split('@')[1]?.split('/')[0] ? `https://${process.env.SUPABASE_DB_URL?.split('@')[1]?.split('/')[0]}` : '');
+
+// SUPABASE_URL이 없으면 SUPABASE_DB_URL에서 프로젝트 ID를 추출하여 URL 생성
+function getSupabaseUrl(): string {
+  if (process.env.SUPABASE_URL) {
+    return process.env.SUPABASE_URL;
+  }
+
+  // SUPABASE_DB_URL에서 프로젝트 ID 추출
+  // 형식: postgresql://user:pass@db.PROJECT_ID.supabase.co:5432/postgres
+  const dbUrl = process.env.SUPABASE_DB_URL || '';
+  const match = dbUrl.match(/@db\.([^.]+)\.supabase\.co/);
+  if (match && match[1]) {
+    return `https://${match[1]}.supabase.co`;
+  }
+
+  return '';
+}
+
+const supabaseUrl = getSupabaseUrl();
 
 let supabase: ReturnType<typeof createClient> | null = null;
 
 if (supabaseUrl && supabaseServiceKey) {
   try {
+    console.log('[Uploads] Supabase URL:', supabaseUrl);
+    console.log('[Uploads] Supabase Key 존재:', !!supabaseServiceKey);
     supabase = createClient(supabaseUrl, supabaseServiceKey);
+    console.log('[Uploads] Supabase 클라이언트 초기화 성공');
   } catch (error) {
-    console.warn('Supabase Client 초기화 실패:', error);
+    console.error('[Uploads] Supabase Client 초기화 실패:', error);
   }
 } else {
-  console.warn('Supabase 환경 변수가 설정되지 않아 스토리지 기능을 사용할 수 없습니다.');
+  console.warn('[Uploads] Supabase 환경 변수가 설정되지 않아 스토리지 기능을 사용할 수 없습니다.');
+  console.warn('[Uploads] SUPABASE_URL:', !!process.env.SUPABASE_URL);
+  console.warn('[Uploads] SUPABASE_DB_URL:', !!process.env.SUPABASE_DB_URL);
+  console.warn('[Uploads] SUPABASE_SERVICE_KEY:', !!process.env.SUPABASE_SERVICE_KEY);
+  console.warn('[Uploads] SUPABASE_ANON_KEY:', !!process.env.SUPABASE_ANON_KEY);
 }
 
 const BUCKET_NAME = 'uploads';
@@ -66,6 +91,9 @@ export async function uploadImage(req: Request, res: Response) {
 
       try {
         if (!supabase) {
+          console.error('[Uploads] Supabase client가 초기화되지 않았습니다.');
+          console.error('[Uploads] supabaseUrl:', supabaseUrl);
+          console.error('[Uploads] supabaseServiceKey 존재:', !!supabaseServiceKey);
           throw new Error('Supabase client is not initialized. Check environment variables.');
         }
 
@@ -83,7 +111,8 @@ export async function uploadImage(req: Request, res: Response) {
             });
 
           if (error) {
-            console.error(`Supabase upload error for ${file.originalname}:`, error);
+            console.error(`[Uploads] Supabase upload error for ${file.originalname}:`, error);
+            console.error(`[Uploads] Bucket: ${BUCKET_NAME}, Path: ${filePath}`);
             throw error;
           }
 
