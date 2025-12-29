@@ -646,12 +646,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // 2. Try to get info from Accepted Bid (More reliable for linking)
         if (conversationId) {
           try {
+            console.log(`[결제 검증] 대화방(${conversationId}) 입찰 정보 조회 시도... VendorId: ${vendorId}`);
             const bids = await storage.getBidsForConversation(Number(conversationId));
-            const acceptedBid = bids.find(b => b.status === 'accepted' || (vendorId && b.vendorId === Number(vendorId)));
+            console.log(`[결제 검증] 발견된 입찰 수: ${bids.length}`);
+
+            // First try: Find explicitly accepted bid or matching vendor
+            let acceptedBid = bids.find(b => b.status === 'accepted' || (vendorId && b.vendorId === Number(vendorId)));
+
             if (acceptedBid) {
-              console.log(`[결제 검증] 낙찰된 입찰(${acceptedBid.id}) 정보 사용. PlantId: ${acceptedBid.plantId}`);
+              console.log(`[결제 검증] 낙찰된 입찰(${acceptedBid.id}) 정보 사용. PlantId: ${acceptedBid.plantId}, Status: ${acceptedBid.status}`);
               targetProductId = acceptedBid.plantId;
               targetBidId = acceptedBid.id;
+            } else if (bids.length > 0) {
+              // Second try: Use the latest bid (bids are ordered by createdAt desc)
+              const latestBid = bids[0];
+              console.log(`[결제 검증] (Fallback) 수락된 입찰 없음. 최신 입찰(${latestBid.id}) 사용. PlantId: ${latestBid.plantId}`);
+              targetProductId = latestBid.plantId;
+              targetBidId = latestBid.id;
+            } else {
+              console.warn(`[결제 검증] 대화방에 입찰이 하나도 없습니다.`);
             }
           } catch (e) { console.error('입찰 조회 오류:', e); }
         }
