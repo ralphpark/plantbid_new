@@ -236,6 +236,7 @@ export async function findNearbyVendors(req: Request, res: Response) {
       radius: storeLocations.radius,
       username: users.username,
       name: users.name,
+      vendorId: vendorsTable.id, // 실제 판매자 ID (Orders 연결용)
       vendorStoreName: vendorsTable.storeName,
       // Haversine 공식을 사용하여 거리 계산 (km 단위)
       distance: sql<number>`
@@ -250,7 +251,7 @@ export async function findNearbyVendors(req: Request, res: Response) {
     })
       .from(storeLocations)
       .leftJoin(users, eq(storeLocations.userId, users.id))
-      .leftJoin(vendorsTable, eq(users.id, vendorsTable.id))
+      .leftJoin(vendorsTable, eq(users.id, vendorsTable.userId)) // Fix: vendors.id -> vendors.userId
       .where(
         // 판매자 역할을 가진 사용자만 선택
         and(
@@ -272,7 +273,8 @@ export async function findNearbyVendors(req: Request, res: Response) {
     console.log(`검색된 판매자 수: ${nearbyStoreLocations.length} (반경: ${radiusKm}km)`);
     if (nearbyStoreLocations.length > 0) {
       console.log('검색된 판매자 정보:', nearbyStoreLocations.map(store => ({
-        id: store.userId,
+        id: store.vendorId, // Log real vendor ID
+        userId: store.userId,
         name: store.name || store.username,
         distance: Number(store.distance.toFixed(1))
       })));
@@ -294,7 +296,8 @@ export async function findNearbyVendors(req: Request, res: Response) {
         );
 
       vendorResults.push({
-        id: store.userId,
+        id: store.vendorId || store.userId, // Fix: Use vendorId from vendors table (fallback to userId only if null)
+        userId: store.userId, // Keep track of userId explicitly
         name: store.name || store.username || '이름 없음',
         storeName: store.vendorStoreName || `${store.name || store.username} 상점`,
         address: store.address,
