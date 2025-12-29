@@ -25,17 +25,19 @@ export function getMapConfig(req: Request, res: Response) {
   });
 }
 
-// 지오코딩 헬퍼 함수
-export async function geocodeAddress(address: string): Promise<{
+// 지오코딩 헬퍼 함수 - 여러 결과 반환
+export async function geocodeAddressList(address: string): Promise<Array<{
   lat: number;
   lng: number;
   postal_code: string;
   formatted_address: string;
-} | null> {
-  if (!address || !GOOGLE_MAPS_API_KEY) return null;
+  place_id?: string;
+  types?: string[];
+}>> {
+  if (!address || !GOOGLE_MAPS_API_KEY) return [];
 
   try {
-    console.log(`구글 지도 지오코딩 요청: "${address}"`);
+    console.log(`구글 지도 지오코딩 요청 (List): "${address}"`);
     const response = await axios.get('https://maps.googleapis.com/maps/api/geocode/json', {
       params: {
         address: address,
@@ -47,31 +49,46 @@ export async function geocodeAddress(address: string): Promise<{
     const result = response.data;
 
     if (result.status === 'OK' && result.results && result.results.length > 0) {
-      const firstResult = result.results[0];
-      const location = firstResult.geometry.location;
-
-      let postal_code = '';
-      if (firstResult.address_components) {
-        for (const component of firstResult.address_components) {
-          if (component.types.includes('postal_code')) {
-            postal_code = component.long_name;
-            break;
+      return result.results.map((item: any) => {
+        const location = item.geometry.location;
+        let postal_code = '';
+        if (item.address_components) {
+          for (const component of item.address_components) {
+            if (component.types.includes('postal_code')) {
+              postal_code = component.long_name;
+              break;
+            }
           }
         }
-      }
-
-      return {
-        lat: location.lat,
-        lng: location.lng,
-        postal_code,
-        formatted_address: firstResult.formatted_address
-      };
+        return {
+          lat: location.lat,
+          lng: location.lng,
+          postal_code,
+          formatted_address: item.formatted_address,
+          place_id: item.place_id,
+          types: item.types
+        };
+      });
     }
-    return null;
+    return [];
   } catch (error) {
-    console.error('Geocoding helper error:', error);
-    return null;
+    console.error('Geocoding list helper error:', error);
+    return [];
   }
+}
+
+// 지오코딩 헬퍼 함수 - 단일 결과 반환 (기존 호환성 유지)
+export async function geocodeAddress(address: string): Promise<{
+  lat: number;
+  lng: number;
+  postal_code: string;
+  formatted_address: string;
+} | null> {
+  const results = await geocodeAddressList(address);
+  if (results.length > 0) {
+    return results[0];
+  }
+  return null;
 }
 
 // 주소 검색 (지오코딩)
@@ -87,17 +104,19 @@ export async function searchAddressByQuery(req: Request, res: Response) {
   }
 
   try {
-    const result = await geocodeAddress(query as string);
+    const results = await geocodeAddressList(query as string);
 
-    if (result) {
+    if (results.length > 0) {
       return res.json({
         success: true,
-        results: [{
+        results: results.map(result => ({
           geometry: { location: { lat: result.lat, lng: result.lng } },
           formatted_address: result.formatted_address,
           name: result.formatted_address,
-          postal_code: result.postal_code
-        }]
+          postal_code: result.postal_code,
+          place_id: result.place_id,
+          types: result.types
+        }))
       });
     } else {
       return res.json({
