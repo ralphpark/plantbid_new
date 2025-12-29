@@ -2590,6 +2590,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ========== 주문 API ==========
+
+  // 주문 생성
+  app.post("/api/orders", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "로그인이 필요합니다" });
+    }
+
+    try {
+      const { vendorId, productId, price, conversationId, buyerInfo, recipientInfo } = req.body;
+
+      // 필수 필드 검증
+      if (!vendorId || !productId || !price || !buyerInfo || !recipientInfo) {
+        return res.status(400).json({ error: "필수 정보가 누락되었습니다" });
+      }
+
+      // 주문 ID 생성 (예: ord_abcdef12345)
+      const orderId = `ord_${nanoid(10)}`;
+
+      const order = await storage.createOrder({
+        userId: req.user!.id,
+        vendorId,
+        productId,
+        conversationId: conversationId ? parseInt(conversationId) : 0,
+        price: price.toString(),
+        status: 'created',
+        orderId,
+        buyerInfo,
+        recipientInfo,
+        paymentInfo: null,
+        trackingInfo: null
+      });
+
+      console.log(`주문 생성됨: ${orderId}`);
+      res.status(201).json(order);
+    } catch (error) {
+      console.error("주문 생성 오류:", error);
+      res.status(500).json({ error: "주문 생성 중 오류가 발생했습니다" });
+    }
+  });
+
   // ========== 체크아웃 API ==========
 
   // 체크아웃 (주문 생성 및 결제 준비)
