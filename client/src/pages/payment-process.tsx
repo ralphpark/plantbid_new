@@ -113,15 +113,16 @@ export default function PaymentProcessPage() {
         console.log('새로운 포트원 V2 API 형식 결제 ID 생성:', paymentId);
 
         if (orderId) {
-          console.log('기존 주문번호 대체:', orderId, '→', paymentId);
+          console.log('원본 주문번호 유지:', orderId, '| 결제 ID:', paymentId);
         }
 
-        // User Request: pay_... ID is the correct Order ID.
-        orderId = paymentId;
+        // ★★★ 핵심 수정: orderId를 paymentId로 덮어쓰지 않음! ★★★
+        // orderId는 원본(ord_XYZ) 유지, paymentId는 포트원용(pay_XYZ)으로 분리
+        // 이전 코드: orderId = paymentId; (문제 원인 - 삭제)
       }
 
-      // 결제 ID와 주문 ID 로깅
-      console.log('결제 요청 - PaymentID:', paymentId, 'OrderID:', orderId);
+      // 결제 ID와 주문 ID 로깅 (orderId는 원본 유지)
+      console.log('결제 요청 - PaymentID(포트원용):', paymentId, '| OrderID(원본):', orderId);
 
       // 결제 요청 파라미터 설정 - V2 API 형식에 맞게 설정
       const response = await PortOne.requestPayment({
