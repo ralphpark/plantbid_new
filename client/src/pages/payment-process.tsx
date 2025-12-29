@@ -113,12 +113,11 @@ export default function PaymentProcessPage() {
         console.log('새로운 포트원 V2 API 형식 결제 ID 생성:', paymentId);
 
         if (orderId) {
-          console.log('기존 주문번호 유지:', orderId, '결제 ID 별도 생성:', paymentId);
+          console.log('기존 주문번호 대체:', orderId, '→', paymentId);
         }
 
-        // Fix: Do NOT overwrite orderId with paymentId. 
-        // We want to link this payment (paymentId) to the existing order (orderId).
-        // orderId = paymentId; // REMOVED
+        // User Request: pay_... ID is the correct Order ID.
+        orderId = paymentId;
       }
 
       // 결제 ID와 주문 ID 로깅
@@ -199,7 +198,8 @@ export default function PaymentProcessPage() {
               amount: parseInt(price || '0'),
               vendorId: vendorId ? parseInt(vendorId) : null,
               conversationId: conversationId ? parseInt(conversationId) : null,
-              createOrderIfNotExists: true // 주문이 없으면 생성하도록 플래그
+              createOrderIfNotExists: true, // 주문이 없으면 생성하도록 플래그
+              originalOrderId: originalOrderId // 이전 주문번호(삭제 또는 참조용) 전달
             })
           });
 
