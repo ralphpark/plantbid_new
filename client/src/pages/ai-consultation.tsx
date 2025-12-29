@@ -998,7 +998,9 @@ export default function AIConsultationPage() {
       });
 
       if (!orderResponse.ok) {
-        throw new Error("주문 생성에 실패했습니다.");
+        const errData = await orderResponse.json();
+        console.error("Server API Error:", errData);
+        throw new Error(errData.details || errData.error || "주문 생성에 실패했습니다.");
       }
 
       const orderData = await orderResponse.json();
