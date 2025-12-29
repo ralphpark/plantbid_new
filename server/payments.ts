@@ -404,7 +404,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
         console.log('포트원 V2 결제 취소 API 호출 시도. 결제 키:', payment.paymentKey);
 
         // 포트원 V2 클라이언트 가져오기
-        const portoneV2Client = await import('./portone-v2-client');
+        const portoneV2Client = await import('./portone-v2-client.js');
         const portoneClient = portoneV2Client.default;
 
         if (!payment.paymentKey) {
@@ -687,7 +687,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
         console.log('포트원 V2 결제 취소 API 호출 시도. 결제 키:', payment.paymentKey);
 
         // 포트원 V2 클라이언트 가져오기
-        const portoneV2Client = await import('./portone-v2-client');
+        const portoneV2Client = await import('./portone-v2-client.js');
         const portoneClient = portoneV2Client.default;
 
         if (!payment.paymentKey) {
@@ -983,7 +983,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
       // 포트원 V2 API를 통해 결제 시작
       try {
         // 이미 초기화된 클라이언트 사용
-        const portoneV2Client = await import('./portone-v2-client');
+        const portoneV2Client = await import('./portone-v2-client.js');
         const portoneClient = portoneV2Client.default;
 
         // 결제 정보 생성
@@ -1057,7 +1057,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
       }
 
       // 포트원 결제 검색으로 실제 payment_id 확인
-      const portoneV2Client = await import('./portone-v2-client');
+      const portoneV2Client = await import('./portone-v2-client.js');
       const portoneClient = portoneV2Client.default;
       let realPaymentId = '';
       let paymentStatus = '';
@@ -1112,7 +1112,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
       }
       let finalPaymentId = overridePaymentId || '';
       if (!finalPaymentId) {
-        const portoneV2Client = await import('./portone-v2-client');
+        const portoneV2Client = await import('./portone-v2-client.js');
         const portoneClient = portoneV2Client.default;
         try {
           const searchResult = await portoneClient.searchPayments({ orderId: orderId as string });
@@ -1300,7 +1300,7 @@ export function setupPaymentRoutes(app: Express, storage: IStorage) {
       }
 
       // 포트원 V2 API를 통해 결제 시작
-      const portoneV2Client = await import('./portone-v2-client');
+      const portoneV2Client = await import('./portone-v2-client.js');
       const portoneClient = portoneV2Client.default;
 
       const paymentData = await portoneClient.createPayment({

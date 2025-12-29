@@ -494,7 +494,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`[결제 조회] paymentInfo에서 paymentId 추출: ${searchPaymentId}`);
       }
 
-      const portoneV2Client = await import('./portone-v2-client');
+      const portoneV2Client = await import('./portone-v2-client.js');
       const portoneClient = portoneV2Client.default;
       const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
       const maxAttempts = 6;
@@ -4137,7 +4137,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             console.log(`주문 ${orderId} 취소 요청: 결제 취소 시도 (결제 ID: ${payment.id})`);
 
             // 포트원 V2 클라이언트 로드
-            const portoneV2Client = await import('./portone-v2-client');
+            const portoneV2Client = await import('./portone-v2-client.js');
             const portoneClient = portoneV2Client.default;
 
             try {
@@ -4233,7 +4233,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (payment && payment.paymentKey) {
         try {
           // 포트원 V2 클라이언트 가져오기
-          const portoneV2Client = await import('./portone-v2-client');
+          const portoneV2Client = await import('./portone-v2-client.js');
           const portoneClient = portoneV2Client.default;
 
           console.log(`[긴급 취소] 포트원 API로 취소 요청: ${payment.paymentKey}`);
@@ -4555,7 +4555,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const portoneV2Client = await import('./portone-v2-client');
+      const portoneV2Client = await import('./portone-v2-client.js');
       const portoneClient = portoneV2Client.default;
       let finalPaymentId = '';
 
@@ -4653,7 +4653,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // 포트원에서 결제 정보 조회
-      const portoneV2Client = await import('./portone-v2-client');
+      const portoneV2Client = await import('./portone-v2-client.js');
       const portoneClient = portoneV2Client.default;
 
       try {
