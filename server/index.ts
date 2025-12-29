@@ -157,7 +157,7 @@ app.use('/__direct', directRouter);
       message: message
     });
 
-    throw err;
+    // throw err; // 주석 처리: 응답을 이미 보냈으므로 에러를 다시 던지지 않음
   });
 
   // 판매자 테이블 데이터 동기화

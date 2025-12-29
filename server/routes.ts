@@ -64,7 +64,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       '/api/plants/search',
       '/api/products/available',
       '/api/google-images',
-      '/api/portone/webhook'
+      '/api/portone/webhook',
+      '/api/debug/status'
     ];
 
     const isPublicRoute = publicRoutes.some(route => {
@@ -86,6 +87,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     next();
+  });
+
+  // 진단용 엔드포인트 - 환경 변수 및 DB 연결 상태 확인 (보안 주의)
+  app.get("/api/debug/status", async (req, res) => {
+    try {
+      const dbStatus = {
+        hasUrl: !!(process.env.DATABASE_URL || process.env.SUPABASE_DB_URL),
+        urlLength: (process.env.DATABASE_URL || process.env.SUPABASE_DB_URL)?.length || 0,
+        sslConfig: (db as any).client?.options?.ssl || 'unknown',
+      };
+
+      let dbConnection = "unknown";
+      try {
+        await db.select({ value: sql`1` }).from(sql`generate_series(1, 1)`); // Simple query using Drizzle
+        dbConnection = "ok";
+      } catch (e) {
+        dbConnection = "failed: " + (e instanceof Error ? e.message : String(e));
+      }
+
+      res.json({
+        status: "ok",
+        env: {
+          NODE_ENV: process.env.NODE_ENV,
+          GOOGLE_MAPS_API_KEY_EXISTS: !!process.env.GOOGLE_MAPS_API_KEY,
+        },
+        db: {
+          config: dbStatus,
+          connection: dbConnection
+        }
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Diagnostic failed", details: String(error) });
+    }
   });
 
   // 식물 관리 라우트 설정
