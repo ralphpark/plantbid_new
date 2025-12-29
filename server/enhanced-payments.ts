@@ -54,11 +54,29 @@ export async function cancelPaymentWithRetry(
     // 유효한 포트원 결제 ID 검색 시도
     let portonePaymentId = payment.paymentKey;
 
+    // 주문의 paymentInfo에 저장된 실제 paymentId가 있으면 우선 사용
+    try {
+      const order = await storage.getOrderByOrderId(orderId);
+      const orderPaymentId = order && (order as any)?.paymentInfo?.paymentId;
+      if (orderPaymentId) {
+        console.log('[결제 취소 API] 주문의 paymentInfo.paymentId 발견:', orderPaymentId);
+        if (orderPaymentId !== portonePaymentId) {
+          console.log('[결제 취소 API] 주문의 paymentId로 결제 키 보정 후 사용');
+          portonePaymentId = orderPaymentId;
+          // DB에도 올바른 결제 키로 동기화
+          await storage.updatePayment(payment.id, { paymentKey: portonePaymentId });
+        }
+      }
+    } catch (orderLookupError) {
+      console.warn('[결제 취소 API] 주문 조회 중 오류(무시):', (orderLookupError as any)?.message || orderLookupError);
+    }
+
     try {
       console.log('[결제 취소 API] 주문 ID로 유효한 포트원 결제 ID 검색 시도...');
       // 주문 ID로 결제 검색하여 올바른 ID 형식 찾기
       const searchResult = await portoneClient.searchPayments({
-        orderId: orderId
+        // 주문의 paymentId가 pay_ 형식인 경우 그것을 orderId로 사용, 아니면 기존 orderId 사용
+        orderId: portonePaymentId?.startsWith('pay_') ? portonePaymentId : orderId
       });
 
       if (searchResult && searchResult.payments && searchResult.payments.length > 0) {
