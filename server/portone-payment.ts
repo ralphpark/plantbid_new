@@ -38,7 +38,7 @@ async function preparePortOnePayment(params: {
     console.log('포트원 V2 결제 준비 요청 (디버깅):', JSON.stringify(params, null, 2));
 
     // portone-v2-client 모듈 동적 로드
-    const { default: portOneClient } = await import('./portone-v2-client');
+    const { default: portOneClient } = await import('./portone-v2-client.js');
 
     // 실제 V2 API를 통한 결제 생성 요청 수행
     const response = await portOneClient.createPayment({
@@ -114,7 +114,7 @@ async function verifyPortOnePayment(impUid: string, merchantUid: string, amount:
     console.log('포트원 V2 결제 검증 요청:', { impUid, merchantUid, amount });
 
     // V2 API를 통한 결제 정보 조회
-    const result = await import('./portone-v2-client').then(module => {
+    const result = await import('./portone-v2-client.js').then(module => {
       const client = module.default;
       return client.getPayment(impUid);
     });
@@ -173,7 +173,7 @@ export function setupPortOneRoutes(app: Express, storage: IStorage) {
       const userId = req.user!.id;
 
       // V2 API 규격에 맞는 결제 ID 및 상점 주문번호 생성
-      const portoneV2Client = await import('./portone-v2-client');
+      const portoneV2Client = await import('./portone-v2-client.js');
       const paymentKey = portoneV2Client.generatePortonePaymentId();
       const merchantId = portoneV2Client.generateInicisOrderNumber();
       console.log(`포트원 V2 API 규격 결제 ID 생성: ${paymentKey} `);
@@ -262,7 +262,7 @@ export function setupPortOneRoutes(app: Express, storage: IStorage) {
       const userId = req.user!.id;
 
       // V2 API 규격에 맞는 결제 ID 및 상점 주문번호 생성
-      const portoneV2Client = await import('./portone-v2-client');
+      const portoneV2Client = await import('./portone-v2-client.js');
       const paymentKey = portoneV2Client.generatePortonePaymentId();
       const merchantId = portoneV2Client.generateInicisOrderNumber();
       console.log(`포트원 V2 API 규격 결제 ID 생성: ${paymentKey}`);
@@ -393,7 +393,7 @@ export function setupPortOneRoutes(app: Express, storage: IStorage) {
 
       // V1 API(imp_uid)에서 V2 API 형식으로 변환
       // V2 API 규격에 맞는 결제 ID가 필요함
-      const portoneV2Client = await import('./portone-v2-client');
+      const portoneV2Client = await import('./portone-v2-client.js');
 
       // imp_uid가 있고 V2 형식이 아닌 경우 변환
       let paymentKey = imp_uid;

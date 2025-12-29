@@ -127,7 +127,7 @@ router.post('/payments/sync', async (req: Request, res: Response) => {
     }
 
     // 포트원에서 실제 결제 ID 검색
-    const portoneV2Client = await import('./portone-v2-client');
+    const portoneV2Client = await import('./portone-v2-client.js');
     const portoneClient = portoneV2Client.default;
     let finalPaymentId = '';
 
