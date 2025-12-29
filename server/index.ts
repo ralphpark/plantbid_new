@@ -39,6 +39,8 @@ const allowPublicAccess = (req: Request, res: Response, next: NextFunction) => {
     '/api/orders/emergency-cancel/:orderId', // 연결 모든 API를 사용할 수 없을 때 사용하는 긴급 취소 API
     '/api_direct/payment/create-test', // MID 테스트를 위한 라우트
     '/api_direct/payments/cancel', // MID 취소 테스트를 위한 라우트
+    '/mcp/supabase/postgrest',
+    '/mcp/supabase/admin',
     '/api/site-settings', // 사이트 설정 공개 API
     '/api/plants/remove-duplicates', // 중복 정리 API
     '/api/plants/upload-excel', // 엑셀 업로드 API
