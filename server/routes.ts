@@ -813,6 +813,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
           approvedAt: paymentDetail?.payment?.paid_at ? new Date(paymentDetail.payment.paid_at * 1000) : new Date()
         });
         console.log(`[결제 검증] 결제 정보 생성 완료`);
+      } else {
+        // 기존 결제 레코드가 있으면 최신 결제 ID와 상태로 동기화
+        let receiptUrl;
+        try {
+          receiptUrl = paymentDetail?.payment?.receipt_url || paymentDetail?.payment?.receipt?.url;
+        } catch { }
+
+        await storage.updatePaymentByOrderId(orderId, {
+          paymentKey: paymentId,
+          status: 'success',
+          method: paymentDetail?.payment?.method || existingPayment.method || 'CARD',
+          paymentUrl: receiptUrl || existingPayment.paymentUrl,
+          approvedAt: paymentDetail?.payment?.paid_at
+            ? new Date(paymentDetail.payment.paid_at * 1000)
+            : existingPayment.approvedAt || new Date(),
+          updatedAt: new Date()
+        });
+        console.log(`[결제 검증] 기존 결제 정보 업데이트 완료: orderId=${orderId}, paymentKey=${paymentId}`);
       }
 
       return res.status(200).json({
