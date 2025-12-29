@@ -25,12 +25,12 @@ export default function PaymentProcessPage() {
   const params = new URLSearchParams(search);
   const { toast } = useToast();
   const { user } = useAuth();
-  
+
   // 결제 설정 (storeId, channelKey) 가져오기
   const { data: mapConfig } = useQuery<MapConfig>({
     queryKey: ['/api/map/config'],
   });
-  
+
   // URL 파라미터에서 필요한 정보 추출
   const originalOrderId = params.get('orderId'); // 원래 URL에서 받은 주문번호
   const conversationId = params.get('conversationId');
@@ -38,10 +38,10 @@ export default function PaymentProcessPage() {
   const price = params.get('price');
   const vendorId = params.get('vendorId');
   const returnUrl = params.get('returnUrl'); // 결제 후 돌아갈 URL
-  
+
   // 실제 사용할 주문번호(orderId)는 변경될 수 있으므로 let으로 선언
   let orderId = originalOrderId;
-  
+
   const [isLoading, setIsLoading] = useState(false);
   const [paymentResult, setPaymentResult] = useState<{
     success: boolean;
@@ -49,7 +49,7 @@ export default function PaymentProcessPage() {
     orderId?: string;
     details?: any; // 결제 실패 시 상세 정보를 저장하기 위한 필드 추가
   } | null>(null);
-  
+
   // 페이지 로드 시 필요한 정보 확인
   useEffect(() => {
     if (!orderId || !conversationId || !productName || !price || !vendorId) {
@@ -60,11 +60,11 @@ export default function PaymentProcessPage() {
       });
     }
   }, [orderId, conversationId, productName, price, vendorId, toast]);
-  
+
   // SDK V2 결제 처리 함수
   const handleSdkPayment = async () => {
     if (!orderId || !productName || !price) return;
-    
+
     // mapConfig가 없으면 결제 불가
     if (!mapConfig) {
       toast({
@@ -74,30 +74,30 @@ export default function PaymentProcessPage() {
       });
       return;
     }
-    
+
     setIsLoading(true);
-    
+
     try {
       // SDK 가져오기
       const PortOne = (await import('@portone/browser-sdk/v2')).default;
-      
+
       console.log('포트원 V2 SDK 결제 요청:', {
         orderId,
         productName,
         price
       });
-      
+
       // 사용자 정보 디버깅
       console.log('결제에 사용되는 사용자 정보:', {
         id: user?.id,
         username: user?.username,
         email: user?.email,
       });
-      
+
       // 주의: URL에서 전달받은 orderId가 이미 있는 경우는 그대로 사용
       // 없는 경우에만 새로 생성
       let paymentId;
-      
+
       if (orderId && orderId.startsWith('pay_') && orderId.length === 26) {
         // 이미 pay_ 형식인 경우 그대로 사용
         paymentId = orderId;
@@ -109,21 +109,21 @@ export default function PaymentProcessPage() {
         const cleanId = (timestamp.toString() + random).replace(/[^a-zA-Z0-9]/g, '');
         const paddedId = cleanId.substring(0, 22).padEnd(22, 'f');
         paymentId = `pay_${paddedId}`;
-        
+
         console.log('새로운 포트원 V2 API 형식 결제 ID 생성:', paymentId);
-        
-        // 기존 orderId가 있으면 로그에 표시
+
         if (orderId) {
-          console.log('기존 주문번호 대체:', orderId, '→', paymentId);
+          console.log('기존 주문번호 유지:', orderId, '결제 ID 별도 생성:', paymentId);
         }
-        
-        // 이제 paymentId를 orderId로 사용
-        orderId = paymentId;
+
+        // Fix: Do NOT overwrite orderId with paymentId. 
+        // We want to link this payment (paymentId) to the existing order (orderId).
+        // orderId = paymentId; // REMOVED
       }
-      
-      // 생성한 paymentId와 orderId 로깅 (이제 둘이 동일함)
-      console.log('통합 결제/주문 ID:', paymentId);
-      
+
+      // 결제 ID와 주문 ID 로깅
+      console.log('결제 요청 - PaymentID:', paymentId, 'OrderID:', orderId);
+
       // 결제 요청 파라미터 설정 - V2 API 형식에 맞게 설정
       const response = await PortOne.requestPayment({
         storeId: mapConfig.storeId,
@@ -141,23 +141,23 @@ export default function PaymentProcessPage() {
           email: user?.email || "test@example.com" // 사용자 이메일 우선 사용
         }
       });
-      
+
       console.log('SDK 결제 응답:', response);
-      
+
       // 결제 결과 확인
       if (response && response.code && response.code !== 'SUCCESS') {
         // 결제 취소되거나 실패한 경우
         let errorMessage = "결제가 취소되었거나 실패했습니다.";
-        
+
         // PG 제공자 에러인 경우 원본 에러 메시지 표시
         if (response.code === 'PG_PROVIDER_ERROR' || response.code === 'FAILURE_TYPE_PG') {
           errorMessage = response.message || "PG사에서 결제가 실패하였습니다.";
-          
+
           // PG 메시지가 있으면 추가
           if (response.pgMessage) {
             errorMessage += ` (${response.pgMessage})`;
           }
-          
+
           // PG 코드가 있으면 추가
           if (response.pgCode) {
             errorMessage += ` [코드: ${response.pgCode}]`;
@@ -168,18 +168,18 @@ export default function PaymentProcessPage() {
           // 기타 오류인 경우 최대한 많은 정보 표시
           errorMessage = response.message || "결제 처리 중 오류가 발생했습니다.";
         }
-        
+
         console.log('결제 실패 상세 정보:', response);
-        
+
         setPaymentResult({
           success: false,
           message: errorMessage,
           details: response // 결제 실패 상세 정보 저장
         });
-        
+
         return;
       }
-      
+
       // 결제 성공 처리 - 서버에 주문 및 결제 정보 저장
       const savePaymentAndOrder = async () => {
         try {
@@ -252,13 +252,13 @@ export default function PaymentProcessPage() {
         orderId: orderId,
         message: "결제가 완료되었습니다."
       });
-      
+
     } catch (error: any) {
       console.error('결제 처리 오류:', error);
-      
+
       // 포트원 오류 상세 로깅
       let errorMessage = "결제 중 오류가 발생했습니다.";
-      
+
       if (error.__portOneErrorType === 'PaymentError') {
         errorMessage = `결제 오류: ${error.code || 'unknown'}`;
         console.error('포트원 결제 오류 상세:', {
@@ -269,12 +269,12 @@ export default function PaymentProcessPage() {
       } else if (error.message) {
         errorMessage = error.message;
       }
-      
+
       setPaymentResult({
         success: false,
         message: errorMessage
       });
-      
+
       toast({
         title: "결제 오류",
         description: errorMessage,
@@ -284,7 +284,7 @@ export default function PaymentProcessPage() {
       setIsLoading(false);
     }
   };
-  
+
   // 대화 페이지로 이동
   const goBackToConversation = () => {
     if (returnUrl && paymentResult?.success) {
@@ -302,7 +302,7 @@ export default function PaymentProcessPage() {
       setLocation(conversationId ? `/ai-consultation?conversation=${conversationId}` : `/ai-consultation`);
     }
   };
-  
+
   return (
     <DashboardLayout>
       <div className="container max-w-lg mx-auto py-8">
@@ -314,14 +314,14 @@ export default function PaymentProcessPage() {
               ) : "결제 정보 확인"}
             </CardTitle>
             <CardDescription>
-              {paymentResult ? 
-                (paymentResult.success ? 
-                  "결제가 성공적으로 완료되었습니다." : 
-                  "결제가 완료되지 않았습니다. 아래 내용을 확인해주세요.") : 
+              {paymentResult ?
+                (paymentResult.success ?
+                  "결제가 성공적으로 완료되었습니다." :
+                  "결제가 완료되지 않았습니다. 아래 내용을 확인해주세요.") :
                 "결제를 진행하기 전에 정보를 확인해주세요."}
             </CardDescription>
           </CardHeader>
-          
+
           <CardContent className="space-y-4">
             {!paymentResult ? (
               <>
@@ -350,7 +350,7 @@ export default function PaymentProcessPage() {
                     </div>
                   </dl>
                 </div>
-                
+
                 <div className="bg-muted/50 p-3 rounded-md text-sm">
                   <p>결제 버튼을 클릭하면 카드 결제 창이 열립니다. 테스트 결제는 실제 결제가 이루어지지 않습니다.</p>
                 </div>
@@ -374,12 +374,12 @@ export default function PaymentProcessPage() {
               </div>
             )}
           </CardContent>
-          
+
           <CardFooter className="flex flex-col space-y-2">
             {!paymentResult ? (
               <div className="w-full space-y-2">
-                <Button 
-                  className="w-full" 
+                <Button
+                  className="w-full"
                   onClick={handleSdkPayment}
                   disabled={isLoading || !orderId || !price}
                 >
@@ -395,10 +395,10 @@ export default function PaymentProcessPage() {
                     </>
                   )}
                 </Button>
-                
-                <Button 
-                  variant="outline" 
-                  className="w-full" 
+
+                <Button
+                  variant="outline"
+                  className="w-full"
                   onClick={goBackToConversation}
                   disabled={isLoading}
                 >
@@ -407,8 +407,8 @@ export default function PaymentProcessPage() {
                 </Button>
               </div>
             ) : (
-              <Button 
-                className="w-full" 
+              <Button
+                className="w-full"
                 onClick={goBackToConversation}
                 variant={paymentResult.success ? "default" : "outline"}
               >
