@@ -896,6 +896,11 @@ export default function AIConsultationPage() {
       price: message.price || (productPrice ? Number(productPrice) : undefined)
     };
     setSelectedBid(messageWithPrice);
+
+    // 구매 대화상자 열기 전 이전 결제 상태 초기화
+    setPaymentResult(null);
+    setIsPaymentProcessing(false);
+
     setPurchaseDialogOpen(true);
   };
 
