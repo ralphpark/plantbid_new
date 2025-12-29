@@ -620,7 +620,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let order = await storage.getOrderByOrderId(orderId);
 
       // 주문이 없고 createOrderIfNotExists 플래그가 있으면 주문 생성 (AI상담 결제용)
-      if (!order && createOrderIfNotExists) {
+      // 단, pay_ 또는 imp_ 로 시작하는 orderId는 결제키이므로 주문으로 생성하지 않음
+      if (!order && createOrderIfNotExists && !orderId.startsWith('pay_') && !orderId.startsWith('imp_')) {
         console.log(`[결제 검증] 주문 없음, 새로 생성: ${orderId}`);
 
         // 사용자 정보 가져오기 (로그인된 경우)
@@ -3739,8 +3740,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // 알림 생성
+      // 알림 생성
+      // Fix: vendorId는 vendors 테이블의 ID이므로, 해당 판매자의 실제 userId(users 테이블 ID)를 찾아야 함
+      // storage.getVendor(vendorId)로 가져온 vendor 객체의 userId를 사용
+
+      if (!vendor.userId) {
+        console.error(`판매자(ID: ${vendorId})에게 연결된 사용자 계정이 없습니다.`);
+        return res.status(500).json({ error: "판매자 계정 정보를 찾을 수 없습니다" });
+      }
+
       const notification = await storage.createNotification({
-        userId: vendorId,  // 수신자로 판매자 ID 지정
+        userId: vendor.userId,  // 수신자로 판매자의 User ID 지정
         senderId: req.user.id,  // 발신자로 현재 사용자 ID 지정
         type,
         message,
@@ -3784,16 +3794,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (bid.vendorId === winnerVendorId) continue;
 
         // 각 판매자에게 알림 생성
-        await storage.createNotification({
-          userId: bid.vendorId,  // 수신자로 판매자 ID 지정
-          senderId: req.user.id,  // 발신자로 현재 사용자 ID 지정
-          type: 'rejected',
-          message,
-          conversationId: parseInt(conversationId),
-          status: 'unread'
-        });
-
-        notifiedVendors++;
+        // Fix: bid.vendorId를 사용하여 vendor 정보를 조회 후 userId를 사용해야 함
+        try {
+          const vendor = await storage.getVendor(bid.vendorId);
+          if (vendor && vendor.userId) {
+            await storage.createNotification({
+              userId: vendor.userId,  // 수신자로 판매자의 User ID 지정
+              senderId: req.user.id,
+              type: 'rejected',
+              message,
+              conversationId: parseInt(conversationId),
+              status: 'unread'
+            });
+            notifiedVendors++;
+          }
+        } catch (err) {
+          console.error(`알림 전송 실패 (VendorID: ${bid.vendorId}):`, err);
+        }
       }
 
       res.status(200).json({
