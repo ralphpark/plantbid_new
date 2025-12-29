@@ -662,18 +662,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!productExists) {
           console.warn(`[결제 검증] 상품 ID ${targetProductId} 없음. 유효한 상품 검색 시도.`);
           try {
-            // Fallback: Try to find ANY product to avoid crash. 
-            // Logic: Find products for user 1 (Admin/Guest) or just first available in DB?
-            // storage.getProductsForUser is one way.
+            // Fallback 1: Try to find products for admin/seed user
             const fallbackProducts = await storage.getProductsForUser(1); // Assuming user 1 has seed data
             if (fallbackProducts && fallbackProducts.length > 0) {
               targetProductId = fallbackProducts[0].id;
-              console.log(`[결제 검증] 대체 상품 ID 사용: ${targetProductId}`);
+              console.log(`[결제 검증] 대체 상품 ID 사용(User 1): ${targetProductId}`);
             } else {
-              console.error(`[결제 검증] 대체 상품도 찾을 수 없음.`);
-              // If completely no products, we can't create order.
-              // But usually seed data exists. If not, we can insert one? No, too complex.
-              // throw new Error(`유효한 식물 상품을 찾을 수 없습니다.`);
+              // Fallback 2: Try to find ANY plant in the database
+              console.warn(`[결제 검증] User 1 상품 없음. 전체 상품 조회 시도.`);
+              const allPlants = await storage.getAllPlants();
+              if (allPlants && allPlants.length > 0) {
+                targetProductId = allPlants[0].id;
+                console.log(`[결제 검증] 대체 상품 ID 사용(전체 목록): ${targetProductId}`);
+              } else {
+                console.error(`[결제 검증] DB에 식물 상품이 하나도 없습니다.`);
+                // If completely no products, we can't create order. Use 1 and hope (or fail).
+              }
             }
           } catch (fallbackErr) {
             console.error(`[결제 검증] 상품 조회 실패:`, fallbackErr);
