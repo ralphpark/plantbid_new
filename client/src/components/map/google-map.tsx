@@ -79,10 +79,10 @@ function GoogleMapWrapper({
   const [radius, setRadius] = useState<number>(initialLocation?.radius || 3);
   const [isSearching, setIsSearching] = useState<boolean>(false);
   const [nearbyVendors, setNearbyVendors] = useState<any[]>([]);
-  const [mapLoaded, setMapLoaded] = useState<boolean>(false); 
+  const [mapLoaded, setMapLoaded] = useState<boolean>(false);
   const mapRef = useRef<google.maps.Map | null>(null);
   const markerRefs = useRef<{ [key: string]: any }>({});
-  
+
   // 지도 준비 상태 확인
   useEffect(() => {
     if (isLoaded && window.google && window.google.maps) {
@@ -90,7 +90,7 @@ function GoogleMapWrapper({
       setMapLoaded(true);
     }
   }, [isLoaded]);
-  
+
   // Google Maps API가 로드되었는지 확인하기 위한 추가 체크
 
   // 맵 참조 저장
@@ -105,11 +105,11 @@ function GoogleMapWrapper({
       if (!response.ok) {
         throw new Error('판매자 검색 중 오류가 발생했습니다');
       }
-      
+
       const data = await response.json();
       console.log("근처 판매자 정보:", data);
       setNearbyVendors(data.vendors || []);
-      
+
       return data.vendors || [];
     } catch (error) {
       console.error('판매자 검색 오류:', error);
@@ -186,13 +186,13 @@ function GoogleMapWrapper({
   // 좌표에서 주소 가져오기 (역지오코딩)
   const getAddressFromLatLng = useCallback(async (lat: number, lng: number) => {
     if (!isLoaded) return '';
-    
+
     try {
       const geocoder = new google.maps.Geocoder();
       const results = await geocoder.geocode({
         location: { lat, lng },
       });
-      
+
       if (results.results && results.results.length > 0) {
         const addressResult = results.results[0].formatted_address;
         setAddress(addressResult);
@@ -214,30 +214,30 @@ function GoogleMapWrapper({
   // 주소에서 좌표 찾기 (지오코딩)
   const searchAddress = useCallback(async () => {
     if (!inputAddress.trim() || !isLoaded) return;
-    
+
     setIsSearching(true);
-    
+
     try {
       const geocoder = new google.maps.Geocoder();
       const results = await geocoder.geocode({
         address: inputAddress,
       });
-      
+
       if (results.results && results.results.length > 0) {
         const { location } = results.results[0].geometry;
         const newLoc = { lat: location.lat(), lng: location.lng() };
-        
+
         // 맵 중심 이동
         if (mapRef.current) {
           mapRef.current.panTo(newLoc);
           mapRef.current.setZoom(14);
         }
-        
+
         setSelectedLocation(newLoc);
-        
+
         const addressResult = results.results[0].formatted_address;
         setAddress(addressResult);
-        
+
         // 부모 컴포넌트에 위치 정보 전달 (비동기 실행으로 무한 루프 방지)
         if (onLocationSelect) {
           setTimeout(() => {
@@ -252,7 +252,7 @@ function GoogleMapWrapper({
 
         // 메인 마커 생성
         createAdvancedMarker(newLoc, 'main-marker', true);
-        
+
         // 근처 판매자 정보 바로 가져오기 (검색 즉시 판매자 정보 표시)
         fetchNearbyVendors(newLoc.lat, newLoc.lng, radius);
       } else {
@@ -277,19 +277,19 @@ function GoogleMapWrapper({
   // 지도 클릭 이벤트 핸들러
   const onMapClick = useCallback(async (e: google.maps.MapMouseEvent) => {
     if (!e.latLng || !isLoaded) return;
-    
+
     const clickedLoc = { lat: e.latLng.lat(), lng: e.latLng.lng() };
     setSelectedLocation(clickedLoc);
-    
+
     // 위치의 주소 검색
     const addressResult = await getAddressFromLatLng(clickedLoc.lat, clickedLoc.lng);
-    
+
     // 주소 상태 업데이트 후 부모 컴포넌트에 위치 정보 전달
     setAddress(addressResult);
-    
+
     // 메인 마커 생성
     createAdvancedMarker(clickedLoc, 'main-marker', true);
-    
+
     // 부모 컴포넌트에 위치 정보 전달 (함수형 업데이트를 피함)
     if (onLocationSelect) {
       setTimeout(() => {
@@ -299,7 +299,7 @@ function GoogleMapWrapper({
           address: addressResult,
           radius,
         });
-        
+
         // 클릭 위치 기준으로 판매자 정보 가져오기
         fetchNearbyVendors(clickedLoc.lat, clickedLoc.lng, radius);
       }, 0);
@@ -309,18 +309,12 @@ function GoogleMapWrapper({
   // 주소 검색 시 마커와 판매자 정보 가져오기
   const handleAddressSearch = useCallback(async () => {
     await searchAddress();
-    
-    // 위치 마커 및 판매자 정보 업데이트
-    if (selectedLocation) {
-      // 근처 판매자 가져오기
-      fetchNearbyVendors(selectedLocation.lat, selectedLocation.lng, radius);
-    }
-  }, [searchAddress, selectedLocation, radius, fetchNearbyVendors]);
+  }, [searchAddress]);
 
   // 반경 변경을 처리하는 함수
   const handleRadiusChange = useCallback((newRadius: number) => {
     setRadius(newRadius);
-    
+
     // 위치와 주소가 있는 경우 부모에게 알림 (비동기 실행으로 무한 루프 방지)
     if (selectedLocation && address && onLocationSelect) {
       setTimeout(() => {
@@ -330,7 +324,7 @@ function GoogleMapWrapper({
           address,
           radius: newRadius,
         });
-        
+
         // 반경이 변경되었을 때 판매자 위치도 다시 가져오기
         fetchNearbyVendors(selectedLocation.lat, selectedLocation.lng, newRadius);
       }, 0);
@@ -369,7 +363,7 @@ function GoogleMapWrapper({
   // 로딩 에러 처리
   if (loadError) {
     return (
-      <div 
+      <div
         style={{ height, width }}
         className={`rounded-md border border-border flex flex-col items-center justify-center bg-muted/20 ${className}`}
       >
@@ -389,11 +383,11 @@ function GoogleMapWrapper({
       </div>
     );
   }
-  
+
   // 로딩 중일 때 표시
   if (!isLoaded) {
     return (
-      <div 
+      <div
         style={{ height, width }}
         className={`rounded-md border border-border flex flex-col items-center justify-center bg-muted/20 ${className}`}
       >
@@ -431,8 +425,8 @@ function GoogleMapWrapper({
               }}
             />
           </div>
-          <Button 
-            onClick={handleAddressSearch} 
+          <Button
+            onClick={handleAddressSearch}
             disabled={isSearching || !inputAddress.trim()}
           >
             {isSearching ? (
@@ -448,7 +442,7 @@ function GoogleMapWrapper({
       )}
 
       {/* 구글 맵 */}
-      <div 
+      <div
         style={{ height, width }}
         className={`rounded-md border border-border overflow-hidden relative ${className}`}
       >
@@ -507,7 +501,7 @@ function GoogleMapWrapper({
             <div>
               <p className="text-sm font-medium">{address || '주소를 검색 중...'}</p>
               <p className="text-xs text-muted-foreground">반경 {radius}km 이내의 판매자들에게 요청합니다</p>
-              
+
               {/* 판매자 정보 표시 */}
               {nearbyVendors.length > 0 ? (
                 <p className="text-xs text-primary font-medium mt-1">

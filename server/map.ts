@@ -219,6 +219,7 @@ export async function findNearbyVendors(req: Request, res: Response) {
   radiusKm = radiusKm <= 0.2 ? 0.2 : radiusKm; // 최소 반경 보장
   const userLat = parseFloat(lat as string);
   const userLng = parseFloat(lng as string);
+  console.log(`[findNearbyVendors] Request: lat=${lat}, lng=${lng}, radius=${radius}, radiusKm=${radiusKm}`);
 
   try {
     // 데이터베이스에서 판매자 위치 정보 가져오기
