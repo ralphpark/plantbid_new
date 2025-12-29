@@ -332,22 +332,29 @@ router.post('/portone/webhook', async (req: Request, res: Response) => {
             } else {
               console.log('[웹훅] 기존 결제 정보 업데이트 (READY)');
 
-              // 결제 키 유효성 검증 및 보정 (포트원 V2 API를 위한 형식)
-              let formattedPaymentKey = convertToV2PaymentId(paymentKey || generatePortonePaymentId());
+              // ★ 핵심 수정: 기존 paymentKey가 이미 올바른 pay_ 형식이면 유지
+              const existingKey = existingPayment.paymentKey;
+              const isExistingKeyValid = existingKey && existingKey.startsWith('pay_') && existingKey.length === 26;
 
-              // V2 API 규격 검증 완료 로그
-              console.log(`[웹훅] V2 API 규격의 결제 ID 검증 완료: ${formattedPaymentKey} (${formattedPaymentKey.length}자)`);
+              let formattedPaymentKey: string;
+              if (isExistingKeyValid) {
+                console.log(`[웹훅] ✅ 기존 paymentKey가 이미 올바른 형식. 유지: ${existingKey}`);
+                formattedPaymentKey = existingKey;
+              } else {
+                // 기존 키가 없거나 올바르지 않은 경우에만 새로 생성/변환
+                formattedPaymentKey = convertToV2PaymentId(paymentKey || generatePortonePaymentId());
+                console.log(`[웹훅] V2 API 규격의 결제 ID 검증 완료: ${formattedPaymentKey} (${formattedPaymentKey.length}자)`);
 
-              // 최종 확인 - 만약을 위한 안전장치
-              if (!formattedPaymentKey.startsWith('pay_') || formattedPaymentKey.length !== 26) {
-                console.warn(`[웹훅] ID 형식이 여전히 맞지 않음. 신규 생성: ${formattedPaymentKey}`);
-                formattedPaymentKey = generatePortonePaymentId();
-                console.log(`[웹훅] 신규 결제 ID로 대체: ${formattedPaymentKey}`);
+                if (!formattedPaymentKey.startsWith('pay_') || formattedPaymentKey.length !== 26) {
+                  console.warn(`[웹훅] ID 형식이 여전히 맞지 않음. 신규 생성: ${formattedPaymentKey}`);
+                  formattedPaymentKey = generatePortonePaymentId();
+                  console.log(`[웹훅] 신규 결제 ID로 대체: ${formattedPaymentKey}`);
+                }
               }
 
               // 기존 결제 정보 업데이트
               await storage.updatePayment(existingPayment.id, {
-                paymentKey: formattedPaymentKey, // 포맷된 결제 ID 사용
+                paymentKey: formattedPaymentKey,
                 status: 'READY',
                 updatedAt: new Date()
               });
