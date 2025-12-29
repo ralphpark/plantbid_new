@@ -25,8 +25,12 @@ interface ImageEditorProps {
 const createImage = (url: string): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
     const image = new Image();
+    // CORS 문제 해결을 위해 crossOrigin 설정
+    // 외부 도메인(Supabase Storage 등)의 이미지를 Canvas에서 편집할 수 있도록 함
+    image.crossOrigin = 'anonymous';
     image.addEventListener('load', () => resolve(image));
     image.addEventListener('error', (error) => reject(error));
+    // crossOrigin 설정 후 src를 설정해야 함
     image.src = url;
   });
 
