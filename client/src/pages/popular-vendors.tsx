@@ -27,7 +27,7 @@ export default function PopularVendorsPage() {
   useEffect(() => {
     document.title = "지역 인기 판매자 - PlantBid";
     window.scrollTo(0, 0);
-    
+
     const saved = localStorage.getItem('searchLocation');
     if (saved) {
       try {
@@ -44,10 +44,10 @@ export default function PopularVendorsPage() {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = subscribeToLocationChange((newLocation: string) => {
-      setUserLocation(newLocation);
+    const unsubscribe = subscribeToLocationChange((locations: { gpsLocation: string; searchLocation: string }) => {
+      setUserLocation(locations.searchLocation);
     });
-    return unsubscribe;
+    return () => { unsubscribe(); };
   }, []);
 
   const { data: vendors, isLoading } = useQuery<Vendor[]>({
@@ -55,16 +55,16 @@ export default function PopularVendorsPage() {
     queryFn: async () => {
       const saved = localStorage.getItem('searchLocation');
       let query = '';
-      
+
       if (saved && saved.startsWith('{')) {
         try {
           const data = JSON.parse(saved);
-          query = `?lat=${data.lat}&lng=${data.lng}&radius=10`;
+          query = `?lat=${data.lat}&lng=${data.lng}&radius=30`;
         } catch {
           query = '';
         }
       }
-      
+
       const response = await fetch(`/api/vendors/popular${query}`);
       if (!response.ok) throw new Error('Failed to fetch vendors');
       return response.json();

@@ -25,6 +25,55 @@ export function getMapConfig(req: Request, res: Response) {
   });
 }
 
+// 지오코딩 헬퍼 함수
+export async function geocodeAddress(address: string): Promise<{
+  lat: number;
+  lng: number;
+  postal_code: string;
+  formatted_address: string;
+} | null> {
+  if (!address || !GOOGLE_MAPS_API_KEY) return null;
+
+  try {
+    console.log(`구글 지도 지오코딩 요청: "${address}"`);
+    const response = await axios.get('https://maps.googleapis.com/maps/api/geocode/json', {
+      params: {
+        address: address,
+        key: GOOGLE_MAPS_API_KEY,
+        language: 'ko'
+      }
+    });
+
+    const result = response.data;
+
+    if (result.status === 'OK' && result.results && result.results.length > 0) {
+      const firstResult = result.results[0];
+      const location = firstResult.geometry.location;
+
+      let postal_code = '';
+      if (firstResult.address_components) {
+        for (const component of firstResult.address_components) {
+          if (component.types.includes('postal_code')) {
+            postal_code = component.long_name;
+            break;
+          }
+        }
+      }
+
+      return {
+        lat: location.lat,
+        lng: location.lng,
+        postal_code,
+        formatted_address: firstResult.formatted_address
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error('Geocoding helper error:', error);
+    return null;
+  }
+}
+
 // 주소 검색 (지오코딩)
 export async function searchAddressByQuery(req: Request, res: Response) {
   const { query } = req.query;
@@ -38,49 +87,22 @@ export async function searchAddressByQuery(req: Request, res: Response) {
   }
 
   try {
-    console.log(`구글 지도 API 호출 - 검색어: "${query}"`);
+    const result = await geocodeAddress(query as string);
 
-    const response = await axios.get('https://maps.googleapis.com/maps/api/geocode/json', {
-      params: {
-        address: query,
-        key: GOOGLE_MAPS_API_KEY,
-        language: 'ko' // 한국어로 결과 받기
-      }
-    });
-
-    // 결과 확인
-    const result = response.data;
-
-    if (result.status === 'OK' && result.results && result.results.length > 0) {
-      const firstResult = result.results[0];
-      const location = firstResult.geometry.location;
-
-      // 우편번호 찾기
-      let postal_code = '';
-      if (firstResult.address_components) {
-        for (const component of firstResult.address_components) {
-          if (component.types.includes('postal_code')) {
-            postal_code = component.long_name;
-            break;
-          }
-        }
-      }
-
+    if (result) {
       return res.json({
         success: true,
-        results: result.results.map((item: any) => ({
-          geometry: item.geometry,
-          formatted_address: item.formatted_address,
-          name: item.formatted_address,
-          postal_code: postal_code
-        }))
+        results: [{
+          geometry: { location: { lat: result.lat, lng: result.lng } },
+          formatted_address: result.formatted_address,
+          name: result.formatted_address,
+          postal_code: result.postal_code
+        }]
       });
     } else {
-      // 결과가 없는 경우
       return res.json({
         success: false,
-        error: '검색 결과가 없습니다.',
-        googleStatus: result.status
+        error: '검색 결과가 없습니다.'
       });
     }
   } catch (error) {

@@ -139,6 +139,8 @@ export function setupAuth(app: Express) {
     try {
       const { username, email, password, role } = req.body;
 
+
+
       // Validate role
       if (!["user", "vendor", "admin"].includes(role)) {
         return res.status(400).json({ error: "Invalid role" });
@@ -178,6 +180,29 @@ export function setupAuth(app: Express) {
       // 만약 판매자로 가입했다면, vendors 테이블에도 정보 추가
       if (role === "vendor") {
         try {
+          // 좌표 처리 로직 (Fallback 포함)
+          let lat: number | null = req.body.lat ? parseFloat(req.body.lat) : null;
+          let lng: number | null = req.body.lng ? parseFloat(req.body.lng) : null;
+
+          // 좌표가 없는 경우 서버 사이드 지오코딩 시도 (Fallback)
+          if (req.body.address && (!lat || !lng)) {
+            try {
+              console.log(`[회원가입] 좌표 누락됨. 서버 사이드 지오코딩 시도: ${req.body.address}`);
+              const { geocodeAddress } = await import("./map.js");
+              const geoResult = await geocodeAddress(req.body.address);
+
+              if (geoResult) {
+                lat = geoResult.lat;
+                lng = geoResult.lng;
+                console.log(`[회원가입] 지오코딩 성공: ${lat}, ${lng}`);
+              } else {
+                console.warn(`[회원가입] 지오코딩 실패`);
+              }
+            } catch (error) {
+              console.error(`[회원가입] 지오코딩 중 오류:`, error);
+            }
+          }
+
           const vendor = await storage.createVendor({
             userId: user.id, // 사용자 ID 연결
             name: req.body.storeName || username, // 상호명
@@ -185,20 +210,44 @@ export function setupAuth(app: Express) {
             phone: req.body.phone || "정보 없음",
             storeName: req.body.storeName || "심다", // region에서 storeName으로 필드명 변경
             address: req.body.address ? (req.body.zipCode ? `${req.body.address} (${req.body.zipCode})` : req.body.address) : "주소 정보 없음",
-            description: req.body.description || "식물을 위한 작업실 심다"
+            description: req.body.description || "식물을 위한 작업실 심다",
+            latitude: lat, // 위도 추가
+            longitude: lng // 경도 추가
           });
 
           console.log(`판매자 정보가 vendors 테이블에 추가되었습니다: ID ${vendor.id}`);
 
           // 판매자 주소가 있다면 매장 위치 정보도 추가
-          if (req.body.address && req.body.lat && req.body.lng) {
+          let lat: number | null = req.body.lat ? parseFloat(req.body.lat) : null;
+          let lng: number | null = req.body.lng ? parseFloat(req.body.lng) : null;
+
+          // 좌표가 없는 경우 서버 사이드 지오코딩 시도 (Fallback)
+          if (req.body.address && (!lat || !lng)) {
+            try {
+              console.log(`[회원가입] 좌표 누락됨. 서버 사이드 지오코딩 시도: ${req.body.address}`);
+              const { geocodeAddress } = await import("./map.js");
+              const geoResult = await geocodeAddress(req.body.address);
+
+              if (geoResult) {
+                lat = geoResult.lat;
+                lng = geoResult.lng;
+                console.log(`[회원가입] 지오코딩 성공: ${lat}, ${lng}`);
+              } else {
+                console.warn(`[회원가입] 지오코딩 실패`);
+              }
+            } catch (error) {
+              console.error(`[회원가입] 지오코딩 중 오류:`, error);
+            }
+          }
+
+          if (req.body.address && lat && lng) {
             try {
               await storage.createStoreLocation({
                 userId: user.id,
                 address: req.body.address,
                 region: req.body.storeName || "", // region 대신 storeName 사용
-                lat: parseFloat(req.body.lat),
-                lng: parseFloat(req.body.lng)
+                lat: lat,
+                lng: lng
               });
               console.log(`판매자 매장 위치 정보가 추가되었습니다: 사용자 ID ${user.id}`);
             } catch (error) {

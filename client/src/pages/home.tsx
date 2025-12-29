@@ -17,12 +17,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { DirectPurchaseModal } from "@/components/product/direct-purchase-modal";
-import { 
-  Leaf, 
-  MapPin, 
-  Star, 
-  ShoppingCart, 
-  ArrowRight, 
+import {
+  Leaf,
+  MapPin,
+  Star,
+  ShoppingCart,
+  ArrowRight,
   Sparkles,
   Store,
   TrendingUp,
@@ -147,7 +147,7 @@ export default function Home() {
     const unsubscribe = subscribeToLocationChange((locations: { gpsLocation: string; searchLocation: string }) => {
       setUserLocation(locations.searchLocation);
     });
-    return unsubscribe;
+    return () => { unsubscribe(); };
   }, []);
 
   const { data: popularPlants, isLoading: plantsLoading } = useQuery<Plant[]>({
@@ -159,16 +159,16 @@ export default function Home() {
     queryFn: async () => {
       const saved = localStorage.getItem('searchLocation');
       let query = '';
-      
+
       if (saved && saved.startsWith('{')) {
         try {
           const data = JSON.parse(saved);
-          query = `?lat=${data.lat}&lng=${data.lng}&radius=10`;
+          query = `?lat=${data.lat}&lng=${data.lng}&radius=30`;
         } catch {
           query = '';
         }
       }
-      
+
       const response = await fetch(`/api/vendors/popular${query}`);
       if (!response.ok) throw new Error('Failed to fetch vendors');
       return response.json();
@@ -180,18 +180,18 @@ export default function Home() {
     queryFn: async () => {
       const saved = localStorage.getItem('searchLocation');
       let query = '';
-      
+
       if (saved && saved.startsWith('{')) {
         try {
           const data = JSON.parse(saved);
-          query = `?lat=${data.lat}&lng=${data.lng}&radius=10`;
+          query = `?lat=${data.lat}&lng=${data.lng}&radius=30`;
         } catch {
           query = `?region=${encodeURIComponent(userLocation)}`;
         }
       } else {
         query = `?region=${encodeURIComponent(userLocation)}`;
       }
-      
+
       const response = await fetch(`/api/products/available${query}`);
       if (!response.ok) throw new Error('Failed to fetch products');
       return response.json();
@@ -226,7 +226,7 @@ export default function Home() {
             불편을 드려 죄송합니다. 더 나은 서비스로 돌아오겠습니다.
           </AlertDialogDescription>
           <div className="flex flex-col gap-3 mt-6">
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={() => setIsMaintenanceOpen(false)}
               className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold"
             >
@@ -244,7 +244,7 @@ export default function Home() {
       </AlertDialog>
 
       <Header />
-      
+
       <main className="pt-16">
         {/* 히어로 섹션 */}
         <section className="relative bg-gradient-to-br from-[#005E43] via-[#007055] to-[#004835] text-white py-16 md:py-24 overflow-hidden">
@@ -252,7 +252,7 @@ export default function Home() {
             <div className="absolute top-10 left-10 w-32 h-32 bg-white rounded-full blur-3xl"></div>
             <div className="absolute bottom-10 right-10 w-48 h-48 bg-green-300 rounded-full blur-3xl"></div>
           </div>
-          
+
           <div className="container mx-auto px-4 relative z-10">
             <div className="max-w-3xl mx-auto text-center">
               <motion.div
@@ -272,14 +272,14 @@ export default function Home() {
                   환경과 취향을 분석하고, 가까운 판매자의 실시간 제안까지 한 번에
                 </p>
               </motion.div>
-              
+
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: 0.2 }}
                 className="flex justify-center"
               >
-                <Button 
+                <Button
                   size="lg"
                   className="bg-white text-[#005E43] hover:bg-white/90 font-semibold px-8 py-6 text-lg ml-[1px] mr-[1px] mt-[1px] mb-[1px]"
                   onClick={handleStartConsultation}
@@ -304,16 +304,16 @@ export default function Home() {
                 </h2>
                 <p className="text-gray-600 mt-1">지금 가장 많이 찾는 식물들</p>
               </div>
-              <Button 
-                variant="ghost" 
-                className="text-green-600 hover:text-green-700" 
+              <Button
+                variant="ghost"
+                className="text-green-600 hover:text-green-700"
                 data-testid="link-view-all-plants"
                 onClick={() => navigate("/popular-plants")}
               >
                 인기 식물 더보기 <ArrowRight className="w-4 h-4 ml-1" />
               </Button>
             </div>
-            
+
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
               {plantsLoading ? (
                 Array(5).fill(0).map((_, i) => (
@@ -334,15 +334,15 @@ export default function Home() {
                     transition={{ duration: 0.4 }}
                     viewport={{ once: true }}
                   >
-                    <Card 
+                    <Card
                       className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group"
                       onClick={() => navigate(`/plants/${plant.id}`)}
                       data-testid={`card-plant-${plant.id}`}
                     >
                       <div className="relative h-40 bg-gradient-to-br from-green-100 to-green-50 overflow-hidden">
                         {plant.imageUrl ? (
-                          <img 
-                            src={plant.imageUrl} 
+                          <img
+                            src={plant.imageUrl}
                             alt={plant.name}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                           />
@@ -351,7 +351,7 @@ export default function Home() {
                             <Leaf className="w-12 h-12 text-green-300" />
                           </div>
                         )}
-                        <button 
+                        <button
                           className="absolute top-2 right-2 p-1.5 bg-white/80 rounded-full hover:bg-white"
                           onClick={(e) => { e.stopPropagation(); }}
                           data-testid={`button-like-plant-${plant.id}`}
@@ -375,8 +375,8 @@ export default function Home() {
                 <div className="col-span-full text-center py-12 text-gray-500">
                   <Leaf className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                   <p>등록된 식물이 없습니다</p>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="mt-4"
                     onClick={handleStartConsultation}
                   >
@@ -402,16 +402,16 @@ export default function Home() {
                   내 주변에서 인기 있는 식물 판매자
                 </p>
               </div>
-              <Button 
-                variant="ghost" 
-                className="text-green-600 hover:text-green-700" 
+              <Button
+                variant="ghost"
+                className="text-green-600 hover:text-green-700"
                 data-testid="link-view-all-vendors"
                 onClick={() => navigate("/popular-vendors")}
               >
                 지역 인기 판매자 더보기 <ArrowRight className="w-4 h-4 ml-1" />
               </Button>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {vendorsLoading ? (
                 Array(4).fill(0).map((_, i) => (
@@ -436,7 +436,7 @@ export default function Home() {
                     transition={{ duration: 0.4 }}
                     viewport={{ once: true }}
                   >
-                    <Card 
+                    <Card
                       className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer"
                       onClick={() => navigate(`/vendors/${vendor.id}`)}
                       data-testid={`card-vendor-${vendor.id}`}
@@ -445,8 +445,8 @@ export default function Home() {
                         <div className="flex items-center gap-4">
                           <div className="w-16 h-16 rounded-full bg-gradient-to-br from-green-100 to-green-50 flex items-center justify-center overflow-hidden flex-shrink-0">
                             {vendor.profileImageUrl ? (
-                              <img 
-                                src={vendor.profileImageUrl} 
+                              <img
+                                src={vendor.profileImageUrl}
                                 alt={vendor.storeName}
                                 className="w-full h-full object-cover"
                               />
@@ -510,16 +510,16 @@ export default function Home() {
                   {userLocation !== "내 지역" ? `${userLocation} 판매자의 ` : ""}지금 바로 주문할 수 있는 식물들
                 </p>
               </div>
-              <Button 
-                variant="ghost" 
-                className="text-green-600 hover:text-green-700" 
+              <Button
+                variant="ghost"
+                className="text-green-600 hover:text-green-700"
                 data-testid="link-view-all-products"
                 onClick={() => navigate("/available-products")}
               >
                 바로 구매 가능 상품 더보기 <ArrowRight className="w-4 h-4 ml-1" />
               </Button>
             </div>
-            
+
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {productsLoading ? (
                 Array(8).fill(0).map((_, i) => (
@@ -541,15 +541,15 @@ export default function Home() {
                     transition={{ duration: 0.4 }}
                     viewport={{ once: true }}
                   >
-                    <Card 
+                    <Card
                       className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group"
                       onClick={() => navigate(`/products/${product.id}`)}
                       data-testid={`card-product-${product.id}`}
                     >
                       <div className="relative h-48 bg-gradient-to-br from-green-100 to-green-50 overflow-hidden">
                         {product.imageUrl ? (
-                          <img 
-                            src={product.imageUrl} 
+                          <img
+                            src={product.imageUrl}
                             alt={product.name}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                           />
@@ -561,7 +561,7 @@ export default function Home() {
                         {product.stock && product.stock < 5 && (
                           <Badge className="absolute top-2 left-2 bg-red-500">품절 임박</Badge>
                         )}
-                        <button 
+                        <button
                           className="absolute top-2 right-2 p-1.5 bg-white/80 rounded-full hover:bg-white"
                           onClick={(e) => { e.stopPropagation(); }}
                           data-testid={`button-like-product-${product.id}`}
@@ -583,11 +583,11 @@ export default function Home() {
                           <p className="text-lg font-bold text-green-600" data-testid={`text-product-price-${product.id}`}>
                             {product.price.toLocaleString()}원
                           </p>
-                          <Button 
-                            size="sm" 
+                          <Button
+                            size="sm"
                             className="bg-green-600 hover:bg-green-700"
-                            onClick={(e) => { 
-                              e.stopPropagation(); 
+                            onClick={(e) => {
+                              e.stopPropagation();
                               navigate(`/products/${product.id}`);
                             }}
                             data-testid={`button-buy-product-${product.id}`}
@@ -603,14 +603,14 @@ export default function Home() {
                 <div className="col-span-full text-center py-12 text-gray-500">
                   <MapPin className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                   <p className="text-lg font-medium text-gray-700">
-                    {userLocation !== "내 지역" 
+                    {userLocation !== "내 지역"
                       ? `현재 ${userLocation} 지역에는 등록된 판매자가 없습니다`
                       : "현재 지역에 등록된 판매자가 없습니다"}
                   </p>
                   <p className="text-sm text-gray-500 mt-2">
                     AI 상담을 통해 다른 지역 판매자와 연결해 드릴 수 있어요
                   </p>
-                  <Button 
+                  <Button
                     className="mt-4 bg-green-600 hover:bg-green-700"
                     onClick={handleStartConsultation}
                     data-testid="button-consult-no-vendors"
@@ -637,11 +637,11 @@ export default function Home() {
                 어떤 식물을 키워야 할지 모르겠다면?
               </h2>
               <p className="text-lg text-white/80 mb-8 max-w-2xl mx-auto">
-                AI가 당신의 환경과 생활 패턴을 분석하여 
+                AI가 당신의 환경과 생활 패턴을 분석하여
                 가장 잘 맞는 식물을 추천해드립니다.
                 주변 판매자의 실시간 제안까지 한 번에!
               </p>
-              <Button 
+              <Button
                 size="lg"
                 className="bg-white text-[#005E43] hover:bg-white/90 font-semibold px-10 py-6 text-lg"
                 onClick={handleStartConsultation}
@@ -673,7 +673,7 @@ export default function Home() {
                   환경, 경험, 취향을 분석해 딱 맞는 식물을 찾아드려요
                 </p>
               </motion.div>
-              
+
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
@@ -689,7 +689,7 @@ export default function Home() {
                   가까운 판매자로부터 실시간 맞춤 제안을 받아보세요
                 </p>
               </motion.div>
-              
+
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
@@ -706,7 +706,7 @@ export default function Home() {
                 </p>
               </motion.div>
             </div>
-            
+
             <div className="text-center mt-10">
               <Link href="/features">
                 <Button variant="outline" className="border-green-600 text-green-600 hover:bg-green-50" data-testid="button-view-features">
@@ -718,9 +718,9 @@ export default function Home() {
           </div>
         </section>
       </main>
-      
+
       <Footer />
-      
+
       <DirectPurchaseModal
         product={selectedProduct}
         isOpen={isPurchaseModalOpen}
