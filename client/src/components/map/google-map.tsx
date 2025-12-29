@@ -218,14 +218,15 @@ function GoogleMapWrapper({
     setIsSearching(true);
 
     try {
-      const geocoder = new google.maps.Geocoder();
-      const results = await geocoder.geocode({
-        address: inputAddress,
-      });
+      // Use server API for smarter search and region restriction
+      const response = await fetch(`/api/map/search-address?query=${encodeURIComponent(inputAddress)}`);
+      const data = await response.json();
 
-      if (results.results && results.results.length > 0) {
-        const { location } = results.results[0].geometry;
-        const newLoc = { lat: location.lat(), lng: location.lng() };
+      if (data.success && data.results && data.results.length > 0) {
+        // Server returns raw { lat, lng } objects, not Google Maps LatLng objects
+        const result = data.results[0];
+        const location = result.geometry.location;
+        const newLoc = { lat: location.lat, lng: location.lng };
 
         // 맵 중심 이동
         if (mapRef.current) {
@@ -235,7 +236,7 @@ function GoogleMapWrapper({
 
         setSelectedLocation(newLoc);
 
-        const addressResult = results.results[0].formatted_address;
+        const addressResult = result.formatted_address;
         setAddress(addressResult);
 
         // 부모 컴포넌트에 위치 정보 전달 (비동기 실행으로 무한 루프 방지)
