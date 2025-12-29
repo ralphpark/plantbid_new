@@ -34,9 +34,9 @@ if (!connectionString) {
 
 const poolConfig = {
   connectionString: connectionString || "postgres://dummy:dummy@localhost:5432/dummy",
-  max: 1, // Vercel 서버리스 환경에서 연결 수 제한
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  max: 1, // Vercel 서버리스 환경에서는 인스턴스당 1개의 연결만 유지 (총 연결 수 제한 방지)
+  idleTimeoutMillis: 1000, // 유휴 연결을 빠르게 해제 (30초 -> 1초)
+  connectionTimeoutMillis: 5000, // 연결 타임아웃 5초로 증가 (불안정한 네트워크 대비)
   ssl: {
     rejectUnauthorized: false
   }
