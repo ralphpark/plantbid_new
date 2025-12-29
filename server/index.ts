@@ -66,7 +66,6 @@ const allowPublicAccess = (req: Request, res: Response, next: NextFunction) => {
   }
 
   next();
-  next();
 };
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: false, limit: '50mb' }));

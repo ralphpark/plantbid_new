@@ -217,28 +217,7 @@ export function setupAuth(app: Express) {
 
           console.log(`판매자 정보가 vendors 테이블에 추가되었습니다: ID ${vendor.id}`);
 
-          // 판매자 주소가 있다면 매장 위치 정보도 추가
-          let lat: number | null = req.body.lat ? parseFloat(req.body.lat) : null;
-          let lng: number | null = req.body.lng ? parseFloat(req.body.lng) : null;
 
-          // 좌표가 없는 경우 서버 사이드 지오코딩 시도 (Fallback)
-          if (req.body.address && (!lat || !lng)) {
-            try {
-              console.log(`[회원가입] 좌표 누락됨. 서버 사이드 지오코딩 시도: ${req.body.address}`);
-              const { geocodeAddress } = await import("./map.js");
-              const geoResult = await geocodeAddress(req.body.address);
-
-              if (geoResult) {
-                lat = geoResult.lat;
-                lng = geoResult.lng;
-                console.log(`[회원가입] 지오코딩 성공: ${lat}, ${lng}`);
-              } else {
-                console.warn(`[회원가입] 지오코딩 실패`);
-              }
-            } catch (error) {
-              console.error(`[회원가입] 지오코딩 중 오류:`, error);
-            }
-          }
 
           if (req.body.address && lat && lng) {
             try {
