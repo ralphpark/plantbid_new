@@ -797,3 +797,88 @@ function extractJsonFromText(text: string) {
     };
   }
 }
+
+// 제품 설명 생성을 위한 AI 함수
+export async function generateProductDescription(req: Request, res: Response) {
+  try {
+    const { plantName, plantInfo, category } = req.body;
+
+    if (!plantName) {
+      return res.status(400).json({ error: "식물 이름이 필요합니다" });
+    }
+
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.0-flash-lite-preview-02-05",
+      safetySettings,
+    });
+
+    // 식물 정보를 기반으로 판매자 관점의 설명 생성
+    const prompt = `
+당신은 식물 판매 전문가입니다. 아래 식물 정보를 바탕으로 온라인 쇼핑몰에서 사용할 제품 설명을 작성해주세요.
+
+**식물 정보:**
+- 식물명: ${plantName}
+- 카테고리: ${category || '관엽식물'}
+${plantInfo?.scientificName ? `- 학명: ${plantInfo.scientificName}` : ''}
+${plantInfo?.description ? `- 기본 설명: ${plantInfo.description}` : ''}
+${plantInfo?.light ? `- 광 요구량: ${plantInfo.light}` : ''}
+${plantInfo?.waterNeeds ? `- 물 주기: ${plantInfo.waterNeeds}` : ''}
+${plantInfo?.humidity ? `- 습도: ${plantInfo.humidity}` : ''}
+${plantInfo?.temperature ? `- 적정 온도: ${plantInfo.temperature}` : ''}
+${plantInfo?.difficulty ? `- 난이도: ${plantInfo.difficulty}` : ''}
+${plantInfo?.petSafety ? `- 반려동물 안전: ${plantInfo.petSafety}` : ''}
+${plantInfo?.careInstructions ? `- 관리법: ${plantInfo.careInstructions}` : ''}
+
+**요청사항:**
+1. "간단한 설명" (1~2문장, 50자 내외): 제품 목록에 표시될 짧고 매력적인 한 줄 소개
+2. "상세 설명" (HTML 형식, 300~500자): 구매자가 구매 결정을 할 수 있도록 상세하고 매력적인 설명
+   - 식물의 특징과 장점
+   - 키우기 팁
+   - 추천 환경
+   - 이모티콘을 적절히 활용
+
+**응답 형식 (반드시 JSON):**
+{
+  "shortDescription": "간단한 설명 내용",
+  "detailedDescription": "<p>상세 설명 HTML 내용</p>"
+}
+`;
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+
+    console.log("[AI] 제품 설명 생성 응답:", text.substring(0, 200));
+
+    // JSON 파싱
+    let parsedResponse;
+    try {
+      // JSON 블록 추출
+      const jsonMatch = text.match(/```(?:json)?\n?([\s\S]*?)\n?```/) ||
+                       text.match(/{[\s\S]*"shortDescription"[\s\S]*"detailedDescription"[\s\S]*}/);
+
+      if (jsonMatch) {
+        const jsonContent = jsonMatch[1] || jsonMatch[0];
+        parsedResponse = JSON.parse(jsonContent);
+      } else {
+        parsedResponse = JSON.parse(text);
+      }
+    } catch (parseError) {
+      console.error("[AI] JSON 파싱 실패:", parseError);
+      // 파싱 실패 시 기본 응답
+      parsedResponse = {
+        shortDescription: `${plantName} - 건강하고 아름다운 식물입니다.`,
+        detailedDescription: `<p>🌿 <strong>${plantName}</strong>을(를) 소개합니다!</p><p>초보자도 쉽게 키울 수 있는 매력적인 식물입니다. 실내 공간에 자연의 싱그러움을 더해보세요.</p>`
+      };
+    }
+
+    res.status(200).json({
+      success: true,
+      shortDescription: parsedResponse.shortDescription,
+      detailedDescription: parsedResponse.detailedDescription
+    });
+  } catch (error) {
+    console.error("[AI] 제품 설명 생성 오류:", error);
+    res.status(500).json({ error: "AI 설명 생성 중 오류가 발생했습니다" });
+  }
+}

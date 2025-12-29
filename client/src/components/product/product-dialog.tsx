@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Check, ChevronsUpDown, X, ImagePlus, Info, Image as ImageIcon, FileText, Loader2 } from "lucide-react";
+import { Package, Check, ChevronsUpDown, X, ImagePlus, Info, Image as ImageIcon, FileText, Loader2, Sparkles } from "lucide-react";
 import { ImageEditor } from "./image-editor";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
@@ -105,6 +105,7 @@ export default function ProductDialog({ open, onOpenChange, onSave, product }: P
   const [activeTab, setActiveTab] = useState("basic");
   const [name, setName] = useState("");
   const [selectedPlantId, setSelectedPlantId] = useState<string>("");
+  const [selectedPlantInfo, setSelectedPlantInfo] = useState<any>(null);
   const [plants, setPlants] = useState<any[]>([]);
   const [plantSearchOpen, setPlantSearchOpen] = useState(false);
   const [plantSearchValue, setPlantSearchValue] = useState("");
@@ -119,6 +120,117 @@ export default function ProductDialog({ open, onOpenChange, onSave, product }: P
   const [uploadingAdditional, setUploadingAdditional] = useState(false);
   const [previewUrl, setPreviewUrl] = useState("");
   const [onlineStoreVisible, setOnlineStoreVisible] = useState(false);
+  const [generatingAI, setGeneratingAI] = useState(false);
+
+  // 식물 선택 시 상세 정보 가져와서 자동 입력
+  const handlePlantSelect = async (plantId: string, plantName: string) => {
+    setSelectedPlantId(plantId);
+    setPlantSearchValue(plantName);
+    setName(plantName);
+    setPlantSearchOpen(false);
+
+    try {
+      // 식물 상세 정보 가져오기
+      const response = await fetch(`/api/plants/${plantId}/details`);
+      if (response.ok) {
+        const plantInfo = await response.json();
+        setSelectedPlantInfo(plantInfo);
+
+        // 기본 정보 자동 입력
+        if (plantInfo.category) {
+          setCategory(plantInfo.category);
+        }
+        if (plantInfo.imageUrl) {
+          setImageUrl(plantInfo.imageUrl);
+        }
+
+        // 기본 설명 자동 입력 (DB에 있는 경우)
+        if (plantInfo.description && !description) {
+          setDescription(plantInfo.description);
+        }
+
+        // 상세 설명 자동 생성 (관리법 정보가 있는 경우)
+        if (plantInfo.careInstructions && !detailedDescription) {
+          const autoDescription = generateBasicDescription(plantInfo);
+          setDetailedDescription(autoDescription);
+        }
+      }
+    } catch (error) {
+      console.error('식물 정보 로딩 오류:', error);
+    }
+  };
+
+  // 기본 상세 설명 생성 (DB 정보 기반)
+  const generateBasicDescription = (plantInfo: any): string => {
+    let html = `<p>🌿 <strong>${plantInfo.name}</strong></p>`;
+
+    if (plantInfo.description) {
+      html += `<p>${plantInfo.description}</p>`;
+    }
+
+    html += `<h3>🌱 관리 방법</h3><ul>`;
+
+    if (plantInfo.light) {
+      html += `<li><strong>빛:</strong> ${plantInfo.light}</li>`;
+    }
+    if (plantInfo.waterNeeds) {
+      html += `<li><strong>물주기:</strong> ${plantInfo.waterNeeds}</li>`;
+    }
+    if (plantInfo.humidity) {
+      html += `<li><strong>습도:</strong> ${plantInfo.humidity}</li>`;
+    }
+    if (plantInfo.temperature) {
+      html += `<li><strong>온도:</strong> ${plantInfo.temperature}</li>`;
+    }
+
+    html += `</ul>`;
+
+    if (plantInfo.careInstructions) {
+      html += `<p>💡 <strong>Tip:</strong> ${plantInfo.careInstructions}</p>`;
+    }
+
+    return html;
+  };
+
+  // AI로 설명 생성
+  const handleGenerateAIDescription = async () => {
+    if (!name.trim()) {
+      alert("먼저 식물을 선택하거나 상품명을 입력해주세요.");
+      return;
+    }
+
+    setGeneratingAI(true);
+    try {
+      const response = await fetch('/api/ai/generate-product-description', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          plantName: name,
+          plantInfo: selectedPlantInfo,
+          category: category
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('AI 설명 생성 실패');
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        setDescription(data.shortDescription);
+        setDetailedDescription(data.detailedDescription);
+        alert('✨ AI가 설명을 생성했습니다!');
+      }
+    } catch (error) {
+      console.error('AI 설명 생성 오류:', error);
+      alert('AI 설명 생성 중 오류가 발생했습니다.');
+    } finally {
+      setGeneratingAI(false);
+    }
+  };
 
   // 식물 목록 불러오기
   useEffect(() => {
@@ -306,12 +418,7 @@ export default function ProductDialog({ open, onOpenChange, onSave, product }: P
                               <CommandItem
                                 key={plant.id}
                                 value={plant.name}
-                                onSelect={(currentValue) => {
-                                  setPlantSearchValue(currentValue);
-                                  setSelectedPlantId(plant.id.toString());
-                                  setName(plant.name);
-                                  setPlantSearchOpen(false);
-                                }}
+                                onSelect={() => handlePlantSelect(plant.id.toString(), plant.name)}
                               >
                                 <Check
                                   className={selectedPlantId === plant.id.toString() ? "mr-2 h-4 w-4 opacity-100" : "mr-2 h-4 w-4 opacity-0"}
@@ -514,6 +621,40 @@ export default function ProductDialog({ open, onOpenChange, onSave, product }: P
 
             {/* 상세 설명 탭 */}
             <TabsContent value="description" className="mt-0 space-y-4">
+              {/* AI 설명 생성 버튼 */}
+              <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-4 rounded-lg border border-purple-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-sm font-medium text-purple-900 flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-purple-600" />
+                      AI 설명 자동 생성
+                    </h4>
+                    <p className="text-xs text-purple-700 mt-0.5">
+                      식물 정보를 기반으로 매력적인 상품 설명을 자동으로 생성합니다
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleGenerateAIDescription}
+                    disabled={generatingAI || !name.trim()}
+                    className="bg-purple-600 hover:bg-purple-700"
+                  >
+                    {generatingAI ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+                        생성 중...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4 mr-1.5" />
+                        AI로 생성
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+
               <div className="grid gap-2">
                 <Label htmlFor="description">간단한 설명</Label>
                 <Textarea
@@ -526,7 +667,12 @@ export default function ProductDialog({ open, onOpenChange, onSave, product }: P
               </div>
 
               <div className="grid gap-2">
-                <Label>상세 설명</Label>
+                <div className="flex items-center justify-between">
+                  <Label>상세 설명</Label>
+                  {selectedPlantInfo && (
+                    <span className="text-xs text-green-600">✓ 식물 정보가 자동 입력되었습니다</span>
+                  )}
+                </div>
                 <div className="border rounded-lg overflow-hidden bg-white">
                   <ReactQuill
                     value={detailedDescription}

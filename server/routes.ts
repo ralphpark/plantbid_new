@@ -4,7 +4,7 @@ import { storage } from "./storage.js";
 import { db } from "./db.js";
 import { orders, users, vendors, plants, reviews } from "../shared/schema.js";
 import { setupAuth } from "./auth.js";
-import { handleChatMessage } from "./ai.js";
+import { handleChatMessage, generateProductDescription } from "./ai.js";
 import { searchAddressByQuery, getAddressByCoords, findNearbyVendors, getMapConfig } from "./map.js";
 import { verifyBusinessNumber } from "./business-verification.js";
 import { sendVerificationCode, verifyCode } from "./sms.js";
@@ -6997,6 +6997,50 @@ ${fieldsToTranslate.map(field => {
       console.error("판매실적 업데이트 오류:", error);
     }
   };
+
+  // AI 제품 설명 생성 API
+  app.post("/api/ai/generate-product-description", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "로그인이 필요합니다" });
+    }
+
+    await generateProductDescription(req, res);
+  });
+
+  // 식물 상세 정보 조회 API (제품 등록 시 자동 입력용)
+  app.get("/api/plants/:id/details", async (req, res) => {
+    try {
+      const plantId = parseInt(req.params.id);
+
+      const [plant] = await db.select().from(plants).where(eq(plants.id, plantId));
+
+      if (!plant) {
+        return res.status(404).json({ error: "식물을 찾을 수 없습니다" });
+      }
+
+      // 제품 설명에 사용할 정보 반환
+      res.json({
+        id: plant.id,
+        name: plant.name,
+        scientificName: plant.scientificName,
+        description: plant.description,
+        careInstructions: plant.careInstructions,
+        waterNeeds: plant.waterNeeds,
+        light: plant.light,
+        humidity: plant.humidity,
+        temperature: plant.temperature,
+        difficulty: plant.difficulty,
+        petSafety: plant.petSafety,
+        size: plant.size,
+        priceRange: plant.priceRange,
+        category: plant.category,
+        imageUrl: plant.imageUrl
+      });
+    } catch (error) {
+      console.error("식물 상세 정보 조회 오류:", error);
+      res.status(500).json({ error: "식물 정보를 가져오는 중 오류가 발생했습니다" });
+    }
+  });
 
   return httpServer;
 }
