@@ -312,6 +312,45 @@ export const aiSettings = pgTable("ai_settings", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// 직접 채팅방(Direct Chats) 테이블 - 고객-판매자 1:1 채팅방
+export const directChats = pgTable("direct_chats", {
+  id: serial("id").primaryKey(),
+  customerId: integer("customer_id").notNull().references(() => users.id),
+  vendorId: integer("vendor_id").notNull().references(() => vendors.id),
+  orderId: text("order_id"),
+  bidId: integer("bid_id").references(() => bids.id),
+  conversationId: integer("conversation_id").references(() => conversations.id),
+  status: text("status").notNull().default("active"), // 'active', 'archived', 'closed'
+  lastMessageAt: timestamp("last_message_at"),
+  lastMessagePreview: text("last_message_preview"),
+  customerUnreadCount: integer("customer_unread_count").default(0),
+  vendorUnreadCount: integer("vendor_unread_count").default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// 직접 메시지(Direct Messages) 테이블 - 채팅 메시지
+export const directMessages = pgTable("direct_messages", {
+  id: serial("id").primaryKey(),
+  chatId: integer("chat_id").notNull().references(() => directChats.id),
+  senderId: integer("sender_id").notNull().references(() => users.id),
+  senderRole: text("sender_role", { enum: ["customer", "vendor"] }).notNull(),
+  content: text("content").notNull(),
+  messageType: text("message_type").notNull().default("text"), // 'text', 'image', 'product'
+  attachments: json("attachments").$type<{
+    imageUrls?: string[];
+    productId?: number;
+    productInfo?: {
+      name: string;
+      price: number;
+      imageUrl?: string;
+    };
+  }>(),
+  isRead: boolean("is_read").default(false),
+  readAt: timestamp("read_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }: { many: any }) => ({
   bids: many(bids),
@@ -429,6 +468,37 @@ export const reviewsRelations = relations(reviews, ({ one }: { one: any }) => ({
   }),
   user: one(users, {
     fields: [reviews.userId],
+    references: [users.id],
+  }),
+}));
+
+export const directChatsRelations = relations(directChats, ({ one, many }: { one: any, many: any }) => ({
+  customer: one(users, {
+    fields: [directChats.customerId],
+    references: [users.id],
+  }),
+  vendor: one(vendors, {
+    fields: [directChats.vendorId],
+    references: [vendors.id],
+  }),
+  bid: one(bids, {
+    fields: [directChats.bidId],
+    references: [bids.id],
+  }),
+  conversation: one(conversations, {
+    fields: [directChats.conversationId],
+    references: [conversations.id],
+  }),
+  messages: many(directMessages),
+}));
+
+export const directMessagesRelations = relations(directMessages, ({ one }: { one: any }) => ({
+  chat: one(directChats, {
+    fields: [directMessages.chatId],
+    references: [directChats.id],
+  }),
+  sender: one(users, {
+    fields: [directMessages.senderId],
     references: [users.id],
   }),
 }));
@@ -622,6 +692,19 @@ export const insertPasswordResetTokenSchema = createInsertSchema(passwordResetTo
   createdAt: true,
 });
 
+// 직접 채팅방 스키마
+export const insertDirectChatSchema = createInsertSchema(directChats).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// 직접 메시지 스키마
+export const insertDirectMessageSchema = createInsertSchema(directMessages).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -664,3 +747,9 @@ export type AISettings = typeof aiSettings.$inferSelect;
 
 export type InsertReview = z.infer<typeof insertReviewSchema>;
 export type Review = typeof reviews.$inferSelect;
+
+export type InsertDirectChat = z.infer<typeof insertDirectChatSchema>;
+export type DirectChat = typeof directChats.$inferSelect;
+
+export type InsertDirectMessage = z.infer<typeof insertDirectMessageSchema>;
+export type DirectMessage = typeof directMessages.$inferSelect;

@@ -8,8 +8,8 @@ const PostgresSessionStore = connectPg(session);
 
 
 import {
-  users, plants, vendors, products, payments, orders, bids, reviews, conversations, storeLocations, notifications, passwordResetTokens, aiSettings, cartItems, siteSettings,
-  type User, type InsertUser, type Plant, type InsertPlant, type Vendor, type InsertVendor, type Product, type InsertProduct, type Payment, type InsertPayment, type Order, type InsertOrder, type Bid, type InsertBid, type Conversation, type InsertConversation, type StoreLocation, type InsertStoreLocation, type Notification, type InsertNotification, type PasswordResetToken, type InsertPasswordResetToken, type AISettings, type InsertAISettings, type CartItem, type InsertCartItem, type Review, type InsertReview
+  users, plants, vendors, products, payments, orders, bids, reviews, conversations, storeLocations, notifications, passwordResetTokens, aiSettings, cartItems, siteSettings, directChats, directMessages,
+  type User, type InsertUser, type Plant, type InsertPlant, type Vendor, type InsertVendor, type Product, type InsertProduct, type Payment, type InsertPayment, type Order, type InsertOrder, type Bid, type InsertBid, type Conversation, type InsertConversation, type StoreLocation, type InsertStoreLocation, type Notification, type InsertNotification, type PasswordResetToken, type InsertPasswordResetToken, type AISettings, type InsertAISettings, type CartItem, type InsertCartItem, type Review, type InsertReview, type DirectChat, type InsertDirectChat, type DirectMessage, type InsertDirectMessage
 } from "../shared/schema.js";
 
 // Storage interface for the application
@@ -145,6 +145,19 @@ export interface IStorage {
   createReview(review: InsertReview): Promise<Review>;
   updateReview(id: number, reviewData: Partial<Review>): Promise<Review | undefined>;
   deleteReview(id: number): Promise<boolean>;
+
+  // Direct Chat methods
+  createDirectChat(data: InsertDirectChat): Promise<DirectChat>;
+  getDirectChat(id: number): Promise<DirectChat | undefined>;
+  getDirectChatByParticipants(customerId: number, vendorId: number): Promise<DirectChat | undefined>;
+  getDirectChatsForCustomer(customerId: number): Promise<any[]>;
+  getDirectChatsForVendor(vendorId: number): Promise<any[]>;
+  updateDirectChat(id: number, data: Partial<DirectChat>): Promise<DirectChat | undefined>;
+
+  // Direct Message methods
+  createDirectMessage(data: InsertDirectMessage): Promise<DirectMessage>;
+  getDirectMessages(chatId: number, limit?: number, before?: number): Promise<DirectMessage[]>;
+  markMessagesAsRead(chatId: number, readerRole: 'customer' | 'vendor'): Promise<void>;
 }
 
 // Database implementation of the storage interface
@@ -2104,6 +2117,154 @@ export class DatabaseStorage implements IStorage {
   async deleteReview(id: number): Promise<boolean> {
     await db.delete(reviews).where(eq(reviews.id, id));
     return true;
+  }
+
+  // Direct Chat methods
+  async createDirectChat(data: InsertDirectChat): Promise<DirectChat> {
+    const [chat] = await db.insert(directChats).values(data).returning();
+    return chat;
+  }
+
+  async getDirectChat(id: number): Promise<DirectChat | undefined> {
+    const [chat] = await db.select().from(directChats).where(eq(directChats.id, id));
+    return chat;
+  }
+
+  async getDirectChatByParticipants(customerId: number, vendorId: number): Promise<DirectChat | undefined> {
+    const [chat] = await db.select().from(directChats)
+      .where(and(
+        eq(directChats.customerId, customerId),
+        eq(directChats.vendorId, vendorId)
+      ));
+    return chat;
+  }
+
+  async getDirectChatsForCustomer(customerId: number): Promise<any[]> {
+    const chats = await db.select({
+      id: directChats.id,
+      customerId: directChats.customerId,
+      vendorId: directChats.vendorId,
+      orderId: directChats.orderId,
+      bidId: directChats.bidId,
+      conversationId: directChats.conversationId,
+      status: directChats.status,
+      lastMessageAt: directChats.lastMessageAt,
+      lastMessagePreview: directChats.lastMessagePreview,
+      customerUnreadCount: directChats.customerUnreadCount,
+      vendorUnreadCount: directChats.vendorUnreadCount,
+      createdAt: directChats.createdAt,
+      vendorName: vendors.name,
+      vendorStoreName: vendors.storeName,
+    })
+      .from(directChats)
+      .innerJoin(vendors, eq(directChats.vendorId, vendors.id))
+      .where(eq(directChats.customerId, customerId))
+      .orderBy(desc(directChats.lastMessageAt));
+    return chats;
+  }
+
+  async getDirectChatsForVendor(vendorId: number): Promise<any[]> {
+    const chats = await db.select({
+      id: directChats.id,
+      customerId: directChats.customerId,
+      vendorId: directChats.vendorId,
+      orderId: directChats.orderId,
+      bidId: directChats.bidId,
+      conversationId: directChats.conversationId,
+      status: directChats.status,
+      lastMessageAt: directChats.lastMessageAt,
+      lastMessagePreview: directChats.lastMessagePreview,
+      customerUnreadCount: directChats.customerUnreadCount,
+      vendorUnreadCount: directChats.vendorUnreadCount,
+      createdAt: directChats.createdAt,
+      customerName: users.name,
+      customerUsername: users.username,
+    })
+      .from(directChats)
+      .innerJoin(users, eq(directChats.customerId, users.id))
+      .where(eq(directChats.vendorId, vendorId))
+      .orderBy(desc(directChats.lastMessageAt));
+    return chats;
+  }
+
+  async updateDirectChat(id: number, data: Partial<DirectChat>): Promise<DirectChat | undefined> {
+    const [updated] = await db.update(directChats)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(directChats.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Direct Message methods
+  async createDirectMessage(data: InsertDirectMessage): Promise<DirectMessage> {
+    const [message] = await db.insert(directMessages).values(data as any).returning();
+
+    // Update chat's last message info and unread count
+    const preview = data.content.length > 50
+      ? data.content.substring(0, 50) + '...'
+      : data.content;
+
+    const updateData: any = {
+      lastMessageAt: new Date(),
+      lastMessagePreview: preview,
+      updatedAt: new Date(),
+    };
+
+    // Increment unread count for the other party
+    if (data.senderRole === 'customer') {
+      updateData.vendorUnreadCount = sql`${directChats.vendorUnreadCount} + 1`;
+    } else {
+      updateData.customerUnreadCount = sql`${directChats.customerUnreadCount} + 1`;
+    }
+
+    await db.update(directChats)
+      .set(updateData)
+      .where(eq(directChats.id, data.chatId));
+
+    return message;
+  }
+
+  async getDirectMessages(chatId: number, limit: number = 50, before?: number): Promise<DirectMessage[]> {
+    let query = db.select().from(directMessages)
+      .where(eq(directMessages.chatId, chatId))
+      .orderBy(desc(directMessages.createdAt))
+      .limit(limit);
+
+    if (before) {
+      query = db.select().from(directMessages)
+        .where(and(
+          eq(directMessages.chatId, chatId),
+          sql`${directMessages.id} < ${before}`
+        ))
+        .orderBy(desc(directMessages.createdAt))
+        .limit(limit);
+    }
+
+    const messages = await query;
+    return messages.reverse(); // Return in chronological order
+  }
+
+  async markMessagesAsRead(chatId: number, readerRole: 'customer' | 'vendor'): Promise<void> {
+    // Mark all unread messages as read
+    await db.update(directMessages)
+      .set({ isRead: true, readAt: new Date() })
+      .where(and(
+        eq(directMessages.chatId, chatId),
+        eq(directMessages.isRead, false),
+        sql`${directMessages.senderRole} != ${readerRole}`
+      ));
+
+    // Reset unread count for the reader
+    const updateData: any = { updatedAt: new Date() };
+    if (readerRole === 'customer') {
+      updateData.customerUnreadCount = 0;
+    } else {
+      updateData.vendorUnreadCount = 0;
+    }
+
+    await db.update(directChats)
+      .set(updateData)
+      .where(eq(directChats.id, chatId));
   }
 }
 

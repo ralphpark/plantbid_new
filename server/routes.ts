@@ -7222,5 +7222,253 @@ ${fieldsToTranslate.map(field => {
     }
   });
 
+  // ========== 직접 채팅 API ==========
+
+  // 채팅방 생성 또는 기존 채팅방 조회
+  app.post("/api/direct-chats", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "로그인이 필요합니다" });
+    }
+
+    try {
+      const customerId = req.user!.id;
+      const { vendorId, orderId, bidId, conversationId } = req.body;
+
+      if (!vendorId) {
+        return res.status(400).json({ error: "판매자 ID가 필요합니다" });
+      }
+
+      // 기존 채팅방 확인
+      let chat = await storage.getDirectChatByParticipants(customerId, vendorId);
+
+      if (!chat) {
+        // 새 채팅방 생성
+        chat = await storage.createDirectChat({
+          customerId,
+          vendorId,
+          orderId: orderId || null,
+          bidId: bidId || null,
+          conversationId: conversationId || null,
+          status: 'active',
+        });
+      }
+
+      res.json(chat);
+    } catch (error) {
+      console.error("채팅방 생성/조회 오류:", error);
+      res.status(500).json({ error: "채팅방을 생성하는 중 오류가 발생했습니다" });
+    }
+  });
+
+  // 내 채팅방 목록 조회
+  app.get("/api/direct-chats", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "로그인이 필요합니다" });
+    }
+
+    try {
+      const userId = req.user!.id;
+      const role = req.query.role as string || 'customer';
+
+      let chats;
+      if (role === 'vendor') {
+        // 판매자로서 채팅 목록 조회
+        const vendor = await storage.getVendorByUserId(userId);
+        if (!vendor) {
+          return res.status(403).json({ error: "판매자 정보를 찾을 수 없습니다" });
+        }
+        chats = await storage.getDirectChatsForVendor(vendor.id);
+      } else {
+        // 고객으로서 채팅 목록 조회
+        chats = await storage.getDirectChatsForCustomer(userId);
+      }
+
+      res.json(chats);
+    } catch (error) {
+      console.error("채팅 목록 조회 오류:", error);
+      res.status(500).json({ error: "채팅 목록을 불러오는 중 오류가 발생했습니다" });
+    }
+  });
+
+  // 특정 채팅방 조회
+  app.get("/api/direct-chats/:id", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "로그인이 필요합니다" });
+    }
+
+    try {
+      const chatId = parseInt(req.params.id);
+      const userId = req.user!.id;
+
+      const chat = await storage.getDirectChat(chatId);
+      if (!chat) {
+        return res.status(404).json({ error: "채팅방을 찾을 수 없습니다" });
+      }
+
+      // 권한 확인: 고객이거나 해당 판매자인지
+      const vendor = await storage.getVendorByUserId(userId);
+      const isCustomer = chat.customerId === userId;
+      const isVendor = vendor && chat.vendorId === vendor.id;
+
+      if (!isCustomer && !isVendor) {
+        return res.status(403).json({ error: "접근 권한이 없습니다" });
+      }
+
+      res.json(chat);
+    } catch (error) {
+      console.error("채팅방 조회 오류:", error);
+      res.status(500).json({ error: "채팅방을 불러오는 중 오류가 발생했습니다" });
+    }
+  });
+
+  // 메시지 전송
+  app.post("/api/direct-chats/:id/messages", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "로그인이 필요합니다" });
+    }
+
+    try {
+      const chatId = parseInt(req.params.id);
+      const userId = req.user!.id;
+      const { content, messageType, attachments } = req.body;
+
+      if (!content || !content.trim()) {
+        return res.status(400).json({ error: "메시지 내용이 필요합니다" });
+      }
+
+      const chat = await storage.getDirectChat(chatId);
+      if (!chat) {
+        return res.status(404).json({ error: "채팅방을 찾을 수 없습니다" });
+      }
+
+      // 권한 확인 및 역할 결정
+      const vendor = await storage.getVendorByUserId(userId);
+      const isCustomer = chat.customerId === userId;
+      const isVendor = vendor && chat.vendorId === vendor.id;
+
+      if (!isCustomer && !isVendor) {
+        return res.status(403).json({ error: "접근 권한이 없습니다" });
+      }
+
+      const senderRole = isVendor ? 'vendor' : 'customer';
+
+      const message = await storage.createDirectMessage({
+        chatId,
+        senderId: userId,
+        senderRole,
+        content: content.trim(),
+        messageType: messageType || 'text',
+        attachments: attachments || null,
+      });
+
+      res.json(message);
+    } catch (error) {
+      console.error("메시지 전송 오류:", error);
+      res.status(500).json({ error: "메시지를 전송하는 중 오류가 발생했습니다" });
+    }
+  });
+
+  // 메시지 목록 조회
+  app.get("/api/direct-chats/:id/messages", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "로그인이 필요합니다" });
+    }
+
+    try {
+      const chatId = parseInt(req.params.id);
+      const userId = req.user!.id;
+      const limit = parseInt(req.query.limit as string) || 50;
+      const before = req.query.before ? parseInt(req.query.before as string) : undefined;
+
+      const chat = await storage.getDirectChat(chatId);
+      if (!chat) {
+        return res.status(404).json({ error: "채팅방을 찾을 수 없습니다" });
+      }
+
+      // 권한 확인
+      const vendor = await storage.getVendorByUserId(userId);
+      const isCustomer = chat.customerId === userId;
+      const isVendor = vendor && chat.vendorId === vendor.id;
+
+      if (!isCustomer && !isVendor) {
+        return res.status(403).json({ error: "접근 권한이 없습니다" });
+      }
+
+      const messages = await storage.getDirectMessages(chatId, limit, before);
+
+      res.json({
+        messages,
+        hasMore: messages.length === limit
+      });
+    } catch (error) {
+      console.error("메시지 조회 오류:", error);
+      res.status(500).json({ error: "메시지를 불러오는 중 오류가 발생했습니다" });
+    }
+  });
+
+  // 메시지 읽음 처리
+  app.patch("/api/direct-chats/:id/read", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "로그인이 필요합니다" });
+    }
+
+    try {
+      const chatId = parseInt(req.params.id);
+      const userId = req.user!.id;
+
+      const chat = await storage.getDirectChat(chatId);
+      if (!chat) {
+        return res.status(404).json({ error: "채팅방을 찾을 수 없습니다" });
+      }
+
+      // 권한 확인 및 역할 결정
+      const vendor = await storage.getVendorByUserId(userId);
+      const isCustomer = chat.customerId === userId;
+      const isVendor = vendor && chat.vendorId === vendor.id;
+
+      if (!isCustomer && !isVendor) {
+        return res.status(403).json({ error: "접근 권한이 없습니다" });
+      }
+
+      const readerRole = isVendor ? 'vendor' : 'customer';
+      await storage.markMessagesAsRead(chatId, readerRole);
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("읽음 처리 오류:", error);
+      res.status(500).json({ error: "읽음 처리 중 오류가 발생했습니다" });
+    }
+  });
+
+  // 읽지 않은 채팅 개수 조회
+  app.get("/api/direct-chats/unread/count", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.json({ count: 0 });
+    }
+
+    try {
+      const userId = req.user!.id;
+      const role = req.query.role as string || 'customer';
+
+      let totalUnread = 0;
+
+      if (role === 'vendor') {
+        const vendor = await storage.getVendorByUserId(userId);
+        if (vendor) {
+          const chats = await storage.getDirectChatsForVendor(vendor.id);
+          totalUnread = chats.reduce((sum, chat) => sum + (chat.vendorUnreadCount || 0), 0);
+        }
+      } else {
+        const chats = await storage.getDirectChatsForCustomer(userId);
+        totalUnread = chats.reduce((sum, chat) => sum + (chat.customerUnreadCount || 0), 0);
+      }
+
+      res.json({ count: totalUnread });
+    } catch (error) {
+      console.error("읽지 않은 채팅 개수 조회 오류:", error);
+      res.json({ count: 0 });
+    }
+  });
+
   return httpServer;
 }

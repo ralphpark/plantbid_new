@@ -27,6 +27,8 @@ import { OrderDetailsDialog, OrderStatusBadge } from "@/components/ui/vendorDash
 import { BidDetailsSidePanel } from "@/components/ui/BidDetailsSidePanel";
 import { SendPlantPhotoDialog } from "@/components/ui/sendPlantPhotoDialog";
 import { ConversationView } from "@/components/ui/ConversationView";
+import { DirectChatModal, DirectChatList } from "@/components/direct-chat";
+import { useCreateDirectChat, useDirectChatList } from "@/hooks/use-direct-chat";
 
 
 // 판매자 대시보드 메인 컴포넌트
@@ -76,6 +78,11 @@ export default function VendorDashboard() {
   const [notifications, setNotifications] = useState<any[]>([]);
 
   const [conversations, setConversations] = useState<Record<number, any>>({});
+
+  // 직접 채팅 상태
+  const [directChatId, setDirectChatId] = useState<number | null>(null);
+  const [isDirectChatOpen, setIsDirectChatOpen] = useState(false);
+  const createDirectChatMutation = useCreateDirectChat();
 
   // 데이터 로드 - 컴포넌트 마운트 시 실행
   useEffect(() => {
@@ -1568,7 +1575,7 @@ export default function VendorDashboard() {
                         {/* 고객 대화 버튼 */}
                         {order.conversationId && (
                           <div className="mt-4 pt-3 border-t border-dashed">
-                            <div className="flex justify-center">
+                            <div className="flex justify-center gap-2">
                               <Button
                                 size="sm"
                                 variant="default"
@@ -1581,6 +1588,32 @@ export default function VendorDashboard() {
                               >
                                 <MessageSquare className="h-3.5 w-3.5" />
                                 고객에게 메시지 보내기
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="gap-1"
+                                onClick={async () => {
+                                  try {
+                                    const result = await createDirectChatMutation.mutateAsync({
+                                      vendorId: vendorProfile?.id || 0,
+                                      orderId: order.orderId,
+                                      conversationId: order.conversationId,
+                                    });
+                                    setDirectChatId(result.id);
+                                    setIsDirectChatOpen(true);
+                                  } catch (error) {
+                                    toast({
+                                      title: "채팅방 생성 실패",
+                                      description: "잠시 후 다시 시도해주세요.",
+                                      variant: "destructive",
+                                    });
+                                  }
+                                }}
+                                disabled={createDirectChatMutation.isPending}
+                              >
+                                <MessageCircle className="h-3.5 w-3.5" />
+                                직접 대화
                               </Button>
                             </div>
                           </div>
@@ -1699,7 +1732,7 @@ export default function VendorDashboard() {
                         {/* 고객 대화 버튼 */}
                         {order.conversationId && (
                           <div className="mt-4 pt-3 border-t border-dashed">
-                            <div className="flex justify-center">
+                            <div className="flex justify-center gap-2">
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -1711,6 +1744,32 @@ export default function VendorDashboard() {
                               >
                                 <MessageSquare className="h-3.5 w-3.5" />
                                 고객에게 메시지 보내기
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="gap-1"
+                                onClick={async () => {
+                                  try {
+                                    const result = await createDirectChatMutation.mutateAsync({
+                                      vendorId: vendorProfile?.id || 0,
+                                      orderId: order.orderId,
+                                      conversationId: order.conversationId,
+                                    });
+                                    setDirectChatId(result.id);
+                                    setIsDirectChatOpen(true);
+                                  } catch (error) {
+                                    toast({
+                                      title: "채팅방 생성 실패",
+                                      description: "잠시 후 다시 시도해주세요.",
+                                      variant: "destructive",
+                                    });
+                                  }
+                                }}
+                                disabled={createDirectChatMutation.isPending}
+                              >
+                                <MessageCircle className="h-3.5 w-3.5" />
+                                직접 대화
                               </Button>
                             </div>
                           </div>
@@ -2496,6 +2555,18 @@ export default function VendorDashboard() {
         conversationId={preparingOrder?.conversationId || null}
         orderId={preparingOrder?.id || ''}
       />
+
+      {/* 고객과 직접 채팅 모달 */}
+      {directChatId && (
+        <DirectChatModal
+          chatId={directChatId}
+          isOpen={isDirectChatOpen}
+          onClose={() => {
+            setIsDirectChatOpen(false);
+            setDirectChatId(null);
+          }}
+        />
+      )}
     </div>
   );
 }

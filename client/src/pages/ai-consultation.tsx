@@ -40,7 +40,9 @@ import { Slider } from "@/components/ui/slider";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
-import { Loader2, Send, Bot, User, ExternalLink, X, Plus, MessageSquareText, Leaf, Search, Crosshair, MapPin, CheckCircle, Store, ShoppingCart, CreditCard } from "lucide-react";
+import { Loader2, Send, Bot, User, ExternalLink, X, Plus, MessageSquareText, Leaf, Search, Crosshair, MapPin, CheckCircle, Store, ShoppingCart, CreditCard, MessageCircle } from "lucide-react";
+import { DirectChatModal } from "@/components/direct-chat";
+import { useCreateDirectChat } from "@/hooks/use-direct-chat";
 import { cn } from "@/lib/utils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { startNewAIConversation } from "@/lib/api-utils";
@@ -201,6 +203,11 @@ export default function AIConsultationPage() {
   const [ribbonMessage, setRibbonMessage] = useState("");
   const [deliveryTime, setDeliveryTime] = useState("");
   const [showRequestForm, setShowRequestForm] = useState(false);
+
+  // 직접 채팅 모달 상태
+  const [directChatId, setDirectChatId] = useState<number | null>(null);
+  const [isDirectChatOpen, setIsDirectChatOpen] = useState(false);
+  const createDirectChatMutation = useCreateDirectChat();
 
   // 스크롤 자동 이동 제어를 위한 ref
   const shouldAutoScrollRef = useRef(false);
@@ -2307,6 +2314,40 @@ export default function AIConsultationPage() {
                                           ? "이 상품 구매하기"
                                           : "입찰가 없음 (구매 불가)"}
                                       </Button>
+                                      {/* 판매자와 직접 대화 버튼 */}
+                                      {message.vendorId && (
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="gap-1.5"
+                                          onClick={async () => {
+                                            try {
+                                              // 대화 ID 파싱
+                                              const convId = conversationIdParam ? parseInt(conversationIdParam, 10) : undefined;
+
+                                              // 채팅방 생성 또는 기존 채팅방 조회
+                                              const result = await createDirectChatMutation.mutateAsync({
+                                                vendorId: message.vendorId!,
+                                                conversationId: convId,
+                                              });
+
+                                              // 채팅방 ID 설정 및 모달 열기
+                                              setDirectChatId(result.id);
+                                              setIsDirectChatOpen(true);
+                                            } catch (error) {
+                                              toast({
+                                                title: "채팅방 생성 실패",
+                                                description: "잠시 후 다시 시도해주세요.",
+                                                variant: "destructive",
+                                              });
+                                            }
+                                          }}
+                                          disabled={createDirectChatMutation.isPending}
+                                        >
+                                          <MessageCircle className="w-4 h-4" />
+                                          판매자와 직접 대화
+                                        </Button>
+                                      )}
                                     </div>
                                   </div>
                                 </div>
@@ -3766,6 +3807,18 @@ export default function AIConsultationPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 판매자 직접 채팅 모달 */}
+      {directChatId && (
+        <DirectChatModal
+          chatId={directChatId}
+          isOpen={isDirectChatOpen}
+          onClose={() => {
+            setIsDirectChatOpen(false);
+            setDirectChatId(null);
+          }}
+        />
+      )}
     </DashboardLayout >
   );
 }
