@@ -46,6 +46,9 @@ export function DirectChatInput({
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    // IME 조합 중에는 Enter 무시 (한글, 일본어, 중국어 입력 시)
+    if (e.nativeEvent.isComposing) return;
+
     // Enter로 전송 (Shift+Enter는 줄바꿈)
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();

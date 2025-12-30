@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { UserDropdownMenu, UserDropdownProps } from "@/components/ui/simple-dropdown";
 import { motion, useScroll, useTransform } from "framer-motion";
-import { ShoppingCart, MapPin, Search } from "lucide-react";
+import { ShoppingCart, MapPin, Search, MessageCircle } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   DropdownMenu,
@@ -13,6 +13,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { DirectChatModal, DirectChatList } from "@/components/direct-chat";
+import { useUnreadChatCount } from "@/hooks/use-direct-chat";
 
 interface LocationChangeListener {
   (location: { gpsLocation: string; searchLocation: string }): void;
@@ -113,6 +115,15 @@ export function Header({ onLocationChange }: { onLocationChange?: (location: str
   });
 
   const cartCount = cartCountData?.count || 0;
+
+  // 채팅 관련 상태
+  const [isChatListOpen, setIsChatListOpen] = useState(false);
+  const [selectedChatId, setSelectedChatId] = useState<number | null>(null);
+  const [isChatModalOpen, setIsChatModalOpen] = useState(false);
+  const { data: unreadData } = useUnreadChatCount();
+  const chatUnreadCount = user?.role === 'vendor'
+    ? (unreadData?.vendorUnreadCount || 0)
+    : (unreadData?.customerUnreadCount || 0);
 
   // 현재 경로가 홈 또는 features 페이지인지 확인 (투명/어두운 배경 헤더 적용)
   // 위치 정규화: 쿼리 파라미터 및 트레일링 슬래시 제거
@@ -526,6 +537,40 @@ export function Header({ onLocationChange }: { onLocationChange?: (location: str
 
 
 
+          {/* Chat button - 로그인한 사용자만 표시 */}
+          {user && (
+            <DropdownMenu open={isChatListOpen} onOpenChange={setIsChatListOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={`relative ${isDarkThemePage ? "text-white hover:bg-white/10" : "text-gray-700 hover:bg-gray-100"}`}
+                  data-testid="button-chat"
+                >
+                  <MessageCircle className="h-5 w-5" />
+                  {chatUnreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                      {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
+                    </span>
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-80 p-0 max-h-[400px] overflow-auto">
+                <div className="p-3 border-b bg-gray-50">
+                  <h3 className="font-semibold text-sm">내 채팅</h3>
+                </div>
+                <DirectChatList
+                  role={user.role === 'vendor' ? 'vendor' : 'customer'}
+                  onSelectChat={(chatId) => {
+                    setSelectedChatId(chatId);
+                    setIsChatModalOpen(true);
+                    setIsChatListOpen(false);
+                  }}
+                />
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
           {/* Cart button */}
           <Link href="/cart">
             <Button
@@ -565,6 +610,39 @@ export function Header({ onLocationChange }: { onLocationChange?: (location: str
         </nav>
 
         <div className="flex items-center md:hidden">
+          {/* Chat button for mobile - 로그인한 사용자만 표시 */}
+          {user && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={`relative mr-2 ${isDarkThemePage ? "text-white hover:bg-white/10" : "text-gray-700 hover:bg-gray-100"}`}
+                  data-testid="button-chat-mobile"
+                >
+                  <MessageCircle className="h-5 w-5" />
+                  {chatUnreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-4 w-4 flex items-center justify-center text-[10px]">
+                      {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
+                    </span>
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-72 p-0 max-h-[350px] overflow-auto">
+                <div className="p-2 border-b bg-gray-50">
+                  <h3 className="font-semibold text-sm">내 채팅</h3>
+                </div>
+                <DirectChatList
+                  role={user.role === 'vendor' ? 'vendor' : 'customer'}
+                  onSelectChat={(chatId) => {
+                    setSelectedChatId(chatId);
+                    setIsChatModalOpen(true);
+                  }}
+                />
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
           {/* Cart button for mobile */}
           <Link href="/cart">
             <Button
@@ -633,6 +711,18 @@ export function Header({ onLocationChange }: { onLocationChange?: (location: str
         <Link href="/features" className={mobileLinkStyles}>특징</Link>
         <a href="/how-to-use" className={mobileLinkStyles}>이용방법</a>
       </div>
+
+      {/* 직접 채팅 모달 */}
+      {selectedChatId && (
+        <DirectChatModal
+          chatId={selectedChatId}
+          isOpen={isChatModalOpen}
+          onClose={() => {
+            setIsChatModalOpen(false);
+            setSelectedChatId(null);
+          }}
+        />
+      )}
     </header>
   );
 }
