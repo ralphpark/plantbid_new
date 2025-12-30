@@ -2062,6 +2062,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getCartWithProducts(userId: number): Promise<any[]> {
+    // JOIN으로 한 번의 쿼리로 모든 데이터 가져옴 (N+1 쿼리 해결)
     const items = await db
       .select({
         id: cartItems.id,
@@ -2072,24 +2073,17 @@ export class DatabaseStorage implements IStorage {
         productDescription: products.description,
         productImageUrl: products.imageUrl,
         productStock: products.stock,
-        vendorUserId: products.userId,
+        vendorId: vendors.id,
+        vendorName: vendors.storeName,
         createdAt: cartItems.createdAt
       })
       .from(cartItems)
       .innerJoin(products, eq(cartItems.productId, products.id))
+      .leftJoin(vendors, eq(products.userId, vendors.userId))
       .where(eq(cartItems.userId, userId))
       .orderBy(desc(cartItems.createdAt));
 
-    const itemsWithVendor = await Promise.all(items.map(async (item) => {
-      const vendor = await this.getVendorByUserId(item.vendorUserId);
-      return {
-        ...item,
-        vendorId: vendor?.id,
-        vendorName: vendor?.storeName || vendor?.name
-      };
-    }));
-
-    return itemsWithVendor;
+    return items;
   }
 
   // Review methods

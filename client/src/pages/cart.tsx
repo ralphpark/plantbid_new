@@ -37,16 +37,40 @@ export default function CartPage() {
     mutationFn: async ({ productId, quantity }: { productId: number; quantity: number }) => {
       return apiRequest('PATCH', `/api/cart/items/${productId}`, { quantity });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/cart'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/cart/count'] });
+    // Optimistic Update: 서버 응답 전에 UI 먼저 업데이트
+    onMutate: async ({ productId, quantity }) => {
+      // 진행 중인 refetch 취소
+      await queryClient.cancelQueries({ queryKey: ['/api/cart'] });
+
+      // 이전 데이터 백업
+      const previousCart = queryClient.getQueryData<CartItem[]>(['/api/cart']);
+
+      // 즉시 UI 업데이트
+      queryClient.setQueryData<CartItem[]>(['/api/cart'], (old) =>
+        old?.map(item =>
+          item.productId === productId
+            ? { ...item, quantity }
+            : item
+        ) ?? []
+      );
+
+      return { previousCart };
     },
-    onError: () => {
+    onError: (err, variables, context) => {
+      // 에러 시 이전 데이터로 롤백
+      if (context?.previousCart) {
+        queryClient.setQueryData(['/api/cart'], context.previousCart);
+      }
       toast({
         title: "오류가 발생했습니다",
         description: "수량 변경 중 문제가 발생했습니다.",
         variant: "destructive",
       });
+    },
+    onSettled: () => {
+      // 완료 후 서버 데이터와 동기화
+      queryClient.invalidateQueries({ queryKey: ['/api/cart'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/cart/count'] });
     },
   });
 
@@ -54,20 +78,38 @@ export default function CartPage() {
     mutationFn: async (productId: number) => {
       return apiRequest('DELETE', `/api/cart/items/${productId}`);
     },
+    // Optimistic Update: 서버 응답 전에 UI 먼저 업데이트
+    onMutate: async (productId) => {
+      await queryClient.cancelQueries({ queryKey: ['/api/cart'] });
+      const previousCart = queryClient.getQueryData<CartItem[]>(['/api/cart']);
+
+      // 즉시 UI에서 삭제
+      queryClient.setQueryData<CartItem[]>(['/api/cart'], (old) =>
+        old?.filter(item => item.productId !== productId) ?? []
+      );
+
+      return { previousCart };
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/cart'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/cart/count'] });
       toast({
         title: "삭제되었습니다",
         description: "상품이 장바구니에서 삭제되었습니다.",
       });
     },
-    onError: () => {
+    onError: (err, productId, context) => {
+      // 에러 시 롤백
+      if (context?.previousCart) {
+        queryClient.setQueryData(['/api/cart'], context.previousCart);
+      }
       toast({
         title: "오류가 발생했습니다",
         description: "상품 삭제 중 문제가 발생했습니다.",
         variant: "destructive",
       });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/cart'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/cart/count'] });
     },
   });
 
@@ -75,12 +117,25 @@ export default function CartPage() {
     mutationFn: async () => {
       return apiRequest('DELETE', '/api/cart');
     },
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ['/api/cart'] });
+      const previousCart = queryClient.getQueryData<CartItem[]>(['/api/cart']);
+      queryClient.setQueryData<CartItem[]>(['/api/cart'], []);
+      return { previousCart };
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/cart'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/cart/count'] });
       toast({
         title: "장바구니가 비워졌습니다",
       });
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousCart) {
+        queryClient.setQueryData(['/api/cart'], context.previousCart);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/cart'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/cart/count'] });
     },
   });
 
