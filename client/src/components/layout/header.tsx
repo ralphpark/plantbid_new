@@ -369,12 +369,10 @@ export function Header({ onLocationChange }: { onLocationChange?: (location: str
     ? {
       color: "white",
       transition: "color 0.3s ease",
-      borderBottom: "none", // 테두리는 animate로 제어하지 않고 스타일로 제거
     }
     : {
-      backgroundColor: "white",
-      boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
-      color: "rgb(31, 41, 55)",
+      color: "rgb(31, 41, 55)", // 배경색은 animate로 제어
+      transition: "color 0.3s ease",
     };
 
   // 홈 페이지와 다른 페이지의 로고 스타일 구분
@@ -404,16 +402,22 @@ export function Header({ onLocationChange }: { onLocationChange?: (location: str
   return (
     <motion.header
       className="py-5 px-4 sm:px-6 lg:px-8 fixed top-0 left-0 w-full z-50"
-      style={isTransparentPage ? { ...headerStyles, backgroundColor: undefined, boxShadow: undefined, backdropFilter: undefined } : headerStyles}
+      style={headerStyles}
       animate={isTransparentPage ? {
         backgroundColor: scrolled ? "rgba(0, 94, 67, 0.98)" : "rgba(0, 94, 67, 0)",
         backdropFilter: scrolled ? "blur(8px)" : "blur(0px)",
         WebkitBackdropFilter: scrolled ? "blur(8px)" : "blur(0px)",
         boxShadow: scrolled ? "0 4px 20px rgba(0, 0, 0, 0.15)" : "none",
         borderBottom: scrolled ? "1px solid rgba(255, 255, 255, 0.1)" : "1px solid rgba(255, 255, 255, 0)"
-      } : undefined}
+      } : {
+        backgroundColor: "rgba(255, 255, 255, 1)",
+        backdropFilter: "blur(0px)",
+        WebkitBackdropFilter: "blur(0px)",
+        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
+        borderBottom: "1px solid rgba(0, 0, 0, 0)"
+      }}
       transition={{ duration: 0.3 }}
-      initial={isTransparentPage ? { backgroundColor: "rgba(0, 94, 67, 0)" } : undefined}
+      initial={isTransparentPage ? { backgroundColor: "rgba(0, 94, 67, 0)" } : { backgroundColor: "rgba(255, 255, 255, 1)" }}
     >
       <div className="container mx-auto flex justify-between items-center">
         <Link href="/" className="flex items-center">
