@@ -409,7 +409,7 @@ export function Header({ onLocationChange }: { onLocationChange?: (location: str
     <motion.header
       className="py-5 px-4 sm:px-6 lg:px-8 fixed top-0 left-0 w-full z-50"
       style={headerStyles}
-      initial={isTransparentPage ? { backgroundColor: "rgba(0, 94, 67, 0.7)" } : undefined}
+      initial={isTransparentPage ? { backgroundColor: "transparent" } : undefined}
     >
       <div className="container mx-auto flex justify-between items-center">
         <Link href="/" className="flex items-center">
