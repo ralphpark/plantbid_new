@@ -71,7 +71,9 @@ export function useDirectChat({ chatId, enabled = true }: UseDirectChatOptions) 
     queryFn: async () => {
       const res = await fetch(`/api/direct-chats/${chatId}/messages?limit=50`, { credentials: 'include' });
       if (!res.ok) throw new Error('Failed to fetch messages');
-      return res.json();
+      const data = await res.json();
+      // API가 { messages, hasMore } 형태로 반환
+      return data.messages || [];
     },
     enabled: !!chatId && enabled,
   });
