@@ -121,7 +121,7 @@ export default function FeaturesPage() {
   const scrollY = useTransform(scrollYProgress, [0, 0.2], [0, -50]);
 
   useEffect(() => {
-    document.title = "PlantBid - 특징 및 기능 소개";
+    document.title = "PlanB - 특징 및 기능 소개";
     window.scrollTo(0, 0);
   }, []);
 
@@ -168,7 +168,7 @@ export default function FeaturesPage() {
             </div>
 
             <p className="text-lg sm:text-xl text-white/60 max-w-2xl mx-auto leading-relaxed">
-              PlantBid는 단순한 마켓플레이스가 아닙니다.<br className="hidden sm:block" />
+              PlanB는 단순한 마켓플레이스가 아닙니다.<br className="hidden sm:block" />
               AI 기술과 로컬 커뮤니티를 연결하여 당신에게 가장 완벽한 식물 경험을 선사합니다.
             </p>
 
@@ -207,7 +207,7 @@ export default function FeaturesPage() {
             >
               <h2 className="text-sm font-semibold text-green-400 tracking-widest uppercase mb-4">Core Features</h2>
               <p className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-b from-white to-white/60">
-                왜 PlantBid인가요?
+                왜 PlanB인가요?
               </p>
             </motion.div>
 
@@ -227,7 +227,7 @@ export default function FeaturesPage() {
               <FeatureCard
                 icon={<Leaf className="w-10 h-10 text-teal-300" />}
                 title="전문 케어 가이드"
-                description="구매한 식물의 상세 관리법부터 문제 발생 시 진단까지. PlantBid가 당신의 플랜테리어 라이프를 끝까지 책임집니다."
+                description="구매한 식물의 상세 관리법부터 문제 발생 시 진단까지. PlanB가 당신의 플랜테리어 라이프를 끝까지 책임집니다."
                 delay={0.2}
               />
             </div>

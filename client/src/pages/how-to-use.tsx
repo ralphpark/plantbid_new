@@ -27,7 +27,7 @@ export default function HowToUsePage() {
     const [, navigate] = useLocation();
 
     useEffect(() => {
-        document.title = "PlantBid - 이용방법";
+        document.title = "PlanB - 이용방법";
         window.scrollTo(0, 0);
     }, []);
 
@@ -54,7 +54,7 @@ export default function HowToUsePage() {
                     transition={{ duration: 0.6 }}
                 >
                     <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight leading-tight mb-6">
-                        <span className="block text-white/90 mb-2">PlantBid</span>
+                        <span className="block text-white/90 mb-2">PlanB</span>
                         <span className="block text-transparent bg-clip-text bg-gradient-to-r from-green-300 to-emerald-500">
                             이용방법
                         </span>
