@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import FeaturesPage from "@/pages/features";
+import HowToUsePage from "@/pages/how-to-use";
 import AuthPage from "@/pages/auth-page";
 import AIConsultationPage from "@/pages/ai-consultation";
 import RecommendationWizard from "@/pages/recommendation-wizard";
@@ -40,6 +41,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/features" component={FeaturesPage} />
+      <Route path="/how-to-use" component={HowToUsePage} />
       <Route path="/auth" component={AuthPage} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password" component={ResetPassword} />
