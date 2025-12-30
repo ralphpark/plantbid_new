@@ -367,13 +367,13 @@ export function Header({ onLocationChange }: { onLocationChange?: (location: str
   // 홈 페이지와 다른 페이지의 스타일을 구분
   const headerStyles = isTransparentPage
     ? {
-      backgroundColor: scrolled ? "rgba(0, 94, 67, 0.98)" : "rgba(0, 94, 67, 0.7)",
-      backdropFilter: "blur(8px)",
-      WebkitBackdropFilter: "blur(8px)",
-      boxShadow: scrolled ? "0 4px 20px rgba(0, 0, 0, 0.15)" : "0 1px 10px rgba(0, 0, 0, 0.1)",
+      backgroundColor: scrolled ? "rgba(0, 94, 67, 0.98)" : "transparent",
+      backdropFilter: scrolled ? "blur(8px)" : "none",
+      WebkitBackdropFilter: scrolled ? "blur(8px)" : "none",
+      boxShadow: scrolled ? "0 4px 20px rgba(0, 0, 0, 0.15)" : "none",
       color: "white",
       transition: "all 0.3s ease",
-      borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+      borderBottom: scrolled ? "1px solid rgba(255, 255, 255, 0.1)" : "none",
     }
     : {
       backgroundColor: "white",
