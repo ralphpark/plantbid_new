@@ -115,7 +115,9 @@ export function Header({ onLocationChange }: { onLocationChange?: (location: str
   const cartCount = cartCountData?.count || 0;
 
   // 현재 경로가 홈 또는 features 페이지인지 확인 (투명/어두운 배경 헤더 적용)
-  const isTransparentPage = location === "/" || location === "/features";
+  // 위치 정규화: 쿼리 파라미터 및 트레일링 슬래시 제거
+  const normalizedPath = location.split('?')[0].replace(/\/$/, '') || '/';
+  const isTransparentPage = normalizedPath === "/" || normalizedPath === "/features";
 
   // 상태 표시는 홈페이지인지 여부로 계속 구분할 수도 있지만, 
   // 디자인 일관성을 위해 투명 헤더 페이지들은 동일한 스타일(흰색 텍스트 등)을 공유하도록 함
@@ -401,11 +403,11 @@ export function Header({ onLocationChange }: { onLocationChange?: (location: str
 
   return (
     <motion.header
-      className="py-5 px-4 sm:px-6 lg:px-8 fixed top-0 left-0 w-full z-50"
+      className="py-5 px-4 sm:px-6 lg:px-8 fixed top-0 left-0 w-full z-50 transition-colors duration-200"
       style={{
         ...headerStyles,
-        // 강제 투명화: 애니메이션 로딩 전 깜빡임 방지 (Hard Override)
-        backgroundColor: isTransparentPage && !scrolled ? 'transparent' : undefined,
+        // 강제 투명화: 애니메이션 로딩 전 깜빡임 방지 및 우선순위 강제
+        backgroundColor: (isTransparentPage && !scrolled) ? 'transparent' : undefined,
       }}
       animate={isTransparentPage ? {
         backgroundColor: scrolled ? "rgba(0, 94, 67, 0.98)" : "rgba(0, 94, 67, 0)",
