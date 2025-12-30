@@ -52,7 +52,7 @@ export function Header({ onLocationChange }: { onLocationChange?: (location: str
   const [scrolled, setScrolled] = useState(false);
   const { scrollY } = useScroll();
   const queryClient = useQueryClient();
-  
+
   // GPS 위치 업데이트 (검색에 영향 없음)
   const handleSetGpsLocation = (newLocation: string, data?: LocationData & { timestamp?: number }) => {
     setGpsLocation(newLocation);
@@ -107,16 +107,20 @@ export function Header({ onLocationChange }: { onLocationChange?: (location: str
     setShowSearchResults(false);
     setAddressSearch("");
   };
-  
+
   const { data: cartCountData } = useQuery<{ count: number }>({
     queryKey: ['/api/cart/count'],
   });
-  
+
   const cartCount = cartCountData?.count || 0;
-  
-  // 현재 경로가 홈인지 확인
-  const isHomePage = location === "/";
-  
+
+  // 현재 경로가 홈 또는 features 페이지인지 확인 (투명/어두운 배경 헤더 적용)
+  const isTransparentPage = location === "/" || location === "/features";
+
+  // 상태 표시는 홈페이지인지 여부로 계속 구분할 수도 있지만, 
+  // 디자인 일관성을 위해 투명 헤더 페이지들은 동일한 스타일(흰색 텍스트 등)을 공유하도록 함
+  const isDarkThemePage = isTransparentPage;
+
   useEffect(() => {
     // 1. 저장된 GPS 위치 먼저 로드 (즉시 표시용) - 1시간 TTL 적용
     const savedGps = localStorage.getItem('gpsLocation');
@@ -283,7 +287,7 @@ export function Header({ onLocationChange }: { onLocationChange?: (location: str
             handleSetGpsLocation(address + ' (GPS)', { address, lat, lng, timestamp: Date.now() });
             setLocationError(null);
           } else {
-             setLocationError("주소 확인 불가");
+            setLocationError("주소 확인 불가");
           }
         } catch (error) {
           console.error('위치 정보 조회 실패:', error);
@@ -325,7 +329,7 @@ export function Header({ onLocationChange }: { onLocationChange?: (location: str
       setIsLoadingLocation(false);
     }
   };
-  
+
   // 스크롤 감지
   useEffect(() => {
     const handleScroll = () => {
@@ -335,11 +339,11 @@ export function Header({ onLocationChange }: { onLocationChange?: (location: str
         setScrolled(false);
       }
     };
-    
+
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
-  
+
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
   };
@@ -361,57 +365,57 @@ export function Header({ onLocationChange }: { onLocationChange?: (location: str
   };
 
   // 홈 페이지와 다른 페이지의 스타일을 구분
-  const headerStyles = isHomePage 
+  const headerStyles = isTransparentPage
     ? {
-        backgroundColor: scrolled ? "rgba(0, 94, 67, 0.98)" : "rgba(0, 94, 67, 0.7)",
-        backdropFilter: "blur(8px)",
-        WebkitBackdropFilter: "blur(8px)",
-        boxShadow: scrolled ? "0 4px 20px rgba(0, 0, 0, 0.15)" : "0 1px 10px rgba(0, 0, 0, 0.1)",
-        color: "white",
-        transition: "all 0.3s ease",
-        borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
-      }
+      backgroundColor: scrolled ? "rgba(0, 94, 67, 0.98)" : "rgba(0, 94, 67, 0.7)",
+      backdropFilter: "blur(8px)",
+      WebkitBackdropFilter: "blur(8px)",
+      boxShadow: scrolled ? "0 4px 20px rgba(0, 0, 0, 0.15)" : "0 1px 10px rgba(0, 0, 0, 0.1)",
+      color: "white",
+      transition: "all 0.3s ease",
+      borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+    }
     : {
-        backgroundColor: "white",
-        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
-        color: "rgb(31, 41, 55)",
-      };
-      
+      backgroundColor: "white",
+      boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
+      color: "rgb(31, 41, 55)",
+    };
+
   // 홈 페이지와 다른 페이지의 로고 스타일 구분
-  const logoColor = isHomePage ? "white" : "primary";
-  
+  const logoColor = isDarkThemePage ? "white" : "primary";
+
   // 홈 페이지와 다른 페이지의 링크 스타일 구분
-  const linkStyles = isHomePage
+  const linkStyles = isDarkThemePage
     ? "font-sans text-sm font-medium text-white/90 hover:text-white transition-colors duration-300"
     : "font-sans text-sm font-medium text-gray-700 hover:text-primary transition-colors duration-300";
-    
+
   // 홈 페이지와 다른 페이지의 모바일 메뉴 토글 버튼 스타일 구분
-  const toggleButtonColor = isHomePage ? "text-white" : "text-gray-800";
-  
+  const toggleButtonColor = isDarkThemePage ? "text-white" : "text-gray-800";
+
   // 홈 페이지와 다른 페이지의 모바일 메뉴 스타일 구분
-  const mobileMenuStyles = isHomePage
+  const mobileMenuStyles = isDarkThemePage
     ? "bg-[#005E43] text-white border-[#004835]"
     : "bg-white text-gray-700 border-gray-100";
-    
+
   // 홈 페이지와 다른 페이지의 모바일 링크 스타일 구분
-  const mobileLinkStyles = isHomePage
+  const mobileLinkStyles = isDarkThemePage
     ? "block py-2 font-sans text-sm font-medium text-white/90 hover:text-white"
     : "block py-2 font-sans text-sm font-medium text-gray-700 hover:text-primary";
 
   // 드롭다운 메뉴 props
-  const dropdownTheme = isHomePage ? 'dark' as const : 'light' as const;
+  const dropdownTheme = isDarkThemePage ? 'dark' as const : 'light' as const;
 
   return (
-    <motion.header 
+    <motion.header
       className="py-5 px-4 sm:px-6 lg:px-8 fixed top-0 left-0 w-full z-50"
       style={headerStyles}
-      initial={isHomePage ? { backgroundColor: "rgba(0, 94, 67, 0.7)" } : undefined}
+      initial={isTransparentPage ? { backgroundColor: "rgba(0, 94, 67, 0.7)" } : undefined}
     >
       <div className="container mx-auto flex justify-between items-center">
         <Link href="/" className="flex items-center">
-          <Logo className="h-10" color={isHomePage ? "white" : "primary"} variant="horizontal" />
+          <Logo className="h-10" color={isDarkThemePage ? "white" : "primary"} variant="horizontal" />
         </Link>
-        
+
         <nav className="hidden md:flex space-x-6 items-center">
           {/* 현재 위치 버튼 및 주소 표시 */}
           <div className="flex flex-col items-center gap-0.5">
@@ -419,7 +423,7 @@ export function Header({ onLocationChange }: { onLocationChange?: (location: str
               variant="ghost"
               size="sm"
               onClick={handleGetCurrentLocation}
-              className={`flex items-center gap-1 ${isHomePage ? "text-white/90 hover:text-white hover:bg-white/10" : "text-gray-700 hover:text-primary hover:bg-gray-100"}`}
+              className={`flex items-center gap-1 ${isDarkThemePage ? "text-white/90 hover:text-white hover:bg-white/10" : "text-gray-700 hover:text-primary hover:bg-gray-100"}`}
               data-testid="button-current-location"
               title="현재 위치 감지"
             >
@@ -427,15 +431,15 @@ export function Header({ onLocationChange }: { onLocationChange?: (location: str
               <span className="text-xs">현재위치</span>
             </Button>
             {isLoadingLocation ? (
-              <span className={`text-xs ${isHomePage ? "text-white/70" : "text-gray-500"} animate-pulse`}>
+              <span className={`text-xs ${isDarkThemePage ? "text-white/70" : "text-gray-500"} animate-pulse`}>
                 위치 확인 중...
               </span>
             ) : locationError ? (
-              <span className={`text-xs ${isHomePage ? "text-red-300" : "text-red-500"}`} title={locationError}>
+              <span className={`text-xs ${isDarkThemePage ? "text-red-300" : "text-red-500"}`} title={locationError}>
                 {locationError}
               </span>
             ) : gpsLocation && gpsLocation !== "내 지역" ? (
-              <span className={`text-xs max-w-xs truncate ${isHomePage ? "text-white/70" : "text-gray-600"}`}>
+              <span className={`text-xs max-w-xs truncate ${isDarkThemePage ? "text-white/70" : "text-gray-600"}`}>
                 {gpsLocation}
               </span>
             ) : null}
@@ -443,7 +447,7 @@ export function Header({ onLocationChange }: { onLocationChange?: (location: str
 
           {/* 위치 검색 */}
           <div className="relative">
-            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg ${isHomePage ? "bg-white/10 text-white" : "bg-gray-100 text-gray-700"}`}>
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg ${isDarkThemePage ? "bg-white/10 text-white" : "bg-gray-100 text-gray-700"}`}>
               <Search className="w-4 h-4" />
               <input
                 type="text"
@@ -455,17 +459,17 @@ export function Header({ onLocationChange }: { onLocationChange?: (location: str
                   setShowSearchResults(true);
                 }}
                 onFocus={() => searchResults.length > 0 && setShowSearchResults(true)}
-                className={`text-sm bg-transparent border-none outline-none w-32 placeholder-${isHomePage ? "white/50" : "gray-500"}`}
+                className={`text-sm bg-transparent border-none outline-none w-32 placeholder-${isDarkThemePage ? "white/50" : "gray-500"}`}
                 data-testid="input-location-search"
               />
             </div>
             {showSearchResults && searchResults.length > 0 && (
-              <div className={`absolute top-full left-0 w-64 mt-2 rounded-lg shadow-lg z-50 max-h-64 overflow-y-auto ${isHomePage ? "bg-gray-900 text-white" : "bg-white text-gray-700"}`}>
+              <div className={`absolute top-full left-0 w-64 mt-2 rounded-lg shadow-lg z-50 max-h-64 overflow-y-auto ${isDarkThemePage ? "bg-gray-900 text-white" : "bg-white text-gray-700"}`}>
                 {searchResults.map((result, idx) => (
                   <button
                     key={idx}
                     onClick={() => handleSelectAddress(result)}
-                    className={`w-full text-left px-4 py-2 text-sm hover:${isHomePage ? "bg-gray-800" : "bg-gray-100"}`}
+                    className={`w-full text-left px-4 py-2 text-sm hover:${isDarkThemePage ? "bg-gray-800" : "bg-gray-100"}`}
                     data-testid={`location-search-result-${idx}`}
                   >
                     {result.formatted_address}
@@ -477,7 +481,7 @@ export function Header({ onLocationChange }: { onLocationChange?: (location: str
 
           <div className="relative group">
             <Link href="/features" className="flex items-center space-x-2">
-              <motion.div 
+              <motion.div
                 initial={{ x: 0 }}
                 whileHover={{ x: 5 }}
                 transition={{ duration: 0.2 }}
@@ -489,16 +493,16 @@ export function Header({ onLocationChange }: { onLocationChange?: (location: str
                 특징
               </span>
             </Link>
-            <motion.div 
+            <motion.div
               className="h-[1px] bg-green-300 w-0 group-hover:w-full transition-all duration-300 pointer-events-none"
               initial={{ width: 0 }}
               whileHover={{ width: "100%" }}
             />
           </div>
-          
+
           <div className="relative group">
             <a href="/features#process" className="flex items-center space-x-2">
-              <motion.div 
+              <motion.div
                 initial={{ x: 0 }}
                 whileHover={{ x: 5 }}
                 transition={{ duration: 0.2 }}
@@ -510,21 +514,21 @@ export function Header({ onLocationChange }: { onLocationChange?: (location: str
                 이용방법
               </span>
             </a>
-            <motion.div 
+            <motion.div
               className="h-[1px] bg-green-300 w-0 group-hover:w-full transition-all duration-300 pointer-events-none"
               initial={{ width: 0 }}
               whileHover={{ width: "100%" }}
             />
           </div>
-          
 
-          
+
+
           {/* Cart button */}
           <Link href="/cart">
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               size="icon"
-              className={`relative ${isHomePage ? "text-white hover:bg-white/10" : "text-gray-700 hover:bg-gray-100"}`}
+              className={`relative ${isDarkThemePage ? "text-white hover:bg-white/10" : "text-gray-700 hover:bg-gray-100"}`}
               data-testid="button-cart"
             >
               <ShoppingCart className="h-5 w-5" />
@@ -535,35 +539,35 @@ export function Header({ onLocationChange }: { onLocationChange?: (location: str
               )}
             </Button>
           </Link>
-          
+
           {/* Auth buttons */}
           <div className="ml-4">
             {user ? (
-              <UserDropdownMenu 
+              <UserDropdownMenu
                 username={user.username}
                 role={user.role}
                 onLogout={handleLogout}
                 theme={dropdownTheme}
               />
             ) : (
-              <Button 
+              <Button
                 onClick={navigateToAuth}
-                variant={isHomePage ? "secondary" : "default"}
-                className={isHomePage ? "text-[#005E43] bg-white hover:bg-white/90" : ""}
+                variant={isDarkThemePage ? "secondary" : "default"}
+                className={isDarkThemePage ? "text-[#005E43] bg-white hover:bg-white/90" : ""}
               >
                 로그인
               </Button>
             )}
           </div>
         </nav>
-        
+
         <div className="flex items-center md:hidden">
           {/* Cart button for mobile */}
           <Link href="/cart">
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               size="icon"
-              className={`relative mr-2 ${isHomePage ? "text-white hover:bg-white/10" : "text-gray-700 hover:bg-gray-100"}`}
+              className={`relative mr-2 ${isDarkThemePage ? "text-white hover:bg-white/10" : "text-gray-700 hover:bg-gray-100"}`}
               data-testid="button-cart-mobile"
             >
               <ShoppingCart className="h-5 w-5" />
@@ -574,10 +578,10 @@ export function Header({ onLocationChange }: { onLocationChange?: (location: str
               )}
             </Button>
           </Link>
-          
+
           {/* Auth button for mobile */}
           {user ? (
-            <UserDropdownMenu 
+            <UserDropdownMenu
               username={user.username}
               role={user.role}
               onLogout={handleLogout}
@@ -586,41 +590,41 @@ export function Header({ onLocationChange }: { onLocationChange?: (location: str
               theme={dropdownTheme}
             />
           ) : (
-            <Button 
-              variant={isHomePage ? "secondary" : "outline"} 
-              size="sm" 
-              className={`mr-2 ${isHomePage ? "text-blue-600 bg-white hover:bg-white/90" : ""}`}
+            <Button
+              variant={isDarkThemePage ? "secondary" : "outline"}
+              size="sm"
+              className={`mr-2 ${isDarkThemePage ? "text-blue-600 bg-white hover:bg-white/90" : ""}`}
               onClick={navigateToAuth}
             >
               로그인
             </Button>
           )}
-          
-          <button 
+
+          <button
             onClick={toggleMobileMenu}
             className={toggleButtonColor}
             aria-label="Toggle mobile menu"
           >
-            <svg 
-              xmlns="http://www.w3.org/2000/svg" 
-              className="h-6 w-6" 
-              fill="none" 
-              viewBox="0 0 24 24" 
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
               stroke="currentColor"
             >
-              <path 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                strokeWidth={2} 
-                d="M4 6h16M4 12h16M4 18h16" 
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 6h16M4 12h16M4 18h16"
               />
             </svg>
           </button>
         </div>
       </div>
-      
+
       {/* Mobile Menu */}
-      <div 
+      <div
         className={`md:hidden ${isMobileMenuOpen ? 'block' : 'hidden'} ${mobileMenuStyles} absolute w-full left-0 top-full py-2 px-4 border-t`}
       >
         <Link href="/features" className={mobileLinkStyles}>특징</Link>
