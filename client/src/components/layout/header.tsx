@@ -402,8 +402,9 @@ export function Header({ onLocationChange }: { onLocationChange?: (location: str
   const dropdownTheme = isDarkThemePage ? 'dark' as const : 'light' as const;
 
   // 헤더 배경 클래스 결정 (Framer Motion 충돌 방지를 위해 Tailwind 클래스 사용)
+  // 스크롤 0일 때도 초록색 배경을 사용하여 흰색 글자가 보이도록 함
   const headerBgClass = (isTransparentPage && !scrolled)
-    ? 'bg-transparent'
+    ? 'bg-[#005E43]' // 스크롤 0일 때도 초록색 배경 (글자 가시성 확보)
     : (isTransparentPage && scrolled)
       ? 'bg-[#005E43]/[0.98] backdrop-blur-md shadow-lg border-b border-white/10'
       : 'bg-white shadow-sm';
