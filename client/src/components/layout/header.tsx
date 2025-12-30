@@ -402,7 +402,11 @@ export function Header({ onLocationChange }: { onLocationChange?: (location: str
   return (
     <motion.header
       className="py-5 px-4 sm:px-6 lg:px-8 fixed top-0 left-0 w-full z-50"
-      style={headerStyles}
+      style={{
+        ...headerStyles,
+        // 강제 투명화: 애니메이션 로딩 전 깜빡임 방지 (Hard Override)
+        backgroundColor: isTransparentPage && !scrolled ? 'transparent' : undefined,
+      }}
       animate={isTransparentPage ? {
         backgroundColor: scrolled ? "rgba(0, 94, 67, 0.98)" : "rgba(0, 94, 67, 0)",
         backdropFilter: scrolled ? "blur(8px)" : "blur(0px)",
