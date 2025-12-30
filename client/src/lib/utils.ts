@@ -73,11 +73,11 @@ function convertBgClassToColor(bgClass: string): string {
     'pink': '#ec4899',
     'rose': '#f43f5e'
   };
-  
+
   // bg-[색상]-50 형식에서 색상 추출
   const match = bgClass?.match(/bg-([a-z]+)-\d+/);
   const colorName = match?.[1];
-  
+
   return colorName && colorMap[colorName] ? colorMap[colorName] : '#6E56CF';
 }
 
@@ -88,11 +88,8 @@ function isCacheValid(entry: CacheEntry): boolean {
 
 // 판매자 정보 가져오기 (캐싱 지원)
 export async function getVendorInfo(vendorId: number) {
-  console.log(`getVendorInfo 호출됨: vendorId=${vendorId}`);
-  
   // vendorId가 없거나 0 이하면 기본값 반환
   if (!vendorId || vendorId <= 0) {
-    console.warn(`유효하지 않은 vendorId: ${vendorId}, 기본값 사용`);
     return {
       id: 1,
       name: "판매자",
@@ -101,34 +98,28 @@ export async function getVendorInfo(vendorId: number) {
       vendorColor: '#6E56CF'
     };
   }
-  
-  // 로그아웃/로그인 시 캐싱 문제 방지를 위해 요청 시마다 새로 받아오게 변경
+
   // 캐시에 있고 유효하면 캐시에서 반환
-  // if (vendorCache.has(vendorId)) {
-  //   const cachedEntry = vendorCache.get(vendorId)!;
-  //   if (isCacheValid(cachedEntry)) {
-  //     console.log(`vendorId=${vendorId} 캐시에서 정보 검색:`, cachedEntry.data);
-  //     // 색상 코드 사용을 위한 변환 작업
-  //     if (cachedEntry.data.color && typeof cachedEntry.data.color === 'object' && cachedEntry.data.color.bg) {
-  //       cachedEntry.data.vendorColor = convertBgClassToColor(cachedEntry.data.color.bg);
-  //     } else if (!cachedEntry.data.vendorColor) {
-  //       // 색상 정보가 없는 경우
-  //       const colorObj = getFixedColor(vendorId);
-  //       cachedEntry.data.vendorColor = convertBgClassToColor(colorObj.bg);
-  //     }
-  //     return cachedEntry.data;
-  //   }
-  //   // 만료된 경우 캐시에서 제거
-  //   console.log(`vendorId=${vendorId} 캐시 만료, 재로드 필요`);
-  //   vendorCache.delete(vendorId);
-  // }
-  
+  if (vendorCache.has(vendorId)) {
+    const cachedEntry = vendorCache.get(vendorId)!;
+    if (isCacheValid(cachedEntry)) {
+      // 색상 코드 사용을 위한 변환 작업
+      if (cachedEntry.data.color && typeof cachedEntry.data.color === 'object' && cachedEntry.data.color.bg) {
+        cachedEntry.data.vendorColor = convertBgClassToColor(cachedEntry.data.color.bg);
+      } else if (!cachedEntry.data.vendorColor) {
+        // 색상 정보가 없는 경우
+        const colorObj = getFixedColor(vendorId);
+        cachedEntry.data.vendorColor = convertBgClassToColor(colorObj.bg);
+      }
+      return cachedEntry.data;
+    }
+    // 만료된 경우 캐시에서 제거
+    vendorCache.delete(vendorId);
+  }
+
   try {
-    console.log(`vendorId=${vendorId} API 요청 시작`);
     const response = await fetch(`/api/vendors/${vendorId}`);
     if (!response.ok) {
-      console.warn(`판매자 정보를 찾을 수 없음: ${vendorId}`);
-      
       // 기본 판매자 정보 생성 (ID를 기반으로 항상 동일한 색상 사용)
       const colorObj = getFixedColor(vendorId);
       const defaultVendorInfo = {
@@ -139,76 +130,57 @@ export async function getVendorInfo(vendorId: number) {
         color: colorObj,
         vendorColor: convertBgClassToColor(colorObj.bg)
       };
-      
+
       // 기본값을 캐시에 저장
       vendorCache.set(vendorId, {
         data: defaultVendorInfo,
         timestamp: Date.now()
       });
-      
-      console.log(`vendorId=${vendorId} 기본 정보 생성:`, defaultVendorInfo);
+
       return defaultVendorInfo;
     }
-    
+
     const vendorData = await response.json();
-    console.log(`vendorId=${vendorId} API 응답 데이터:`, vendorData);
-    
-    // ID 확인 - 실제 ID와 다르면 조정 (특히 ID 4에 대해 검증)
+
+    // ID 확인 - 실제 ID와 다르면 조정
     if (vendorData.id !== vendorId) {
-      console.warn(`API에서 받은 ID가 요청 ID와 다릅니다: 요청=${vendorId}, 응답=${vendorData.id}`);
-      // ID 수정
       vendorData.id = vendorId;
     }
-    
+
     // region을 storeName으로 사용 (상호명이 없는 경우 region을 사용)
     if (!vendorData.storeName && vendorData.region) {
       vendorData.storeName = vendorData.region;
-      console.log(`vendorId=${vendorId} region을 storeName으로 사용:`, vendorData.storeName);
     }
-    
+
     // DB에 색상이 있으면 그것을 사용, 없으면 고정 색상 사용
     if (!vendorData.color) {
       vendorData.color = getFixedColor(vendorId);
-      console.log(`vendorId=${vendorId} 고정 색상 할당:`, vendorData.color);
     }
-    
+
     // 색상 코드 생성 - bg에서 hex로 변환
     if (vendorData.color && typeof vendorData.color === 'object' && vendorData.color.bg) {
-      const hexColor = convertBgClassToColor(vendorData.color.bg);
-      vendorData.vendorColor = hexColor;
-      console.log(`vendorId=${vendorId} 색상 변환: ${vendorData.color.bg} -> ${hexColor}`);
+      vendorData.vendorColor = convertBgClassToColor(vendorData.color.bg);
     } else if (!vendorData.vendorColor) {
       // 색상 정보가 전혀 없는 경우
       const colorObj = getFixedColor(vendorId);
       vendorData.vendorColor = convertBgClassToColor(colorObj.bg);
-      console.log(`vendorId=${vendorId} 기본 색상 할당: ${vendorData.vendorColor}`);
     }
-    
+
     // storeName이 없는 경우 표시할 이름 설정
     if (!vendorData.storeName) {
       vendorData.storeName = vendorData.description || vendorData.name || `판매자 ${vendorId}`;
-      console.log(`vendorId=${vendorId} storeName 대체값 설정:`, vendorData.storeName);
     }
-    
-    // 서버에서 받은 storeName을 그대로 사용
-    console.log(`vendorId=${vendorId} 서버에서 받은 상호명: "${vendorData.storeName}"`);
-    // 상호명이 없는 경우에만 기본값 설정
-    if (!vendorData.storeName) {
-      console.log(`vendorId=${vendorId} 상호명이 없어 기본값 설정`);
-      vendorData.storeName = vendorData.description || vendorData.name || `판매자 ${vendorId}`;
-    }
-    
+
     // 캐시에 저장
     vendorCache.set(vendorId, {
       data: vendorData,
       timestamp: Date.now()
     });
-    
-    console.log(`판매자 ID ${vendorId}의 정보 로드 완료:`, vendorData);
+
     return vendorData;
   } catch (error) {
     console.error('판매자 정보 조회 오류:', error);
-    
+
     // 에러 발생 시 기본 판매자 정보 생성
     const colorObj = getFixedColor(vendorId);
     const defaultVendorInfo = {
@@ -219,18 +191,13 @@ export async function getVendorInfo(vendorId: number) {
       color: colorObj,
       vendorColor: convertBgClassToColor(colorObj.bg)
     };
-    
-    // 서버에서 정보를 가져올 수 없는 경우 기본값 사용
-    console.log(`vendorId=${vendorId} 서버에서 정보를 가져올 수 없어 기본값 사용`);
-    // 기본 상호명은 "판매자 {ID}" 형식으로 사용
-    
+
     // 기본값을 캐시에 저장
     vendorCache.set(vendorId, {
       data: defaultVendorInfo,
       timestamp: Date.now()
     });
-    
-    console.log(`vendorId=${vendorId} 오류 발생, 기본 정보 생성:`, defaultVendorInfo);
+
     return defaultVendorInfo;
   }
 }
@@ -251,7 +218,7 @@ export function getVendorColorClasses(vendorColor: any): {
     if (!vendorColor) {
       return { className: 'bg-muted/30 border border-muted' };
     }
-    
+
     // Case 1: String CSS class (e.g., "bg-emerald-50")
     if (typeof vendorColor === 'string') {
       // CSS class (tailwind)
@@ -260,27 +227,27 @@ export function getVendorColorClasses(vendorColor: any): {
       }
       // Hex color - handled separately via style
       else if (vendorColor.startsWith('#')) {
-        return { 
-          className: 'border border-muted', 
+        return {
+          className: 'border border-muted',
           style: { backgroundColor: `${vendorColor}20` } // 20은 hex로 약 12% 투명도
         };
       }
       // Unknown string format
       return { className: 'bg-muted/30 border border-muted' };
     }
-    
+
     // Case 3: Object with bg property
     if (typeof vendorColor === 'object' && vendorColor !== null) {
       const bg = vendorColor.bg;
       const border = vendorColor.border;
-      
+
       if (bg && typeof bg === 'string') {
-        return { 
+        return {
           className: `${bg} ${border || 'border border-muted'}`
         };
       }
     }
-    
+
     // Default fallback
     return { className: 'bg-muted/30 border border-muted' };
   } catch (err) {
@@ -294,17 +261,17 @@ export function debounce<T extends (...args: any[]) => any>(
   wait: number
 ): (...args: Parameters<T>) => void {
   let timeout: ReturnType<typeof setTimeout> | null = null;
-  
-  return function(...args: Parameters<T>) {
+
+  return function (...args: Parameters<T>) {
     const later = () => {
       timeout = null;
       func(...args);
     };
-    
+
     if (timeout !== null) {
       clearTimeout(timeout);
     }
-    
+
     timeout = setTimeout(later, wait);
   };
 }
@@ -322,17 +289,17 @@ export async function geocodeAddress(address: string): Promise<{
     // Google Maps API 설정 가져오기
     const configResponse = await fetch('/api/map/config');
     const { googleMapsApiKey } = await configResponse.json();
-    
+
     if (!googleMapsApiKey) {
       console.error('Google Maps API 키가 없습니다');
       return { lat: null, lng: null };
     }
-    
+
     // Google Maps Geocoding API 호출
     const geocodingApiUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${googleMapsApiKey}`;
     const response = await fetch(geocodingApiUrl);
     const data = await response.json();
-    
+
     // 응답 확인 및 좌표 추출
     if (data.status === 'OK' && data.results && data.results.length > 0) {
       const location = data.results[0].geometry.location;

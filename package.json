@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.0",
+    "@googlemaps/google-maps-services-js": "^3.4.2",
     "@hookform/resolvers": "^3.10.0",
     "@jridgewell/trace-mapping": "^0.3.25",
     "@modelcontextprotocol/sdk": "^1.25.1",

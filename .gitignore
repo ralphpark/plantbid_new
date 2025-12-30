@@ -11,3 +11,4 @@ vite.config.ts.*
 .env.*
 .vercel
 .env*.local
+.npm-cache
