@@ -401,29 +401,17 @@ export function Header({ onLocationChange }: { onLocationChange?: (location: str
   // 드롭다운 메뉴 props
   const dropdownTheme = isDarkThemePage ? 'dark' as const : 'light' as const;
 
+  // 헤더 배경 클래스 결정 (Framer Motion 충돌 방지를 위해 Tailwind 클래스 사용)
+  const headerBgClass = (isTransparentPage && !scrolled)
+    ? 'bg-transparent'
+    : (isTransparentPage && scrolled)
+      ? 'bg-[#005E43]/[0.98] backdrop-blur-md shadow-lg border-b border-white/10'
+      : 'bg-white shadow-sm';
+
   return (
-    <motion.header
-      className="py-5 px-4 sm:px-6 lg:px-8 fixed top-0 left-0 w-full z-50 transition-colors duration-200"
-      style={{
-        ...headerStyles,
-        // 강제 투명화: 애니메이션 로딩 전 깜빡임 방지 및 우선순위 강제
-        backgroundColor: (isTransparentPage && !scrolled) ? 'transparent' : undefined,
-      }}
-      animate={isTransparentPage ? {
-        backgroundColor: scrolled ? "rgba(0, 94, 67, 0.98)" : "rgba(0, 94, 67, 0)",
-        backdropFilter: scrolled ? "blur(8px)" : "blur(0px)",
-        WebkitBackdropFilter: scrolled ? "blur(8px)" : "blur(0px)",
-        boxShadow: scrolled ? "0 4px 20px rgba(0, 0, 0, 0.15)" : "none",
-        borderBottom: scrolled ? "1px solid rgba(255, 255, 255, 0.1)" : "1px solid rgba(255, 255, 255, 0)"
-      } : {
-        backgroundColor: "rgba(255, 255, 255, 1)",
-        backdropFilter: "blur(0px)",
-        WebkitBackdropFilter: "blur(0px)",
-        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
-        borderBottom: "1px solid rgba(0, 0, 0, 0)"
-      }}
-      transition={{ duration: 0.3 }}
-      initial={isTransparentPage ? { backgroundColor: "rgba(0, 94, 67, 0)" } : { backgroundColor: "rgba(255, 255, 255, 1)" }}
+    <header
+      className={`py-5 px-4 sm:px-6 lg:px-8 fixed top-0 left-0 w-full z-50 transition-all duration-300 ${headerBgClass}`}
+      style={headerStyles}
     >
       <div className="container mx-auto flex justify-between items-center">
         <Link href="/" className="flex items-center">
@@ -644,6 +632,6 @@ export function Header({ onLocationChange }: { onLocationChange?: (location: str
         <Link href="/features" className={mobileLinkStyles}>특징</Link>
         <a href="/features#process" className={mobileLinkStyles}>이용방법</a>
       </div>
-    </motion.header>
+    </header>
   );
 }
