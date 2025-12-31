@@ -69,9 +69,14 @@ export function useDirectChat({ chatId, enabled = true }: UseDirectChatOptions) 
   const messagesQuery = useQuery<DirectMessage[]>({
     queryKey: ['/api/direct-chats', chatId, 'messages'],
     queryFn: async () => {
+      console.log(`[DirectChat] 메시지 조회 시작 - chatId: ${chatId}`);
       const res = await fetch(`/api/direct-chats/${chatId}/messages?limit=50`, { credentials: 'include' });
-      if (!res.ok) throw new Error('Failed to fetch messages');
+      if (!res.ok) {
+        console.error(`[DirectChat] 메시지 조회 실패 - status: ${res.status}`);
+        throw new Error('Failed to fetch messages');
+      }
       const data = await res.json();
+      console.log(`[DirectChat] 메시지 조회 완료 - 메시지 수: ${data.messages?.length || 0}`, data);
       // API가 { messages, hasMore } 형태로 반환
       return data.messages || [];
     },
@@ -87,6 +92,8 @@ export function useDirectChat({ chatId, enabled = true }: UseDirectChatOptions) 
       supabase.removeChannel(channelRef.current);
     }
 
+    console.log(`[DirectChat] Realtime 구독 시작 - chatId: ${chatId}`);
+
     const channel = supabase
       .channel(`direct_messages:chat_id=${chatId}`)
       .on(
@@ -98,6 +105,7 @@ export function useDirectChat({ chatId, enabled = true }: UseDirectChatOptions) 
           filter: `chat_id=eq.${chatId}`,
         },
         (payload) => {
+          console.log(`[DirectChat] Realtime 새 메시지 수신:`, payload);
           const newMessage = payload.new as DirectMessagePayload;
           // camelCase로 변환
           const formattedMessage: DirectMessage = {
@@ -142,7 +150,9 @@ export function useDirectChat({ chatId, enabled = true }: UseDirectChatOptions) 
           queryClient.invalidateQueries({ queryKey: ['/api/direct-chats', chatId, 'messages'] });
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log(`[DirectChat] Realtime 구독 상태: ${status}`, { chatId });
+      });
 
     channelRef.current = channel;
 

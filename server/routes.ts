@@ -7350,7 +7350,8 @@ ${fieldsToTranslate.map(field => {
         return res.status(403).json({ error: "접근 권한이 없습니다" });
       }
 
-      const senderRole = isVendor ? 'vendor' : 'customer';
+      // 채팅방에서의 역할 결정 - customerId로 등록된 사용자는 항상 customer
+      const senderRole = isCustomer ? 'customer' : 'vendor';
 
       const message = await storage.createDirectMessage({
         chatId,
@@ -7380,21 +7381,30 @@ ${fieldsToTranslate.map(field => {
       const limit = parseInt(req.query.limit as string) || 50;
       const before = req.query.before ? parseInt(req.query.before as string) : undefined;
 
+      console.log(`[DirectChat API] 메시지 조회 요청 - chatId: ${chatId}, userId: ${userId}`);
+
       const chat = await storage.getDirectChat(chatId);
       if (!chat) {
+        console.log(`[DirectChat API] 채팅방 없음 - chatId: ${chatId}`);
         return res.status(404).json({ error: "채팅방을 찾을 수 없습니다" });
       }
+
+      console.log(`[DirectChat API] 채팅방 정보 - customerId: ${chat.customerId}, vendorId: ${chat.vendorId}`);
 
       // 권한 확인
       const vendor = await storage.getVendorByUserId(userId);
       const isCustomer = chat.customerId === userId;
       const isVendor = vendor && chat.vendorId === vendor.id;
 
+      console.log(`[DirectChat API] 권한 체크 - isCustomer: ${isCustomer}, isVendor: ${isVendor}, vendor?.id: ${vendor?.id}`);
+
       if (!isCustomer && !isVendor) {
+        console.log(`[DirectChat API] 권한 없음 - userId: ${userId}`);
         return res.status(403).json({ error: "접근 권한이 없습니다" });
       }
 
       const messages = await storage.getDirectMessages(chatId, limit, before);
+      console.log(`[DirectChat API] 메시지 조회 완료 - 메시지 수: ${messages.length}`);
 
       res.json({
         messages,
