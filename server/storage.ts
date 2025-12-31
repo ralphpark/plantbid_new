@@ -148,7 +148,7 @@ export interface IStorage {
 
   // Direct Chat methods
   createDirectChat(data: InsertDirectChat): Promise<DirectChat>;
-  getDirectChat(id: number): Promise<DirectChat | undefined>;
+  getDirectChat(id: number): Promise<any>;
   getDirectChatByParticipants(customerId: number, vendorId: number): Promise<DirectChat | undefined>;
   getDirectChatsForCustomer(customerId: number): Promise<any[]>;
   getDirectChatsForVendor(vendorId: number): Promise<any[]>;
@@ -2125,8 +2125,29 @@ export class DatabaseStorage implements IStorage {
     return chat;
   }
 
-  async getDirectChat(id: number): Promise<DirectChat | undefined> {
-    const [chat] = await db.select().from(directChats).where(eq(directChats.id, id));
+  async getDirectChat(id: number): Promise<any> {
+    const [chat] = await db.select({
+      id: directChats.id,
+      customerId: directChats.customerId,
+      vendorId: directChats.vendorId,
+      orderId: directChats.orderId,
+      bidId: directChats.bidId,
+      conversationId: directChats.conversationId,
+      status: directChats.status,
+      lastMessageAt: directChats.lastMessageAt,
+      lastMessagePreview: directChats.lastMessagePreview,
+      customerUnreadCount: directChats.customerUnreadCount,
+      vendorUnreadCount: directChats.vendorUnreadCount,
+      createdAt: directChats.createdAt,
+      updatedAt: directChats.updatedAt,
+      vendorName: vendors.name,
+      vendorBusinessName: vendors.storeName,
+      customerName: users.name,
+    })
+      .from(directChats)
+      .leftJoin(vendors, eq(directChats.vendorId, vendors.id))
+      .leftJoin(users, eq(directChats.customerId, users.id))
+      .where(eq(directChats.id, id));
     return chat;
   }
 
