@@ -25,16 +25,17 @@ export function DirectChatModal({ chatId, isOpen, onClose }: DirectChatModalProp
     error,
     sendMessage,
     isSending,
-  } = useDirectChat({ chatId, enabled: isOpen });
+  } = useDirectChat({ chatId, userId: user?.id, enabled: isOpen });
 
   console.log('[DirectChatModal] 상태 - isLoading:', isLoading, 'error:', error, 'chat:', chat?.id);
 
-  // 새 메시지 시 자동 스크롤
+  // 새 메시지 시 자동 스크롤 (즉시 이동)
   useEffect(() => {
     if (messages.length > 0) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      // 즉시 스크롤 (애니메이션 없음)
+      messagesEndRef.current?.scrollIntoView({ behavior: 'instant' });
     }
-  }, [messages]);
+  }, [messages.length]);
 
   // ESC로 모달 닫기
   useEffect(() => {

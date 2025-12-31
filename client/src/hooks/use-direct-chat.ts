@@ -46,10 +46,11 @@ export interface DirectMessage {
 
 interface UseDirectChatOptions {
   chatId: number | null;
+  userId?: number;
   enabled?: boolean;
 }
 
-export function useDirectChat({ chatId, enabled = true }: UseDirectChatOptions) {
+export function useDirectChat({ chatId, userId, enabled = true }: UseDirectChatOptions) {
   const queryClient = useQueryClient();
   const [realtimeMessages, setRealtimeMessages] = useState<DirectMessage[]>([]);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -164,14 +165,49 @@ export function useDirectChat({ chatId, enabled = true }: UseDirectChatOptions) 
     };
   }, [chatId, enabled, queryClient]);
 
-  // 메시지 전송
+  // 메시지 전송 (낙관적 업데이트 적용)
   const sendMessageMutation = useMutation({
     mutationFn: async (data: { content: string; messageType?: string; attachments?: any }) => {
-      return apiRequest('POST', `/api/direct-chats/${chatId}/messages`, data);
+      const res = await apiRequest('POST', `/api/direct-chats/${chatId}/messages`, data);
+      return res.json();
     },
-    onSuccess: () => {
+    onMutate: async (newMessage) => {
+      // 낙관적 업데이트: 즉시 UI에 메시지 표시
+      const chat = chatQuery.data;
+      const isCustomer = chat?.customerId === userId;
+
+      const tempMessage: DirectMessage = {
+        id: Date.now(), // 임시 ID
+        chatId: chatId!,
+        senderId: userId || 0,
+        senderRole: isCustomer ? 'customer' : 'vendor',
+        content: newMessage.content,
+        messageType: newMessage.messageType || 'text',
+        attachments: newMessage.attachments,
+        isRead: false,
+        createdAt: new Date().toISOString(),
+      };
+
+      setRealtimeMessages(prev => [...prev, tempMessage]);
+      return { tempMessage };
+    },
+    onSuccess: (data, _, context) => {
+      // 서버 응답으로 임시 메시지 교체
+      if (context?.tempMessage) {
+        setRealtimeMessages(prev =>
+          prev.map(m => m.id === context.tempMessage.id ? data : m)
+        );
+      }
       // 채팅 목록 새로고침 (lastMessageAt 업데이트를 위해)
       queryClient.invalidateQueries({ queryKey: ['/api/direct-chats'] });
+    },
+    onError: (_, __, context) => {
+      // 에러 시 임시 메시지 제거
+      if (context?.tempMessage) {
+        setRealtimeMessages(prev =>
+          prev.filter(m => m.id !== context.tempMessage.id)
+        );
+      }
     },
   });
 
