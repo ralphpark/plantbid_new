@@ -27,6 +27,8 @@ export function DirectChatModal({ chatId, isOpen, onClose }: DirectChatModalProp
     isSending,
   } = useDirectChat({ chatId, enabled: isOpen });
 
+  console.log('[DirectChatModal] 상태 - isLoading:', isLoading, 'error:', error, 'chat:', chat?.id);
+
   // 새 메시지 시 자동 스크롤
   useEffect(() => {
     if (messages.length > 0) {
@@ -76,7 +78,7 @@ export function DirectChatModal({ chatId, isOpen, onClose }: DirectChatModalProp
       {/* 모달 */}
       <div
         className={cn(
-          'fixed z-50 bg-white rounded-2xl shadow-2xl',
+          'fixed z-[51] bg-white rounded-2xl shadow-2xl',
           'w-full max-w-md h-[600px] max-h-[90vh]',
           'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2',
           'flex flex-col overflow-hidden',

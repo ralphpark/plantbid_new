@@ -25,6 +25,8 @@ export function DirectChatInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
 
+  console.log('[DirectChatInput] 렌더링 - disabled:', disabled, 'isSending:', isSending);
+
   const handleSend = () => {
     const trimmedMessage = message.trim();
     if (!trimmedMessage && attachedImages.length === 0) return;
@@ -167,8 +169,12 @@ export function DirectChatInput({
         <Textarea
           ref={textareaRef}
           value={message}
-          onChange={(e) => setMessage(e.target.value)}
+          onChange={(e) => {
+            console.log('[DirectChatInput] onChange:', e.target.value);
+            setMessage(e.target.value);
+          }}
           onKeyDown={handleKeyDown}
+          onFocus={() => console.log('[DirectChatInput] 포커스됨')}
           placeholder={placeholder}
           disabled={disabled || isSending}
           rows={1}
