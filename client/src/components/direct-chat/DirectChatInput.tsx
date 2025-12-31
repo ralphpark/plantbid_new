@@ -117,7 +117,7 @@ export function DirectChatInput({
   };
 
   return (
-    <div className="border-t bg-white p-3">
+    <div className="border-t bg-white p-3 relative z-20 flex-shrink-0">
       {/* 첨부된 이미지 미리보기 */}
       {attachedImages.length > 0 && (
         <div className="flex gap-2 mb-3 overflow-x-auto pb-2">
@@ -180,7 +180,8 @@ export function DirectChatInput({
           rows={1}
           className={cn(
             'flex-1 min-h-[40px] max-h-[120px] resize-none py-2',
-            'focus:ring-1 focus:ring-primary'
+            'focus:ring-1 focus:ring-primary',
+            'relative z-20 bg-white text-gray-900'
           )}
         />
 

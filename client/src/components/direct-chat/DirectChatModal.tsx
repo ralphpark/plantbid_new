@@ -111,7 +111,7 @@ export function DirectChatModal({ chatId, isOpen, onClose }: DirectChatModalProp
         {/* 메시지 영역 */}
         <div
           ref={messagesContainerRef}
-          className="flex-1 overflow-y-auto p-4 bg-gray-50"
+          className="flex-1 overflow-y-auto p-4 bg-gray-50 relative z-0"
         >
           {isLoading ? (
             <div className="h-full flex items-center justify-center">
