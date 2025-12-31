@@ -9,7 +9,9 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { useLocation } from 'wouter';
-import { Loader2, Package, ShoppingBag, Truck, CheckCircle2, AlertCircle, ChevronRight, CreditCard, Leaf } from 'lucide-react';
+import { Loader2, Package, ShoppingBag, Truck, CheckCircle2, AlertCircle, ChevronRight, CreditCard, Leaf, MessageCircle } from 'lucide-react';
+import { DirectChatModal } from '@/components/direct-chat';
+import { useCreateDirectChat } from '@/hooks/use-direct-chat';
 
 /**
  * 주문 상태별 배지 색상
@@ -41,6 +43,11 @@ export default function OrderHistoryPage() {
   const { user } = useAuth();
   const [, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState('user');
+
+  // 채팅 모달 상태
+  const [directChatId, setDirectChatId] = useState<number | null>(null);
+  const [isDirectChatOpen, setIsDirectChatOpen] = useState(false);
+  const createDirectChatMutation = useCreateDirectChat();
   
   // 사용자 주문 내역 조회
   const { 
@@ -183,6 +190,32 @@ export default function OrderHistoryPage() {
                         
                         <div className="flex items-center space-x-2 mt-2 md:mt-0">
                           {getStatusBadge(order.status)}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              try {
+                                const result = await createDirectChatMutation.mutateAsync({
+                                  vendorId: order.vendorId,
+                                  orderId: order.orderId,
+                                });
+                                setDirectChatId(result.id);
+                                setIsDirectChatOpen(true);
+                              } catch (error) {
+                                toast({
+                                  title: "채팅방 생성 실패",
+                                  description: "잠시 후 다시 시도해주세요.",
+                                  variant: "destructive",
+                                });
+                              }
+                            }}
+                            disabled={createDirectChatMutation.isPending}
+                          >
+                            <MessageCircle className="h-4 w-4" />
+                            판매자 문의
+                          </Button>
                           <ChevronRight className="h-5 w-5 text-muted-foreground" />
                         </div>
                       </div>
@@ -193,8 +226,8 @@ export default function OrderHistoryPage() {
                     <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                     <h3 className="text-lg font-medium">주문 내역이 없습니다</h3>
                     <p className="text-sm text-muted-foreground mt-1">아직 주문한 상품이 없습니다.</p>
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       className="mt-4"
                       onClick={() => navigate('/')}
                     >
@@ -277,6 +310,18 @@ export default function OrderHistoryPage() {
           )}
         </Tabs>
       </div>
+
+      {/* 채팅 모달 */}
+      {directChatId && (
+        <DirectChatModal
+          chatId={directChatId}
+          isOpen={isDirectChatOpen}
+          onClose={() => {
+            setIsDirectChatOpen(false);
+            setDirectChatId(null);
+          }}
+        />
+      )}
     </DashboardLayout>
   );
 }
