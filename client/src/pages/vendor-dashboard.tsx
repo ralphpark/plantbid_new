@@ -1597,6 +1597,7 @@ export default function VendorDashboard() {
                                   try {
                                     const result = await createDirectChatMutation.mutateAsync({
                                       vendorId: vendorProfile?.id || 0,
+                                      customerId: order.userId,
                                       orderId: order.orderId,
                                       conversationId: order.conversationId,
                                     });
@@ -1753,6 +1754,7 @@ export default function VendorDashboard() {
                                   try {
                                     const result = await createDirectChatMutation.mutateAsync({
                                       vendorId: vendorProfile?.id || 0,
+                                      customerId: order.userId,
                                       orderId: order.orderId,
                                       conversationId: order.conversationId,
                                     });

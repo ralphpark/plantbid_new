@@ -7231,11 +7231,28 @@ ${fieldsToTranslate.map(field => {
     }
 
     try {
-      const customerId = req.user!.id;
-      const { vendorId, orderId, bidId, conversationId } = req.body;
+      const userId = req.user!.id;
+      const { vendorId, orderId, bidId, conversationId, customerId: bodyCustomerId } = req.body;
 
       if (!vendorId) {
         return res.status(400).json({ error: "판매자 ID가 필요합니다" });
+      }
+
+      // 현재 사용자가 판매자인지 확인
+      const currentVendor = await storage.getVendorByUserId(userId);
+      const isVendor = currentVendor && currentVendor.id === vendorId;
+
+      let customerId: number;
+
+      if (isVendor) {
+        // 판매자가 채팅방을 생성하는 경우: body에서 customerId를 받아야 함
+        if (!bodyCustomerId) {
+          return res.status(400).json({ error: "고객 ID가 필요합니다" });
+        }
+        customerId = bodyCustomerId;
+      } else {
+        // 고객이 채팅방을 생성하는 경우: 현재 로그인한 사용자가 고객
+        customerId = userId;
       }
 
       // 기존 채팅방 확인

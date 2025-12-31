@@ -244,7 +244,7 @@ export function useCreateDirectChat() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (data: { vendorId: number; orderId?: string; bidId?: number; conversationId?: number }): Promise<DirectChat> => {
+    mutationFn: async (data: { vendorId: number; customerId?: number; orderId?: string; bidId?: number; conversationId?: number }): Promise<DirectChat> => {
       const res = await apiRequest('POST', '/api/direct-chats', data);
       return res.json();
     },
