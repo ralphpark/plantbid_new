@@ -93,7 +93,70 @@ export async function geocodeAddress(address: string): Promise<{
   return null;
 }
 
-// 주소 검색 (지오코딩)
+
+// 텍스트로 장소 검색 (Places Text Search API 사용) - 중복 지명 처리에 더 효과적
+export async function searchPlacesByText(query: string): Promise<Array<{
+  geometry: { location: { lat: number; lng: number } };
+  formatted_address: string;
+  name: string;
+  place_id: string;
+  types?: string[];
+}>> {
+  if (!query || !GOOGLE_MAPS_API_KEY) return [];
+
+  // 쿼리가 너무 짧으면 빈 결과 반환
+  if (query.length < 2) return [];
+
+  try {
+    console.log(`구글 Places Text Search 요청: "${query}"`);
+    const response = await axios.get('https://maps.googleapis.com/maps/api/place/textsearch/json', {
+      params: {
+        query: query,
+        key: GOOGLE_MAPS_API_KEY,
+        language: 'ko',
+        region: 'kr', // 한국 우선 검색
+      }
+    });
+
+    const result = response.data;
+
+    if (result.status === 'OK' && result.results && result.results.length > 0) {
+      // 결과 매핑
+      return result.results.map((item: any) => ({
+        geometry: item.geometry,
+        formatted_address: item.formatted_address,
+        name: item.name,
+        place_id: item.place_id,
+        types: item.types
+      }));
+    } else {
+      console.log(`Places Text Search 결과 없음: ${result.status}`);
+
+      // 결과가 없거나 ZERO_RESULTS인 경우 기존 Geocoding API로 폴백(Fallback) 시도
+      // Geocoding API는 특정 주소 포맷에 더 강할 수 있음
+      if (result.status === 'ZERO_RESULTS') {
+        console.log('Geocoding API로 재시도합니다...');
+        const geocodeResults = await geocodeAddressList(query);
+        return geocodeResults.map(item => ({
+          geometry: { location: { lat: item.lat, lng: item.lng } },
+          formatted_address: item.formatted_address,
+          name: item.formatted_address, // Geocoding 결과는 name 필드가 없으므로 주소 사용
+          place_id: item.place_id || '',
+          types: item.types
+        }));
+      }
+
+      return [];
+    }
+  } catch (error) {
+    console.error('Places Text Search error:', error);
+    // 에러 발생 시 빈 배열 반환 (호출 측에서 처리)
+    return [];
+  }
+}
+
+
+// 주소 검색 (Places Text Search API + Geocoding Fallback)
 export async function searchAddressByQuery(req: Request, res: Response) {
   const { query } = req.query;
 
@@ -106,31 +169,26 @@ export async function searchAddressByQuery(req: Request, res: Response) {
   }
 
   try {
-    const results = await geocodeAddressList(query as string);
+    // 1. Places Text Search API 호출 (우선)
+    const results = await searchPlacesByText(query as string);
 
     if (results.length > 0) {
       return res.json({
         success: true,
-        results: results.map(result => ({
-          geometry: { location: { lat: result.lat, lng: result.lng } },
-          formatted_address: result.formatted_address,
-          name: result.formatted_address,
-          postal_code: result.postal_code,
-          place_id: result.place_id,
-          types: result.types
-        }))
+        results: results
       });
     } else {
+      // 2. 결과가 없으면(searchPlacesByText 내부에서 Geocoding도 실패한 경우)
       return res.json({
         success: false,
         error: '검색 결과가 없습니다.'
       });
     }
   } catch (error) {
-    console.error('Google geocoding error:', error);
+    console.error('Search address error:', error);
     return res.status(500).json({
       success: false,
-      error: '구글 지도 API 호출 중 오류가 발생했습니다.'
+      error: '주소 검색 중 오류가 발생했습니다.'
     });
   }
 }
