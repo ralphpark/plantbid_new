@@ -1218,7 +1218,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 인기 식물 API - 실제 구매된 식물만 반환 (위치 기반 필터링 지원)
   app.get("/api/plants/popular", async (req, res) => {
     try {
-      const { lat, lng, radius } = req.query;
+      const { lat, lng, radius, limit: limitParam } = req.query;
+      const limit = Math.min(parseInt(limitParam as string) || 20, 50); // 기본 20개, 최대 50개
+
       const allOrders = await db.select().from(orders);
       const allProducts = await storage.getAllProducts();
       const allVendors = await storage.getAllVendors();
@@ -1241,7 +1243,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const plantSales = new Map();
+      const plantSales = new Map<number, number>();
 
       for (const order of allOrders) {
         if (order.status === 'paid' || order.status === 'delivered' || order.status === 'completed') {
@@ -1263,9 +1265,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const popularPlants = sortedPlantIds
         .map(id => allPlants.find(p => p.id === id))
         .filter(Boolean)
-        .slice(0, 10);
+        .slice(0, limit);
 
-      res.json(popularPlants.length > 0 ? popularPlants : allPlants.slice(0, 10));
+      // 판매 데이터가 충분하지 않으면 개선된 폴백 로직 적용
+      if (popularPlants.length < limit) {
+        const usedIds = new Set(popularPlants.map(p => p!.id));
+
+        // 1. 이미지가 있는 식물 우선 정렬
+        const plantsWithImages = allPlants.filter(p => p.imageUrl && p.imageUrl.trim() !== '' && !usedIds.has(p.id));
+        const plantsWithoutImages = allPlants.filter(p => (!p.imageUrl || p.imageUrl.trim() === '') && !usedIds.has(p.id));
+
+        // 2. 이미지 있는 식물 중 최근 등록된 순으로 정렬 (다양성 확보)
+        const sortedPlantsWithImages = plantsWithImages.sort((a, b) => {
+          // createdAt이 있으면 최신순, 없으면 ID 역순 (최근 추가된 것 우선)
+          if (a.createdAt && b.createdAt) {
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+          }
+          return b.id - a.id;
+        });
+
+        // 3. 다양한 카테고리/난이도 섞기 위해 셔플 적용
+        const shuffledPlants = [...sortedPlantsWithImages];
+        // Fisher-Yates 셔플 (단, 상위 절반은 유지하고 하위 절반만 셔플)
+        const halfPoint = Math.floor(shuffledPlants.length / 2);
+        for (let i = shuffledPlants.length - 1; i > halfPoint; i--) {
+          const j = halfPoint + Math.floor(Math.random() * (i - halfPoint + 1));
+          [shuffledPlants[i], shuffledPlants[j]] = [shuffledPlants[j], shuffledPlants[i]];
+        }
+
+        // 4. 필요한 만큼 추가
+        const needed = limit - popularPlants.length;
+        const additionalPlants = shuffledPlants.slice(0, needed);
+
+        // 5. 이미지 있는 식물이 부족하면 이미지 없는 식물도 추가
+        if (additionalPlants.length < needed) {
+          const moreNeeded = needed - additionalPlants.length;
+          additionalPlants.push(...plantsWithoutImages.slice(0, moreNeeded));
+        }
+
+        popularPlants.push(...additionalPlants);
+      }
+
+      res.json(popularPlants);
     } catch (error) {
       console.error("Error fetching popular plants:", error);
       if (error instanceof Error) {

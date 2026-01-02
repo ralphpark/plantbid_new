@@ -79,18 +79,21 @@ export default function PopularPlantsPage() {
     queryKey: ["/api/plants/popular", userLocation],
     queryFn: async () => {
       const saved = localStorage.getItem('searchLocation');
-      let query = '';
-      
+      const params = new URLSearchParams();
+      params.set('limit', '20'); // 20개 표시
+
       if (saved && saved.startsWith('{')) {
         try {
           const data = JSON.parse(saved);
-          query = `?lat=${data.lat}&lng=${data.lng}&radius=10`;
+          params.set('lat', data.lat);
+          params.set('lng', data.lng);
+          params.set('radius', '10');
         } catch {
-          query = '';
+          // 위치 정보 파싱 실패 시 무시
         }
       }
-      
-      const response = await fetch(`/api/plants/popular${query}`);
+
+      const response = await fetch(`/api/plants/popular?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to fetch plants');
       return response.json();
     },
@@ -200,7 +203,7 @@ export default function PopularPlantsPage() {
 
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           {isLoading ? (
-            Array(10).fill(0).map((_, i) => (
+            Array(20).fill(0).map((_, i) => (
               <Card key={i} className="overflow-hidden">
                 <Skeleton className="h-40 w-full" />
                 <CardContent className="p-3">

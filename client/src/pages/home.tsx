@@ -151,7 +151,27 @@ export default function Home() {
   }, []);
 
   const { data: popularPlants, isLoading: plantsLoading } = useQuery<Plant[]>({
-    queryKey: ['/api/plants/popular'],
+    queryKey: ['/api/plants/popular', userLocation],
+    queryFn: async () => {
+      const saved = localStorage.getItem('searchLocation');
+      const params = new URLSearchParams();
+      params.set('limit', '10'); // 홈에서는 5개만 표시하지만 여유있게 10개 로드
+
+      if (saved && saved.startsWith('{')) {
+        try {
+          const data = JSON.parse(saved);
+          params.set('lat', data.lat);
+          params.set('lng', data.lng);
+          params.set('radius', '10');
+        } catch {
+          // 위치 정보 파싱 실패 시 무시
+        }
+      }
+
+      const response = await fetch(`/api/plants/popular?${params.toString()}`);
+      if (!response.ok) throw new Error('Failed to fetch plants');
+      return response.json();
+    },
   });
 
   const { data: popularVendors, isLoading: vendorsLoading } = useQuery<Vendor[]>({
